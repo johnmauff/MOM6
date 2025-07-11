@@ -19,22 +19,22 @@ use PQM_functions, only : PQM_reconstruction, PQM_boundary_extrapolation_v1
 use MOM_hybgen_remap, only : hybgen_plm_coefs, hybgen_ppm_coefs, hybgen_weno_coefs
 
 use Recon1d_type, only : Recon1d
-use Recon1d_PCM, only : PCM
-use Recon1d_PLM_CW, only : PLM_CW
-use Recon1d_PLM_hybgen, only : PLM_hybgen
-use Recon1d_PLM_CWK, only : PLM_CWK
-use Recon1d_MPLM_CWK, only : MPLM_CWK
-use Recon1d_EMPLM_CWK, only : EMPLM_CWK
-use Recon1d_MPLM_WA, only : MPLM_WA
-use Recon1d_EMPLM_WA, only : EMPLM_WA
-use Recon1d_MPLM_WA_poly, only : MPLM_WA_poly
-use Recon1d_EMPLM_WA_poly, only : EMPLM_WA_poly
-use Recon1d_PPM_CW, only : PPM_CW
-use Recon1d_PPM_hybgen, only : PPM_hybgen
-use Recon1d_PPM_CWK, only : PPM_CWK
-use Recon1d_EPPM_CWK, only : EPPM_CWK
-use Recon1d_PPM_H4_2019, only : PPM_H4_2019
-use Recon1d_PPM_H4_2018, only : PPM_H4_2018
+use Recon1d_PCM, only : PCM_type => PCM
+use Recon1d_PLM_CW, only : PLM_CW_type => PLM_CW
+use Recon1d_PLM_hybgen, only : PLM_hybgen_type => PLM_hybgen
+use Recon1d_PLM_CWK, only : PLM_CWK_type => PLM_CWK
+use Recon1d_MPLM_CWK, only : MPLM_CWK_type => MPLM_CWK
+use Recon1d_EMPLM_CWK, only : EMPLM_CWK_type => EMPLM_CWK
+use Recon1d_MPLM_WA, only : MPLM_WA_type => MPLM_WA
+use Recon1d_EMPLM_WA, only : EMPLM_WA_type => EMPLM_WA
+use Recon1d_MPLM_WA_poly, only : MPLM_WA_poly_type => MPLM_WA_poly
+use Recon1d_EMPLM_WA_poly, only : EMPLM_WA_poly_type => EMPLM_WA_poly
+use Recon1d_PPM_CW, only : PPM_CW_type => PPM_CW
+use Recon1d_PPM_hybgen, only : PPM_hybgen_type => PPM_hybgen
+use Recon1d_PPM_CWK, only : PPM_CWK_type => PPM_CWK
+use Recon1d_EPPM_CWK, only : EPPM_CWK_type => EPPM_CWK
+use Recon1d_PPM_H4_2019, only : PPM_H4_2019_type => PPM_H4_2019
+use Recon1d_PPM_H4_2018, only : PPM_H4_2018_type => PPM_H4_2018
 
 implicit none ; private
 
@@ -1745,52 +1745,52 @@ subroutine setReconstructionType(string,CS)
       CS%remapping_scheme = REMAPPING_PQM_IH6IH5
       degree = 4
     case ("C_PCM")
-      allocate( PCM :: CS%reconstruction )
+      allocate( PCM_type :: CS%reconstruction )
       CS%remapping_scheme = REMAPPING_VIA_CLASS
     case ("C_PLM_CW")
-      allocate( PLM_CW :: CS%reconstruction )
+      allocate( PLM_CW_type :: CS%reconstruction )
       CS%remapping_scheme = REMAPPING_VIA_CLASS
     case ("C_PLM_HYBGEN")
-      allocate( PLM_hybgen :: CS%reconstruction )
+      allocate( PLM_hybgen_type :: CS%reconstruction )
       CS%remapping_scheme = REMAPPING_VIA_CLASS
     case ("C_MPLM_WA")
-      allocate( MPLM_WA :: CS%reconstruction )
+      allocate( MPLM_WA_type :: CS%reconstruction )
       CS%remapping_scheme = REMAPPING_VIA_CLASS
     case ("C_EMPLM_WA")
-      allocate( EMPLM_WA :: CS%reconstruction )
+      allocate( EMPLM_WA_type :: CS%reconstruction )
       CS%remapping_scheme = REMAPPING_VIA_CLASS
     case ("C_MPLM_WA_POLY")
-      allocate( MPLM_WA_poly :: CS%reconstruction )
+      allocate( MPLM_WA_poly_type :: CS%reconstruction )
       CS%remapping_scheme = REMAPPING_VIA_CLASS
     case ("C_EMPLM_WA_POLY")
-      allocate( EMPLM_WA_poly :: CS%reconstruction )
+      allocate( EMPLM_WA_poly_type :: CS%reconstruction )
       CS%remapping_scheme = REMAPPING_VIA_CLASS
     case ("C_PLM_CWK")
-      allocate( PLM_CWK :: CS%reconstruction )
+      allocate( PLM_CWK_type :: CS%reconstruction )
       CS%remapping_scheme = REMAPPING_VIA_CLASS
     case ("C_MPLM_CWK")
-      allocate( MPLM_CWK :: CS%reconstruction )
+      allocate( MPLM_CWK_type :: CS%reconstruction )
       CS%remapping_scheme = REMAPPING_VIA_CLASS
     case ("C_EMPLM_CWK")
-      allocate( EMPLM_CWK :: CS%reconstruction )
+      allocate( EMPLM_CWK_type :: CS%reconstruction )
       CS%remapping_scheme = REMAPPING_VIA_CLASS
     case ("C_PPM_CW")
-      allocate( PPM_CW :: CS%reconstruction )
+      allocate( PPM_CW_type :: CS%reconstruction )
       CS%remapping_scheme = REMAPPING_VIA_CLASS
     case ("C_PPM_HYBGEN")
-      allocate( PPM_hybgen :: CS%reconstruction )
+      allocate( PPM_hybgen_type :: CS%reconstruction )
       CS%remapping_scheme = REMAPPING_VIA_CLASS
     case ("C_PPM_CWK")
-      allocate( PPM_CWK :: CS%reconstruction )
+      allocate( PPM_CWK_type :: CS%reconstruction )
       CS%remapping_scheme = REMAPPING_VIA_CLASS
     case ("C_EPPM_CWK")
-      allocate( EPPM_CWK :: CS%reconstruction )
+      allocate( EPPM_CWK_type :: CS%reconstruction )
       CS%remapping_scheme = REMAPPING_VIA_CLASS
     case ("C_PPM_H4_2019")
-      allocate( PPM_H4_2019 :: CS%reconstruction )
+      allocate( PPM_H4_2019_type :: CS%reconstruction )
       CS%remapping_scheme = REMAPPING_VIA_CLASS
     case ("C_PPM_H4_2018")
-      allocate( PPM_H4_2018 :: CS%reconstruction )
+      allocate( PPM_H4_2018_type :: CS%reconstruction )
       CS%remapping_scheme = REMAPPING_VIA_CLASS
     case default
       call MOM_error(FATAL, "setReconstructionType: "//&
@@ -2095,22 +2095,22 @@ logical function remapping_unit_tests(verbose, num_comp_samp)
   integer :: om4 ! Loop parameter, 0 or 1
   integer :: ntests ! Number of iterations when brute force testing
   character(len=4) :: om4_tag ! Generated label
-  type(PCM) :: PCM
-  type(PLM_CW) :: PLM_CW
-  type(PLM_hybgen) :: PLM_hybgen
-  type(MPLM_WA) :: MPLM_WA
-  type(EMPLM_WA) :: EMPLM_WA
-  type(MPLM_WA_poly) :: MPLM_WA_poly
-  type(EMPLM_WA_poly) :: EMPLM_WA_poly
-  type(PLM_CWK) :: PLM_CWK
-  type(MPLM_CWK) :: MPLM_CWK
-  type(EMPLM_CWK) :: EMPLM_CWK
-  type(PPM_H4_2019) :: PPM_H4_2019
-  type(PPM_H4_2018) :: PPM_H4_2018
-  type(PPM_CW) :: PPM_CW
-  type(PPM_hybgen) :: PPM_hybgen
-  type(PPM_CWK) :: PPM_CWK
-  type(EPPM_CWK) :: EPPM_CWK
+  type(PCM_type) :: PCM
+  type(PLM_CW_type) :: PLM_CW
+  type(PLM_hybgen_type) :: PLM_hybgen
+  type(MPLM_WA_type) :: MPLM_WA
+  type(EMPLM_WA_type) :: EMPLM_WA
+  type(MPLM_WA_poly_type) :: MPLM_WA_poly
+  type(EMPLM_WA_poly_type) :: EMPLM_WA_poly
+  type(PLM_CWK_type) :: PLM_CWK
+  type(MPLM_CWK_type) :: MPLM_CWK
+  type(EMPLM_CWK_type) :: EMPLM_CWK
+  type(PPM_H4_2019_type) :: PPM_H4_2019
+  type(PPM_H4_2018_type) :: PPM_H4_2018
+  type(PPM_CW_type) :: PPM_CW
+  type(PPM_hybgen_type) :: PPM_hybgen
+  type(PPM_CWK_type) :: PPM_CWK
+  type(EPPM_CWK_type) :: EPPM_CWK
 
   call test%set( verbose=verbose ) ! Sets the verbosity flag in test
 ! call test%set( stop_instantly=.true. ) ! While debugging
