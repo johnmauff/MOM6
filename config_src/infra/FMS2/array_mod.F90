@@ -1,57 +1,58 @@
 module array_mod
+  use, intrinsic :: iso_fortran_env, only : real64
+  use MOM_error_handler, only : MOM_error, FATAL
   implicit none
   private
-  public :: RealArray_t, IntArray_t, dp
+  public :: RealArray_t, IntArray_t
 
-  integer, parameter :: dp = kind(1.0d0)
 
   type :: RealArray_t
-     real(kind=dp), pointer :: data(:)
-     integer :: rank = 0
-     integer, allocatable :: shape(:)
-     integer, allocatable :: lb(:)
-     integer, allocatable :: ub(:)
+     real(kind=real64), pointer :: data(:) => null() !< Pointer to storage for array container
+     integer :: rank = 0                             !< Rank of array
+     integer, allocatable :: shape(:)                !< Shape of array
+     integer, allocatable :: lb(:)                   !< Lower bounds
+     integer, allocatable :: ub(:)                   !< Upper bounds
    contains
-     procedure :: allocReal, freeReal
-     procedure ::  viewReal1D,  viewReal2D,  viewReal3D,  viewReal4D
-     procedure :: allocReal1D, allocReal2D, allocReal3D, allocReal4D
-     generic   :: view => viewReal1D, viewReal2D, viewReal3D, viewReal4D
-     generic   :: free => freeReal
-     generic   :: alloc => allocReal1D, allocReal2D, allocReal3D, allocReal4D
-     !procedure :: slice_3d
+     procedure :: allocReal, freeReal                                         !< Allocate and deallocate memory in container
+     procedure ::  viewReal1D,  viewReal2D,  viewReal3D,  viewReal4D          !< Associate a Fortran pointer to array container
+     procedure :: allocReal1D, allocReal2D, allocReal3D, allocReal4D          !< Allocate memory and associate a Fortran pointer
+     generic   :: view => viewReal1D, viewReal2D, viewReal3D, viewReal4D      !< Generic interface for view
+     generic   :: free => freeReal                                            !< Generic interface for deallocate
+     generic   :: alloc => allocReal1D, allocReal2D, allocReal3D, allocReal4D !< Generic interface for array container allocation
   end type RealArray_t
 
   type :: IntArray_t
-     integer, pointer :: data(:)
-     integer :: rank = 0
-     integer, allocatable :: shape(:)
-     integer, allocatable :: lb(:)
-     integer, allocatable :: ub(:)
+     integer, pointer :: data(:) => null() !< Pointer to storage for array container
+     integer :: rank = 0                   !< Rank of array             
+     integer, allocatable :: shape(:)      !< Shape of array
+     integer, allocatable :: lb(:)         !< Lower bounds
+     integer, allocatable :: ub(:)         !< Upper bounds
    contains
-     procedure :: allocInt, freeInt
-     procedure ::  viewInt1D,  viewInt2D,  viewInt3D,  viewInt4D
-     procedure :: allocInt1D, allocInt2D, allocInt3D, allocInt4D
-     generic   :: view  => viewInt1D, viewInt2D, viewInt3D, viewInt4D
-     generic   :: free => freeInt
-     generic   :: alloc => allocInt1D, allocInt2D, allocInt3D, allocInt4D
+     procedure :: allocInt, freeInt                                       !< Allocate and deallocate memory in container
+     procedure ::  viewInt1D,  viewInt2D,  viewInt3D,  viewInt4D          !< Associate a Fortran pointer to array container
+     procedure :: allocInt1D, allocInt2D, allocInt3D, allocInt4D          !< Allocate memory and associate a Fortran pointer
+     generic   :: view  => viewInt1D, viewInt2D, viewInt3D, viewInt4D     !< Generic interface for view
+     generic   :: free => freeInt                                         !< Generic interface for deallocate
+     generic   :: alloc => allocInt1D, allocInt2D, allocInt3D, allocInt4D !< Generic interface for array container allocation
   end type intArray_t
 
 contains
 
 subroutine allocReal(this, dims,lb,ub,source)
-  class(RealArray_t), intent(inout) :: this
-  integer, intent(in),optional :: dims(:), lb(:), ub(:)
-  real(kind=dp), intent(in), optional :: source
+  class(RealArray_t), intent(inout) :: this         !< The array container to allocate
+  integer, intent(in),optional :: dims(:)           !< Dimensions (1-indexed)
+  integer, intent(in),optional :: lb(:)             !< Lower bounds
+  integer, intent(in),optional :: ub(:)             !< Upper bounds
+  real(kind=real64), intent(in), optional :: source !< Initial value for all elements
 
+  if (associated(this%data)) deallocate(this%data)
   if (allocated(this%shape)) deallocate(this%shape)
   if (allocated(this%lb))    deallocate(this%lb)
   if (allocated(this%ub))    deallocate(this%ub)
 
   if(present(ub) .and. present(lb) .and. .not. present(dims)) then 
     if(size(lb) .ne. size(ub)) then 
-        write(*,*) 'Error: size of lb and ub must match'
-        !stat=1
-        return
+        call MOM_error(FATAL, "allocReal: size of lb and ub must match")
     endif
     this%rank     = size(lb)
     ! Allocate shape and bound information
@@ -73,30 +74,27 @@ subroutine allocReal(this, dims,lb,ub,source)
     this%shape(:) = dims(:)
     allocate(this%data(product(dims)))
     if(present(source)) this%data(:)=source
-    !stat=0
   else
-     write(*,*) 'Error: Must specify either ub and lb or dims'
-     !stat=1
-     return
+    call MOM_error(FATAL, "allocReal: Must specify either ub and lb or dims")
   endif
 
 end subroutine allocReal
 
 subroutine allocInt(this, dims,lb,ub,source)
-  class(IntArray_t), intent(inout) :: this
-  integer, intent(in),optional :: dims(:), lb(:), ub(:)
-  integer, optional :: source
-  !integer, optional :: stat
+  class(IntArray_t), intent(inout) :: this !< The array container to allocate
+  integer, intent(in),optional :: dims(:)  !< Dimensions (1-indexed)
+  integer, intent(in),optional :: lb(:)    !< Lower bounds
+  integer, intent(in),optional :: ub(:)    !< Upper bounds
+  integer, optional :: source              !< Initial value for all elements
 
+  if (associated(this%data)) deallocate(this%data)
   if (allocated(this%shape)) deallocate(this%shape)
   if (allocated(this%lb))    deallocate(this%lb)
   if (allocated(this%ub))    deallocate(this%ub)
 
   if(present(ub) .and. present(lb) .and. .not. present(dims)) then 
     if(size(lb) .ne. size(ub)) then 
-        write(*,*) 'Error: size of lb and ub must match'
-        !if(present(stat)) stat=1
-        return
+        call MOM_error(FATAL, "allocReal: size of lb and ub must match")
     endif
     this%rank     = size(lb)
     ! Allocate shape and bound information
@@ -107,7 +105,6 @@ subroutine allocInt(this, dims,lb,ub,source)
     this%shape(:) = ub(:)-lb(:)+1
     allocate(this%data(product(this%shape)))
     if(present(source)) this%data(:)=source
-    !if(present(stat)) stat=0
   elseif(present(dims) .and. .not. present(ub) .and. .not. present(lb)) then 
     this%rank     = size(dims)
     ! Allocate shape and bound information
@@ -118,17 +115,14 @@ subroutine allocInt(this, dims,lb,ub,source)
     this%shape(:) = dims(:)
     allocate(this%data(product(dims)))
     if(present(source)) this%data(:)=source
-    !if(present(stat)) stat=0
   else
-     write(*,*) 'Error: Must specify either ub and lb or dims'
-     !if(present(stat)) stat=1
-     return
+    call MOM_error(FATAL, "allocReal: Must specify either ub and lb or dims")
   endif
 
 end subroutine allocInt
 
 subroutine freeReal(this)
-  class(RealArray_t), intent(inout) :: this
+  class(RealArray_t), intent(inout) :: this  !< The array container to deallocate
 
   if (associated(this%data)) deallocate(this%data)
   if (allocated(this%shape)) deallocate(this%shape)
@@ -138,7 +132,7 @@ subroutine freeReal(this)
 end subroutine freeReal
 
 subroutine freeInt(this)
-  class(IntArray_t), intent(inout) :: this
+  class(IntArray_t), intent(inout) :: this  !< The array container to deallocate
 
   if (associated(this%data))  deallocate(this%data)
   if (allocated(this%shape)) deallocate(this%shape)
@@ -147,40 +141,13 @@ subroutine freeInt(this)
   this%rank = 0
 end subroutine freeInt
 
-subroutine slice_3d(this, sub, i, j, k)
-  class(RealArray_t), intent(in) :: this
-  real(kind=dp), pointer :: sub(:,:)
-  integer, intent(in) :: i(:), j(:), k(:)
-  real(kind=dp), pointer :: a(:,:,:)
-  integer :: n1, n2, n3
-  integer :: iend,jend
-
-  if (this%rank /= 3) stop "slice_3d: rank mismatch"
-  ! a => reshape(this%data, this%shape)
-  ! Extract dimensions
-  n1 = this%shape(1)
-  n2 = this%shape(2)
-  n3 = this%shape(3)
-  a(1:n1,1:n2,1:n3) => this%data
-
-  iend=size(i)
-  jend=size(j)
-  if(is_contiguous(a(i(1):i(iend), j(1):j(jend), k(1)))) then 
-     ! Safe for pointr assignment
-     sub => a(i(1):i(iend), j(1):j(jend), k(1))
-   else
-     ! must allocate and copy 
-     allocate(sub(iend,jend))
-     sub = a(i,j,k(1))
-   endif
-
-end subroutine slice_3d
-
 subroutine allocReal1D(this, a, dims, lb, ub, source)
-   class(RealArray_t), intent(inout) :: this
-   real(kind=dp), pointer :: a(:)
-   integer, intent(in),optional :: dims(:), lb(:), ub(:)
-   real(kind=dp), intent(in), optional :: source
+   class(RealArray_t), intent(inout) :: this         !< The array container to allocate
+   real(kind=real64), intent(inout), pointer :: a(:) !< The Fortran pointer array
+   integer, intent(in),optional :: dims(:)           !< Dimensions (1-indexed)
+   integer, intent(in),optional :: lb(:)             !< Lower bounds
+   integer, intent(in),optional :: ub(:)             !< Upper bounds
+   real(kind=real64), intent(in), optional :: source !< Initial value for all elements
 
    ! allocate the memory
    call this%allocReal(dims=dims, lb=lb, ub=ub, source=source)
@@ -191,12 +158,11 @@ subroutine allocReal1D(this, a, dims, lb, ub, source)
 end subroutine allocReal1D
 
 subroutine viewReal1D(this, a)
-   class(RealArray_t), intent(in) :: this
-   real(kind=dp), pointer :: a(:)
-   integer :: n1
+   class(RealArray_t), intent(in) :: this     !< The already allocated array container
+   real(kind=real64), pointer :: a(:)         !< The Fortran pointer array to associate
 
-   if (this%rank /= 1) stop "viewReal1D: rank mismatch"
-   if (.not. allocated(this%shape)) stop "viewReal1D: shape not allocated"
+   if (this%rank /= 1) call MOM_error(FATAL, "viewReal1D: rank mismatch")
+   if (.not. allocated(this%shape)) call MOM_error(FATAL, "viewReal1D: shape not allocated")
 
    ! Zero copy no allocation
    a(this%lb(1):this%ub(1)) => this%data
@@ -204,88 +170,100 @@ subroutine viewReal1D(this, a)
 end subroutine viewReal1D
 
 subroutine allocReal2D(this, a, dims, lb, ub, source)
-   class(RealArray_t), intent(inout) :: this
-   real(kind=dp), pointer :: a(:,:)
-   integer, intent(in),optional :: dims(:), lb(:), ub(:)
-   real(kind=dp), intent(in), optional :: source
+   class(RealArray_t), intent(inout) :: this           !< The array container to allocate
+   real(kind=real64), intent(inout), pointer :: a(:,:) !< The Fortran pointer array
+   integer, intent(in),optional :: dims(:)             !< Dimensions (1-indexed)
+   integer, intent(in),optional :: lb(:)               !< Lower bounds
+   integer, intent(in),optional :: ub(:)               !< Upper bounds
+   real(kind=real64), intent(in), optional :: source   !< Initial value for all elements
 
    ! allocate the memory
    call this%allocReal(dims=dims, lb=lb, ub=ub, source=source)
 
    ! Zero copy no allocation
-   a(this%lb(1):this%ub(1),this%lb(2):this%ub(2)) => this%data
+   a(this%lb(1):this%ub(1), this%lb(2):this%ub(2)) => this%data
 
 end subroutine allocReal2D
 
 subroutine viewReal2D(this,a)
-   class(RealArray_t), intent(in) :: this
-   real(kind=dp), pointer :: a(:,:)
+   class(RealArray_t), intent(in) :: this              !< The already allocated array container
+   real(kind=real64), intent(inout), pointer :: a(:,:) !< The Fortran pointer array to associate
 
-   if (this%rank /= 2) stop "viewReal2D: rank mismatch"
-   if (.not. allocated(this%shape)) stop "viewReal2D: shape not allocated"
+   if (this%rank /= 2) call MOM_error(FATAL, "viewReal2D: rank mismatch")
+   if (.not. allocated(this%shape)) call MOM_error(FATAL, "viewReal2D: shape not allocated")
 
    ! Zero copy no allocation
-   a(this%lb(1):this%ub(1),this%lb(2):this%ub(2)) => this%data
+   a(this%lb(1):this%ub(1), this%lb(2):this%ub(2)) => this%data
 
 end subroutine viewReal2D
 
 subroutine allocReal3D(this, a, dims, lb, ub, source)
-   class(RealArray_t), intent(inout) :: this
-   real(kind=dp), pointer :: a(:,:,:)
-   integer, intent(in),optional :: dims(:), lb(:), ub(:)
-   real(kind=dp), intent(in), optional :: source
+   class(RealArray_t), intent(inout) :: this             !< The array container to allocate
+   real(kind=real64), intent(inout), pointer :: a(:,:,:) !< The Fortran pointer array
+   integer, intent(in),optional :: dims(:)               !< Dimensions (1-indexed)
+   integer, intent(in),optional :: lb(:)                 !< Lower bounds
+   integer, intent(in),optional :: ub(:)                 !< Upper bounds
+   real(kind=real64), intent(in), optional :: source     !< Initial value for all elements
 
    ! allocate the memory
    call this%allocReal(dims=dims, lb=lb, ub=ub, source=source)
 
    ! Zero copy no allocation
-   a(this%lb(1):this%ub(1),this%lb(2):this%ub(2),this%lb(3):this%ub(3)) => this%data
+   a(this%lb(1):this%ub(1), this%lb(2):this%ub(2), &
+     this%lb(3):this%ub(3)) => this%data
 
 end subroutine allocReal3D
 
 subroutine viewReal3D(this,a)
-   class(RealArray_t), intent(in) :: this
-   real(kind=dp), pointer :: a(:,:,:)
+   class(RealArray_t), intent(in) :: this                !< The array container to allocate
+   real(kind=real64), intent(inout), pointer :: a(:,:,:) !< The Fortran pointer array
 
-   if (this%rank /= 3) stop "viewReal3D: rank mismatch"
-   if (.not. allocated(this%shape)) stop "viewReal3D: shape not allocated"
+   if (this%rank /= 3) call MOM_error(FATAL, "viewReal3D: rank mismatch")
+   if (.not. allocated(this%shape)) call MOM_error(FATAL, "viewReal3D: shape not allocated")
 
    ! Zero copy no allocation
-   a(this%lb(1):this%ub(1),this%lb(2):this%ub(2),this%lb(3):this%ub(3)) => this%data
+   a(this%lb(1):this%ub(1), this%lb(2):this%ub(2), &
+     this%lb(3):this%ub(3)) => this%data
 
 end subroutine viewReal3D
 
 subroutine allocReal4D(this, a, dims, lb, ub, source)
-   class(RealArray_t), intent(inout) :: this
-   real(kind=dp), pointer :: a(:,:,:,:)
-   integer, intent(in),optional :: dims(:), lb(:), ub(:)
-   real(kind=dp), intent(in), optional :: source
+   class(RealArray_t), intent(inout) :: this               !< The array container to allocate
+   real(kind=real64), intent(inout), pointer :: a(:,:,:,:) !< The Fortran pointer array
+   integer, intent(in),optional :: dims(:)                 !< Dimensions (1-indexed)
+   integer, intent(in),optional :: lb(:)                   !< Lower bounds
+   integer, intent(in),optional :: ub(:)                   !< Upper bounds
+   real(kind=real64), intent(in), optional :: source       !< Initial value for all elements
 
    ! allocate the memory
    call this%allocReal(dims=dims, lb=lb, ub=ub, source=source)
 
    ! Zero copy no allocation
-   a(this%lb(1):this%ub(1),this%lb(2):this%ub(2),this%lb(3):this%ub(3),this%lb(4):this%ub(4)) => this%data
+   a(this%lb(1):this%ub(1), this%lb(2):this%ub(2), &
+     this%lb(3):this%ub(3), this%lb(4):this%ub(4)) => this%data
 
 end subroutine allocReal4D
 
 subroutine viewReal4D(this,a)
-   class(RealArray_t), intent(in) :: this
-   real(kind=dp), pointer :: a(:,:,:,:)
+   class(RealArray_t), intent(in) :: this                  !< The array container to allocate
+   real(kind=real64), intent(inout), pointer :: a(:,:,:,:) !< The Fortran pointer array
 
-   if (this%rank /= 4) stop "viewReal4D: rank mismatch"
-   if (.not. allocated(this%shape)) stop "viewReal4D: shape not allocated"
+   if (this%rank /= 4) call MOM_error(FATAL, "viewReal4D: rank mismatch")
+   if (.not. allocated(this%shape)) call MOM_error(FATAL, "viewReal4D: shape not allocated")
 
    ! Zero copy no allocation
-   a(this%lb(1):this%ub(1),this%lb(2):this%ub(2),this%lb(3):this%ub(3),this%lb(4):this%ub(4)) => this%data
+   a(this%lb(1):this%ub(1), this%lb(2):this%ub(2), &
+     this%lb(3):this%ub(3), this%lb(4):this%ub(4)) => this%data
 
 end subroutine viewReal4D
 
 subroutine allocInt1D(this, a, dims, lb, ub, source)
-   class(intArray_t), intent(inout) :: this
-   integer, pointer :: a(:)
-   integer, intent(in), optional :: dims(:), lb(:), ub(:)
-   integer, intent(in), optional :: source
+   class(intArray_t), intent(inout) :: this !< The array container to allocate                     
+   integer, intent(inout), pointer :: a(:)  !< The Fortran pointer array
+   integer, intent(in), optional :: dims(:) !< Dimensions (1-indexed)
+   integer, intent(in), optional :: lb(:)   !< Lower bounds
+   integer, intent(in), optional :: ub(:)   !< Upper bounds
+   integer, intent(in), optional :: source  !< Initial value foer all elements
 
    ! allocate the memory
    call this%allocInt(dims=dims, lb=lb, ub=ub, source=source)
@@ -296,11 +274,11 @@ subroutine allocInt1D(this, a, dims, lb, ub, source)
 end subroutine allocInt1D
 
 subroutine viewInt1D(this, a)
-   class(intArray_t), intent(in) :: this
-   integer, pointer :: a(:)
+   class(intArray_t), intent(in) :: this   !< The array container to allocate
+   integer, intent(inout), pointer :: a(:) !< The Fortran pointer array
 
-   if (this%rank /= 1) stop "viewInt1D: rank mismatch"
-   if (.not. allocated(this%shape)) stop "viewInt1D: shape not allocated"
+   if (this%rank /= 1) call MOM_error(FATAL, "viewInt1D: rank mismatch")
+   if (.not. allocated(this%shape)) call MOM_error(FATAL, "viewInt1D: shape not allocated")
 
    ! Zero copy no allocation
    a(this%lb(1):this%ub(1)) => this%data
@@ -308,80 +286,90 @@ subroutine viewInt1D(this, a)
 end subroutine viewInt1D
 
 subroutine allocInt2D(this, a, dims, lb, ub, source)
-   class(intArray_t), intent(inout) :: this
-   integer, pointer :: a(:,:)
-   integer, intent(in), optional :: dims(:), lb(:), ub(:)
-   integer, intent(in), optional :: source
+   class(intArray_t), intent(inout) :: this  !< The array container to allocate
+   integer, intent(inout), pointer :: a(:,:) !< The Fortran pointer array
+   integer, intent(in), optional :: dims(:)  !< Dimensions (1-indexed)
+   integer, intent(in), optional :: lb(:)    !< Lower bounds
+   integer, intent(in), optional :: ub(:)    !< Upper bounds
+   integer, intent(in), optional :: source   !< Initial value foer all elements
 
    ! allocate the memory
    call this%allocInt(dims=dims, lb=lb, ub=ub, source=source)
 
    ! Zero copy no allocation
-   a(this%lb(1):this%ub(1),this%lb(2):this%ub(2)) => this%data
+   a(this%lb(1):this%ub(1), this%lb(2):this%ub(2)) => this%data
 
 end subroutine allocInt2D
 
 subroutine viewInt2D(this,a)
-   class(intArray_t), intent(in) :: this
-   integer, pointer :: a(:,:)
+   class(intArray_t), intent(in) :: this     !< The array container to allocate
+   integer, intent(inout), pointer :: a(:,:) !< The Fortran pointer array
 
-   if (this%rank /= 2) stop "viewInt2D: rank mismatch"
-   if (.not. allocated(this%shape)) stop "viewInt2D: shape not allocated"
+   if (this%rank /= 2) call MOM_error(FATAL, "viewInt2D: rank mismatch")
+   if (.not. allocated(this%shape)) call MOM_error(FATAL, "viewInt2D: shape not allocated")
 
    ! Zero copy no allocation
-   a(this%lb(1):this%ub(1),this%lb(2):this%ub(2)) => this%data
+   a(this%lb(1):this%ub(1), this%lb(2):this%ub(2)) => this%data
 
 end subroutine viewInt2D
 
 subroutine allocInt3D(this, a, dims, lb, ub, source)
-   class(intArray_t), intent(inout) :: this
-   integer, pointer :: a(:,:,:)
-   integer, intent(in), optional :: dims(:), lb(:), ub(:)
-   integer, intent(in), optional :: source
+   class(intArray_t), intent(inout) :: this    !< The array container to allocate
+   integer, intent(inout), pointer :: a(:,:,:) !< The Fortran pointer array
+   integer, intent(in), optional :: dims(:)    !< Dimensions (1-indexed)
+   integer, intent(in), optional :: lb(:)      !< Lower bounds
+   integer, intent(in), optional :: ub(:)      !< Upper bounds
+   integer, intent(in), optional :: source     !< Initial value foer all elements
 
    ! allocate the memory
    call this%allocInt(dims=dims, lb=lb, ub=ub, source=source)
 
    ! Zero copy no allocation
-   a(this%lb(1):this%ub(1),this%lb(2):this%ub(2),this%lb(3):this%ub(3)) => this%data
+   a(this%lb(1):this%ub(1), this%lb(2):this%ub(2), &
+     this%lb(3):this%ub(3)) => this%data
 
 end subroutine allocInt3D
 
 subroutine viewInt3D(this,a)
-   class(intArray_t), intent(in) :: this
-   integer, pointer :: a(:,:,:)
+   class(intArray_t), intent(in) :: this       !< The array container to allocate
+   integer, intent(inout), pointer :: a(:,:,:) !< The Fortran pointer array
 
-   if (this%rank /= 3) stop "viewInt3D: rank mismatch"
-   if (.not. allocated(this%shape)) stop "viewInt3D: shape not allocated"
+   if (this%rank /= 3) call MOM_error(FATAL, "viewInt3D: rank mismatch")
+   if (.not. allocated(this%shape)) call MOM_error(FATAL, "viewInt3D: shape not allocated")
 
    ! Zero copy no allocation
-   a(this%lb(1):this%ub(1),this%lb(2):this%ub(2),this%lb(3):this%ub(3)) => this%data
+   a(this%lb(1):this%ub(1), this%lb(2):this%ub(2), &
+     this%lb(3):this%ub(3)) => this%data
 
 end subroutine viewInt3D
 
 subroutine allocInt4D(this, a, dims, lb, ub, source)
-   class(intArray_t), intent(inout) :: this
-   integer, pointer :: a(:,:,:,:)
-   integer, intent(in), optional :: dims(:), lb(:), ub(:)
-   integer, intent(in), optional :: source
+   class(intArray_t), intent(inout) :: this      !< The array container to allocate
+   integer, intent(inout), pointer :: a(:,:,:,:) !< The Fortran pointer array
+   integer, intent(in), optional :: dims(:)      !< Dimensions (1-indexed)
+   integer, intent(in), optional :: lb(:)        !< Lower bounds
+   integer, intent(in), optional :: ub(:)        !< Upper bounds
+   integer, intent(in), optional :: source       !< Initial value foer all elements
 
    ! allocate the memory
    call this%allocInt(dims=dims, lb=lb, ub=ub, source=source)
 
    ! Zero copy no allocation
-   a(this%lb(1):this%ub(1),this%lb(2):this%ub(2),this%lb(3):this%ub(3),this%lb(4):this%ub(4)) => this%data
+   a(this%lb(1):this%ub(1), this%lb(2):this%ub(2), &
+     this%lb(3):this%ub(3), this%lb(4):this%ub(4)) => this%data
 
 end subroutine allocInt4D
 
 subroutine viewInt4D(this,a)
-   class(intArray_t), intent(in) :: this
-   integer, pointer :: a(:,:,:,:)
+   class(intArray_t), intent(in) :: this         !< The array container to allocate
+   integer, intent(inout), pointer :: a(:,:,:,:) !< The Fortran pointer array
 
-   if (this%rank /= 4) stop "view4DInt: rank mismatch"
-   if (.not. allocated(this%shape)) stop "view4DInt: shape not allocated"
+   if (this%rank /= 4) call MOM_error(FATAL, "viewInt4D: rank mismatch")
+   if (.not. allocated(this%shape)) call MOM_error(FATAL, "viewInt4D: shape not allocated")
 
    ! Zero copy no allocation
-   a(this%lb(1):this%ub(1),this%lb(2):this%ub(2),this%lb(3):this%ub(3),this%lb(4):this%ub(4)) => this%data
+   a(this%lb(1):this%ub(1), this%lb(2):this%ub(2), &
+     this%lb(3):this%ub(3), this%lb(4):this%ub(4)) => this%data
 
 end subroutine viewInt4D
 

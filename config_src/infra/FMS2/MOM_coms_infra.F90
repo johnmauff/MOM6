@@ -287,8 +287,7 @@ end subroutine broadcast_real3D
 
 !> Communicate an array of reals from one PE to others
 subroutine broadcast_RealArray(dat, from_PE, PElist, blocking)
-  type(RealArray_t) :: dat                          !< The data to communicate
-
+  type(RealArray_t), intent(inout)    :: dat       !< The data to communicate
   integer,    optional, intent(in)    :: from_PE   !< The source PE, by default the root PE
   integer,    optional, intent(in)    :: PElist(:) !< The list of participating PEs, by default the
                                                    !! active PE set as previously set via Set_PElist.
@@ -310,8 +309,7 @@ end subroutine broadcast_RealArray
 
 !> Communicate an array of reals from one PE to others
 subroutine broadcast_IntArray(dat, from_PE, PElist, blocking)
-  type(IntArray_t) :: dat                          !< The data to communicate
-
+  type(IntArray_t), intent(inout)     :: dat       !< The data to communicate
   integer,    optional, intent(in)    :: from_PE   !< The source PE, by default the root PE
   integer,    optional, intent(in)    :: PElist(:) !< The list of participating PEs, by default the
                                                    !! active PE set as previously set via Set_PElist.
