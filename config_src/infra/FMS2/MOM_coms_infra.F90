@@ -12,6 +12,8 @@ use mpp_mod, only : mpp_sum, mpp_max, mpp_min
 use memutils_mod, only : print_memuse_stats
 use fms_mod, only : fms_end, fms_init
 
+use array_mod, only : IntArray_t, RealArray_t
+
 implicit none ; private
 
 public :: PE_here, root_PE, num_PEs, set_rootPE, Set_PElist, Get_PElist, sync_PEs
@@ -26,6 +28,7 @@ public :: field_chksum, MOM_infra_init, MOM_infra_end
 interface broadcast
   module procedure broadcast_char, broadcast_int32_0D, broadcast_int64_0D, broadcast_int1D
   module procedure broadcast_real0D, broadcast_real1D, broadcast_real2D, broadcast_real3D
+  module procedure broadcast_RealArray, broadcast_IntArray
 end interface broadcast
 
 !> Compute a checksum for a field distributed over a PE list.  If no PE list is
@@ -281,6 +284,51 @@ subroutine broadcast_real3D(dat, length, from_PE, PElist, blocking)
   if (do_block) call mpp_sync_self(PElist)
 
 end subroutine broadcast_real3D
+
+!> Communicate an array of reals from one PE to others
+subroutine broadcast_RealArray(dat, from_PE, PElist, blocking)
+  type(RealArray_t), intent(inout)    :: dat       !< The data to communicate
+  integer,    optional, intent(in)    :: from_PE   !< The source PE, by default the root PE
+  integer,    optional, intent(in)    :: PElist(:) !< The list of participating PEs, by default the
+                                                   !! active PE set as previously set via Set_PElist.
+  logical,    optional, intent(in)    :: blocking  !< If true, barriers are added around the call
+
+  integer :: src_PE   ! The processor that is sending the data
+  logical :: do_block ! If true add synchronizing barriers
+  integer :: length    !< The total number of data elements
+
+  do_block = .false. ; if (present(blocking)) do_block = blocking
+  if (present(from_PE)) then ; src_PE = from_PE ; else ; src_PE = root_PE() ; endif
+  length = product(dat%shape)
+
+  if (do_block) call mpp_sync(PElist)
+  call mpp_broadcast(dat%data, length, src_PE, PElist)
+  if (do_block) call mpp_sync_self(PElist)
+
+end subroutine broadcast_RealArray
+
+!> Communicate an array of reals from one PE to others
+subroutine broadcast_IntArray(dat, from_PE, PElist, blocking)
+  type(IntArray_t), intent(inout)     :: dat       !< The data to communicate
+  integer,    optional, intent(in)    :: from_PE   !< The source PE, by default the root PE
+  integer,    optional, intent(in)    :: PElist(:) !< The list of participating PEs, by default the
+                                                   !! active PE set as previously set via Set_PElist.
+  logical,    optional, intent(in)    :: blocking  !< If true, barriers are added around the call
+
+  integer :: src_PE   ! The processor that is sending the data
+  logical :: do_block ! If true add synchronizing barriers
+  integer :: length    !< The total number of data elements
+
+  do_block = .false. ; if (present(blocking)) do_block = blocking
+  if (present(from_PE)) then ; src_PE = from_PE ; else ; src_PE = root_PE() ; endif
+  length = product(dat%shape)
+
+  if (do_block) call mpp_sync(PElist)
+  call mpp_broadcast(dat%data, length, src_PE, PElist)
+  if (do_block) call mpp_sync_self(PElist)
+
+end subroutine broadcast_IntArray
+
 
 ! field_chksum wrappers
 
