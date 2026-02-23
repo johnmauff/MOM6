@@ -7,7 +7,7 @@ use MOM_domain_infra,    only : MOM_domain_type, domain2d
 use MOM_io,              only : axis_info
 use MOM_io,              only : get_var_axes_info
 use MOM_time_manager,    only : time_type
-use MOM_error_handler, only : MOM_error, FATAL
+use MOM_error_infra, only : MOM_err, FATAL
 use MOM_string_functions, only : lowercase
 use horiz_interp_mod, only : horiz_interp_new, horiz_interp, horiz_interp_init, horiz_interp_type
 use netcdf_io_mod, only : FmsNetcdfFile_t, netcdf_file_open, netcdf_file_close
@@ -287,7 +287,7 @@ function init_extern_field(file, fieldname, MOM_domain, domain, verbose, &
 
   rc = netcdf_file_open(extern_file, file, 'read')
   if (.not. rc) then
-    call MOM_error(FATAL, 'init_extern_file: file ' // trim(file) &
+    call MOM_err(FATAL, 'init_extern_file: file ' // trim(file) &
         // ' could not be opened.')
   endif
 
@@ -307,7 +307,7 @@ function init_extern_field(file, fieldname, MOM_domain, domain, verbose, &
   call netcdf_file_close(extern_file)
 
   if (.not. allocated(field%label)) then
-    call MOM_error(FATAL, 'init_extern_field: field ' // trim(fieldname) &
+    call MOM_err(FATAL, 'init_extern_field: field ' // trim(fieldname) &
         // ' not found in ' // trim(file) // '.')
   endif
 

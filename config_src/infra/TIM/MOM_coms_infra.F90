@@ -5,21 +5,22 @@ module MOM_coms_infra
 
 use iso_fortran_env, only : int32, int64
 
-use mpp_mod, only : mpp_pe, mpp_root_pe, mpp_npes, mpp_set_root_pe
-use mpp_mod, only : mpp_set_current_pelist, mpp_get_current_pelist
-use mpp_mod, only : mpp_broadcast, mpp_sync, mpp_sync_self, mpp_chksum
-use mpp_mod, only : mpp_sum, mpp_max, mpp_min
-use memutils_mod, only : print_memuse_stats
-use fms_mod, only : fms_end, fms_init
+use mpp_mod, only : mpp_broadcast, mpp_chksum
+use mpp_mod, only : mpp_sum, mpp_max, mpp_min, mpp_sync_self
+!use memutils_mod, only : print_memuse_stats
+!use fms_mod, only : fms_end, fms_init
 
+use MOM_utils_infra, only : PE_here, root_PE, num_PEs, set_rootPE
+use MOM_utils_infra, only : Set_PElist, Get_PElist, sync_PEs
+use MOM_utils_infra, only : MOM_infra_init, MOM_infra_end
 use array_mod, only : IntArray_t, RealArray_t
 
 implicit none ; private
 
 public :: PE_here, root_PE, num_PEs, set_rootPE, Set_PElist, Get_PElist, sync_PEs
 public :: broadcast, sum_across_PEs, min_across_PEs, max_across_PEs
-public :: any_across_PEs, all_across_PEs
-public :: field_chksum, MOM_infra_init, MOM_infra_end
+public :: any_across_PEs, all_across_PEs, field_chksum
+public :: MOM_infra_init, MOM_infra_end
 
 ! This module provides interfaces to the non-domain-oriented communication
 ! subroutines.
@@ -70,55 +71,6 @@ end interface min_across_PEs
 
 contains
 
-!> Return the ID of the PE for the current process.
-function PE_here() result(pe)
-  integer :: pe   !< PE ID of the current process
-  pe = mpp_pe()
-end function PE_here
-
-!> Return the ID of the root PE for the PE list of the current procss.
-function root_PE() result(pe)
-  integer :: pe   !< root PE ID
-  pe = mpp_root_pe()
-end function root_PE
-
-!> Return the number of PEs for the current PE list.
-function num_PEs() result(npes)
-  integer :: npes   !< Number of PEs
-  npes = mpp_npes()
-end function num_PEs
-
-!> Designate a PE as the root PE
-subroutine set_rootPE(pe)
-  integer, intent(in) :: pe   !< ID of the PE to be assigned as root
-  call mpp_set_root_pe(pe)
-end subroutine
-
-!> Set the current PE list.  If no list is provided, then the current PE list
-!! is set to the list of all available PEs on the communicator.  Setting the
-!! list will trigger a rank synchronization unless the `no_sync` flag is set.
-subroutine Set_PEList(pelist, no_sync)
-  integer, optional, intent(in) :: pelist(:)  !< List of PEs to set for communication
-  logical, optional, intent(in) :: no_sync    !< Do not sync after list update.
-  call mpp_set_current_pelist(pelist, no_sync)
-end subroutine Set_PEList
-
-!> Retrieve the current PE list and any metadata if requested.
-subroutine Get_PEList(pelist, name, commID)
-  integer,                    intent(out) :: pelist(:) !< List of PE IDs of the current PE list
-  character(len=*), optional, intent(out) :: name   !< Name of PE list
-  integer,          optional, intent(out) :: commID !< Communicator ID of PE list
-
-  call mpp_get_current_pelist(pelist, name, commiD)
-end subroutine Get_PEList
-
-!> Sync the PEs at a defined point in the model
-subroutine sync_PEs(pelist)
-  integer, optional, intent(in) :: pelist(:)  !< The list of PEs to be synced
-
-  call mpp_sync(pelist)
-end subroutine sync_PEs
-
 !> Communicate a 1-D array of character strings from one PE to others
 subroutine broadcast_char(dat, length, from_PE, PElist, blocking)
   character(len=*),  intent(inout) :: dat(:)    !< The data to communicate and destination
@@ -134,7 +86,7 @@ subroutine broadcast_char(dat, length, from_PE, PElist, blocking)
   do_block = .false. ; if (present(blocking)) do_block = blocking
   if (present(from_PE)) then ; src_PE = from_PE ; else ; src_PE = root_PE() ; endif
 
-  if (do_block) call mpp_sync(PElist)
+  if (do_block) call sync_PEs(PElist)
   call mpp_broadcast(dat, length, src_PE, PElist)
   if (do_block) call mpp_sync_self(PElist)
 
@@ -154,7 +106,7 @@ subroutine broadcast_int64_0D(dat, from_PE, PElist, blocking)
   do_block = .false. ; if (present(blocking)) do_block = blocking
   if (present(from_PE)) then ; src_PE = from_PE ; else ; src_PE = root_PE() ; endif
 
-  if (do_block) call mpp_sync(PElist)
+  if (do_block) call sync_PEs(PElist)
   call mpp_broadcast(dat, src_PE, PElist)
   if (do_block) call mpp_sync_self(PElist)
 
@@ -175,7 +127,7 @@ subroutine broadcast_int32_0D(dat, from_PE, PElist, blocking)
   do_block = .false. ; if (present(blocking)) do_block = blocking
   if (present(from_PE)) then ; src_PE = from_PE ; else ; src_PE = root_PE() ; endif
 
-  if (do_block) call mpp_sync(PElist)
+  if (do_block) call sync_PEs(PElist)
   call mpp_broadcast(dat, src_PE, PElist)
   if (do_block) call mpp_sync_self(PElist)
 
@@ -196,7 +148,7 @@ subroutine broadcast_int1D(dat, length, from_PE, PElist, blocking)
   do_block = .false. ; if (present(blocking)) do_block = blocking
   if (present(from_PE)) then ; src_PE = from_PE ; else ; src_PE = root_PE() ; endif
 
-  if (do_block) call mpp_sync(PElist)
+  if (do_block) call sync_PEs(PElist)
   call mpp_broadcast(dat, length, src_PE, PElist)
   if (do_block) call mpp_sync_self(PElist)
 
@@ -216,7 +168,7 @@ subroutine broadcast_real0D(dat, from_PE, PElist, blocking)
   do_block = .false. ; if (present(blocking)) do_block = blocking
   if (present(from_PE)) then ; src_PE = from_PE ; else ; src_PE = root_PE() ; endif
 
-  if (do_block) call mpp_sync(PElist)
+  if (do_block) call sync_PEs(PElist)
   call mpp_broadcast(dat, src_PE, PElist)
   if (do_block) call mpp_sync_self(PElist)
 
@@ -237,7 +189,7 @@ subroutine broadcast_real1D(dat, length, from_PE, PElist, blocking)
   do_block = .false. ; if (present(blocking)) do_block = blocking
   if (present(from_PE)) then ; src_PE = from_PE ; else ; src_PE = root_PE() ; endif
 
-  if (do_block) call mpp_sync(PElist)
+  if (do_block) call sync_PEs(PElist)
   call mpp_broadcast(dat, length, src_PE, PElist)
   if (do_block) call mpp_sync_self(PElist)
 
@@ -258,7 +210,7 @@ subroutine broadcast_real2D(dat, length, from_PE, PElist, blocking)
   do_block = .false. ; if (present(blocking)) do_block = blocking
   if (present(from_PE)) then ; src_PE = from_PE ; else ; src_PE = root_PE() ; endif
 
-  if (do_block) call mpp_sync(PElist)
+  if (do_block) call sync_PEs(PElist)
   call mpp_broadcast(dat, length, src_PE, PElist)
   if (do_block) call mpp_sync_self(PElist)
 
@@ -279,7 +231,7 @@ subroutine broadcast_real3D(dat, length, from_PE, PElist, blocking)
   do_block = .false. ; if (present(blocking)) do_block = blocking
   if (present(from_PE)) then ; src_PE = from_PE ; else ; src_PE = root_PE() ; endif
 
-  if (do_block) call mpp_sync(PElist)
+  if (do_block) call sync_PEs(PElist)
   call mpp_broadcast(dat, length, src_PE, PElist)
   if (do_block) call mpp_sync_self(PElist)
 
@@ -301,7 +253,7 @@ subroutine broadcast_RealArray(dat, from_PE, PElist, blocking)
   if (present(from_PE)) then ; src_PE = from_PE ; else ; src_PE = root_PE() ; endif
   length = product(dat%shape)
 
-  if (do_block) call mpp_sync(PElist)
+  if (do_block) call sync_PEs(PElist)
   call mpp_broadcast(dat%data, length, src_PE, PElist)
   if (do_block) call mpp_sync_self(PElist)
 
@@ -323,7 +275,7 @@ subroutine broadcast_IntArray(dat, from_PE, PElist, blocking)
   if (present(from_PE)) then ; src_PE = from_PE ; else ; src_PE = root_PE() ; endif
   length = product(dat%shape)
 
-  if (do_block) call mpp_sync(PElist)
+  if (do_block) call sync_PEs(PElist)
   call mpp_broadcast(dat%data, length, src_PE, PElist)
   if (do_block) call mpp_sync_self(PElist)
 
@@ -554,19 +506,5 @@ function all_across_PEs(field, pelist)
   call min_across_PEs(field_flag, pelist)
   all_across_PEs = (field_flag > 0)
 end function all_across_PEs
-
-!> Initialize the model framework, including PE communication over a designated communicator.
-!! If no communicator ID is provided, the framework's default communicator is used.
-subroutine MOM_infra_init(localcomm)
-  integer, optional, intent(in) :: localcomm  !< Communicator ID to initialize
-  call fms_init(localcomm)
-end subroutine
-
-!> This subroutine carries out all of the calls required to close out the infrastructure cleanly.
-!! This should only be called in ocean-only runs, as the coupler takes care of this in coupled runs.
-subroutine MOM_infra_end
-  call print_memuse_stats( 'Memory HiWaterMark', always=.TRUE. )
-  call fms_end()
-end subroutine MOM_infra_end
 
 end module MOM_coms_infra
