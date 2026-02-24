@@ -7,12 +7,11 @@ use iso_fortran_env, only : int32, int64
 
 use mpp_mod, only : mpp_broadcast, mpp_chksum
 use mpp_mod, only : mpp_sum, mpp_max, mpp_min, mpp_sync_self
-!use memutils_mod, only : print_memuse_stats
-!use fms_mod, only : fms_end, fms_init
+use memutils_mod, only : print_memuse_stats
+use fms_mod, only : fms_end, fms_init
 
-use MOM_utils_infra, only : PE_here, root_PE, num_PEs, set_rootPE
-use MOM_utils_infra, only : Set_PElist, Get_PElist, sync_PEs
-use MOM_utils_infra, only : MOM_infra_init, MOM_infra_end
+use MOM_coms_helpers, only : PE_here, root_PE, num_PEs, set_rootPE
+use MOM_coms_helpers, only : Set_PElist, Get_PElist, sync_PEs
 use array_mod, only : IntArray_t, RealArray_t
 
 implicit none ; private
@@ -506,5 +505,19 @@ function all_across_PEs(field, pelist)
   call min_across_PEs(field_flag, pelist)
   all_across_PEs = (field_flag > 0)
 end function all_across_PEs
+
+!> Initialize the model framework, including PE communication over a designated communicator.
+!! If no communicator ID is provided, the framework's default communicator is used.
+subroutine MOM_infra_init(localcomm)
+  integer, optional, intent(in) :: localcomm  !< Communicator ID to initialize
+  call fms_init(localcomm)
+end subroutine
+
+!> This subroutine carries out all of the calls required to close out the infrastructure cleanly.
+!! This should only be called in ocean-only runs, as the coupler takes care of this in coupled runs.
+subroutine MOM_infra_end
+  call print_memuse_stats( 'Memory HiWaterMark', always=.TRUE. )
+  call fms_end()
+end subroutine MOM_infra_end
 
 end module MOM_coms_infra

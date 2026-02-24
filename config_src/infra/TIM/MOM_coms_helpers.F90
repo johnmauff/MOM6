@@ -1,5 +1,5 @@
 !> Thin interfaces to non-domain-oriented mpp communication subroutines
-module MOM_utils_infra
+module MOM_coms_helpers
 
 ! This file is part of MOM6. See LICENSE.md for the license.
 
@@ -8,13 +8,10 @@ use iso_fortran_env, only : int32, int64
 use mpp_mod, only : mpp_pe, mpp_root_pe, mpp_npes, mpp_set_root_pe
 use mpp_mod, only : mpp_set_current_pelist, mpp_get_current_pelist
 use mpp_mod, only : mpp_sync, mpp_sync_self
-use memutils_mod, only : print_memuse_stats
-use fms_mod, only : fms_end, fms_init
 
 implicit none ; private
 
 public :: PE_here, root_PE, num_PEs, is_root_PE, set_rootPE, Set_PElist, Get_PElist, sync_PEs
-public :: MOM_infra_init, MOM_infra_end
 
 contains
 
@@ -73,18 +70,4 @@ subroutine sync_PEs(pelist)
   call mpp_sync(pelist)
 end subroutine sync_PEs
 
-!> Initialize the model framework, including PE communication over a designated communicator.
-!! If no communicator ID is provided, the framework's default communicator is used.
-subroutine MOM_infra_init(localcomm)
-  integer, optional, intent(in) :: localcomm  !< Communicator ID to initialize
-  call fms_init(localcomm)
-end subroutine
-
-!> This subroutine carries out all of the calls required to close out the infrastructure cleanly.
-!! This should only be called in ocean-only runs, as the coupler takes care of this in coupled runs.
-subroutine MOM_infra_end
-  call print_memuse_stats( 'Memory HiWaterMark', always=.TRUE. )
-  call fms_end()
-end subroutine MOM_infra_end
-
-end module MOM_utils_infra
+end module MOM_coms_helpers

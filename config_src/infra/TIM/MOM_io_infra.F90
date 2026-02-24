@@ -3,7 +3,7 @@ module MOM_io_infra
 
 ! This file is part of MOM6. See LICENSE.md for the license.
 
-use MOM_utils_infra,      only : PE_here, root_PE, num_PEs, is_root_pe
+use MOM_coms_helpers,      only : PE_here, root_PE, num_PEs, is_root_pe
 use MOM_domain_infra,     only : MOM_domain_type, rescale_comp_data, AGRID, BGRID_NE, CGRID_NE
 use MOM_domain_infra,     only : domain2d, domain1d, CENTER, CORNER, NORTH_FACE, EAST_FACE
 use MOM_error_infra,      only : MOM_err, NOTE, FATAL, WARNING

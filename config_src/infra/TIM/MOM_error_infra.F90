@@ -5,7 +5,7 @@ module MOM_error_infra
 
 use mpp_mod, only : mpp_error, mpp_stdlog=>stdlog, mpp_stdout=>stdout
 use mpp_mod, only : NOTE, WARNING, FATAL
-use MOM_utils_infra, only : is_root_pe
+use MOM_coms_helpers, only : is_root_pe
 
 implicit none ; private
 
