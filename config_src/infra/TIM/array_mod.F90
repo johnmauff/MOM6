@@ -15,9 +15,9 @@ module array_mod
    contains
      procedure :: allocReal, freeReal              !< Allocate and deallocate memory in container
      procedure :: viewReal1D,  viewReal2D,  &      !< Associate a Fortran pointer to array container
-                  viewReal3D,  viewReal4D    
+                  viewReal3D,  viewReal4D
      procedure :: allocReal1D, allocReal2D, &      !< allocate memory and associate a fortran pointer
-                  allocReal3D, allocReal4D 
+                  allocReal3D, allocReal4D
      generic   :: view => viewReal1D, viewReal2D, &
                   viewReal3D, viewReal4D           !< Generic interface for view
      generic   :: free => freeReal                 !< Generic interface for deallocate
@@ -27,7 +27,7 @@ module array_mod
 
   type :: IntArray_t
      integer, pointer :: data(:) => null() !< Pointer to storage for array container
-     integer :: rank = 0                   !< Rank of array             
+     integer :: rank = 0                   !< Rank of array
      integer, allocatable :: shape(:)      !< Shape of array
      integer, allocatable :: lb(:)         !< Lower bounds
      integer, allocatable :: ub(:)         !< Upper bounds
@@ -59,7 +59,7 @@ subroutine allocReal(this, dims,lb,ub,source)
   if (allocated(this%ub))    deallocate(this%ub)
 
   if(present(ub) .and. present(lb) .and. .not. present(dims)) then
-    if(size(lb) .ne. size(ub)) then 
+    if(size(lb) .ne. size(ub)) then
         call MOM_err(FATAL, "allocReal: size of lb and ub must match")
     endif
     this%rank     = size(lb)
