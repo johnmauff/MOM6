@@ -5,7 +5,7 @@ module MOM_domain_infra
 
 use MOM_coms_infra,  only : PE_here, root_PE, num_PEs
 use MOM_cpu_clock_infra, only : cpu_clock_begin, cpu_clock_end
-use MOM_error_infra, only : MOM_error=>MOM_err, NOTE, WARNING, FATAL
+use MOM_error_infra, only : MOM_err, NOTE, WARNING, FATAL
 
 use mpp_domains_mod, only : domain2D, domain1D
 use mpp_domains_mod, only : mpp_define_io_domain, mpp_define_domains, mpp_deallocate_domain
@@ -283,41 +283,41 @@ subroutine pass_var_2d(array, MOM_dom, sideflag, complete, position, halo, inner
     if (pos == CENTER) then
       if (size(array,1) == ied) then
         isfw = isc - i_halo ; iefw = isc ; isfe = iec ; iefe = iec + i_halo
-      else ; call MOM_error(FATAL, "pass_var_2d: wrong i-size for CENTER array.") ; endif
+      else ; call MOM_err(FATAL, "pass_var_2d: wrong i-size for CENTER array.") ; endif
       if (size(array,2) == jed) then
         isfw = isc - i_halo ; iefw = isc ; isfe = iec ; iefe = iec + i_halo
-      else ; call MOM_error(FATAL, "pass_var_2d: wrong j-size for CENTER array.") ; endif
+      else ; call MOM_err(FATAL, "pass_var_2d: wrong j-size for CENTER array.") ; endif
     elseif (pos == CORNER) then
       if (size(array,1) == ied) then
         isfw = max(isc - (i_halo+1), 1) ; iefw = isc ; isfe = iec ; iefe = iec + i_halo
       elseif (size(array,1) == ied+1) then
         isfw = isc - i_halo ; iefw = isc+1 ; isfe = iec+1 ; iefe = min(iec + 1 + i_halo, ied+1)
-      else ; call MOM_error(FATAL, "pass_var_2d: wrong i-size for CORNER array.") ; endif
+      else ; call MOM_err(FATAL, "pass_var_2d: wrong i-size for CORNER array.") ; endif
       if (size(array,2) == jed) then
         jsfs = max(jsc - (j_halo+1), 1) ; jefs = jsc ; jsfn = jec ; jefn = jec + j_halo
       elseif (size(array,2) == jed+1) then
         jsfs = jsc - j_halo ; jefs = jsc+1 ; jsfn = jec+1 ; jefn = min(jec + 1 + j_halo, jed+1)
-      else ; call MOM_error(FATAL, "pass_var_2d: wrong j-size for CORNER array.") ; endif
+      else ; call MOM_err(FATAL, "pass_var_2d: wrong j-size for CORNER array.") ; endif
     elseif (pos == NORTH_FACE) then
       if (size(array,1) == ied) then
         isfw = isc - i_halo ; iefw = isc ; isfe = iec ; iefe = iec + i_halo
-      else ; call MOM_error(FATAL, "pass_var_2d: wrong i-size for NORTH_FACE array.") ; endif
+      else ; call MOM_err(FATAL, "pass_var_2d: wrong i-size for NORTH_FACE array.") ; endif
       if (size(array,2) == jed) then
         jsfs = max(jsc - (j_halo+1), 1) ; jefs = jsc ; jsfn = jec ; jefn = jec + j_halo
       elseif (size(array,2) == jed+1) then
         jsfs = jsc - j_halo ; jefs = jsc+1 ; jsfn = jec+1 ; jefn = min(jec + 1 + j_halo, jed+1)
-      else ; call MOM_error(FATAL, "pass_var_2d: wrong j-size for NORTH_FACE array.") ; endif
+      else ; call MOM_err(FATAL, "pass_var_2d: wrong j-size for NORTH_FACE array.") ; endif
     elseif (pos == EAST_FACE) then
       if (size(array,1) == ied) then
         isfw = max(isc - (i_halo+1), 1) ; iefw = isc ; isfe = iec ; iefe = iec + i_halo
       elseif (size(array,1) == ied+1) then
         isfw = isc - i_halo ; iefw = isc+1 ; isfe = iec+1 ; iefe = min(iec + 1 + i_halo, ied+1)
-      else ; call MOM_error(FATAL, "pass_var_2d: wrong i-size for EAST_FACE array.") ; endif
+      else ; call MOM_err(FATAL, "pass_var_2d: wrong i-size for EAST_FACE array.") ; endif
       if (size(array,2) == jed) then
         isfw = isc - i_halo ; iefw = isc ; isfe = iec ; iefe = iec + i_halo
-      else ; call MOM_error(FATAL, "pass_var_2d: wrong j-size for EAST_FACE array.") ; endif
+      else ; call MOM_err(FATAL, "pass_var_2d: wrong j-size for EAST_FACE array.") ; endif
     else
-      call MOM_error(FATAL, "pass_var_2d: Unrecognized position")
+      call MOM_err(FATAL, "pass_var_2d: Unrecognized position")
     endif
 
     ! Copy back the stored inner halo points
@@ -1386,7 +1386,7 @@ subroutine create_MOM_domain(MOM_dom, n_global, n_halo, reentrant, tripolar_N, l
   if (reentrant(2)) Y_FLAGS = CYCLIC_GLOBAL_DOMAIN
   if (tripolar_N) then
     Y_FLAGS = FOLD_NORTH_EDGE
-    if (reentrant(2)) call MOM_error(FATAL,"MOM_domains: "// &
+    if (reentrant(2)) call MOM_err(FATAL,"MOM_domains: "// &
       "TRIPOLAR_N and REENTRANT_Y may not be used together.")
   endif
 
@@ -1411,7 +1411,7 @@ subroutine create_MOM_domain(MOM_dom, n_global, n_halo, reentrant, tripolar_N, l
       if (modulo(layout(1), io_layout(1)) /= 0) then
         write(mesg,'("MOM_domains_init: The i-direction I/O-layout, IO_LAYOUT(1)=",i4, &
               &", does not evenly divide the i-direction layout, NIPROC=,",i4,".")') io_layout(1), layout(1)
-        call MOM_error(FATAL, mesg)
+        call MOM_err(FATAL, mesg)
       endif
     endif
 
@@ -1422,7 +1422,7 @@ subroutine create_MOM_domain(MOM_dom, n_global, n_halo, reentrant, tripolar_N, l
       if (modulo(layout(2), io_layout(2)) /= 0) then
         write(mesg,'("MOM_domains_init: The j-direction I/O-layout, IO_LAYOUT(2)=",i4, &
               &", does not evenly divide the j-direction layout, NJPROC=,",i4,".")') io_layout(2), layout(2)
-        call MOM_error(FATAL, mesg)
+        call MOM_err(FATAL, mesg)
       endif
     endif
   endif
@@ -1672,7 +1672,7 @@ subroutine clone_MD_to_MD(MD_in, MOM_dom, min_halo, halo_size, symmetric, domain
     MOM_dom%nihalo = MOM_dom%nihalo + extra_halo ; MOM_dom%njhalo = MOM_dom%njhalo + extra_halo
   endif ; endif
 
-  if (present(halo_size) .and. present(min_halo)) call MOM_error(FATAL, &
+  if (present(halo_size) .and. present(min_halo)) call MOM_err(FATAL, &
       "clone_MOM_domain can not have both halo_size and min_halo present.")
 
   if (present(min_halo)) then
@@ -1740,9 +1740,9 @@ subroutine clone_MD_to_d2D(MD_in, mpp_domain, min_halo, halo_size, symmetric, &
   character(len=64) :: dom_name
 
   if (present(turns)) &
-    call MOM_error(FATAL, "Rotation not supported for MOM_domain to domain2d")
+    call MOM_err(FATAL, "Rotation not supported for MOM_domain to domain2d")
 
-  if (present(halo_size) .and. present(min_halo)) call MOM_error(FATAL, &
+  if (present(halo_size) .and. present(min_halo)) call MOM_err(FATAL, &
       "clone_MOM_domain can not have both halo_size and min_halo present.")
 
   do_coarsen = .false. ; if (present(coarsen)) then ; do_coarsen = (coarsen > 1) ; endif
@@ -1839,13 +1839,13 @@ subroutine get_domain_extent_MD(Domain, isc, iec, jsc, jec, isd, ied, jsd, jed, 
     call mpp_get_data_domain(Domain%mpp_domain, isd, ied, jsd, jed)
     call mpp_get_global_domain(Domain%mpp_domain, isg_, ieg_, jsg_, jeg_)
   elseif (coarsen_lev == 2) then
-    if (.not.associated(Domain%mpp_domain_d2)) call MOM_error(FATAL, &
+    if (.not.associated(Domain%mpp_domain_d2)) call MOM_err(FATAL, &
             "get_domain_extent called with coarsen=2, but Domain%mpp_domain_d2 is not associated.")
     call mpp_get_compute_domain(Domain%mpp_domain_d2, isc, iec, jsc, jec)
     call mpp_get_data_domain(Domain%mpp_domain_d2, isd, ied, jsd, jed)
     call mpp_get_global_domain(Domain%mpp_domain_d2, isg_, ieg_, jsg_, jeg_)
   else
-    call MOM_error(FATAL, "get_domain_extent called with an unsupported level of coarsening.")
+    call MOM_err(FATAL, "get_domain_extent called with an unsupported level of coarsening.")
   endif
 
   if (local) then
@@ -1930,7 +1930,7 @@ subroutine get_simple_array_i_ind(domain, size, is, ie, symmetric)
     else
       write(mesg2,'("Valid sizes are : ", 4i7)') ied, 1+iec-isc, 1+ied, 2+iec-isc
     endif
-    call MOM_error(FATAL, trim(mesg)//trim(mesg2))
+    call MOM_err(FATAL, trim(mesg)//trim(mesg2))
   endif
 
 end subroutine get_simple_array_i_ind
@@ -1967,7 +1967,7 @@ subroutine get_simple_array_j_ind(domain, size, js, je, symmetric)
     else
       write(mesg2,'("Valid sizes are : ", 4i7)') jed, 1+jec-jsc, 1+jed, 2+jec-jsc
     endif
-    call MOM_error(FATAL, trim(mesg)//trim(mesg2))
+    call MOM_err(FATAL, trim(mesg)//trim(mesg2))
   endif
 
 end subroutine get_simple_array_j_ind

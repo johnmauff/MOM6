@@ -13,27 +13,35 @@ module array_mod
      integer, allocatable :: lb(:)                   !< Lower bounds
      integer, allocatable :: ub(:)                   !< Upper bounds
    contains
-     procedure :: allocReal, freeReal                                         !< Allocate and deallocate memory in container
-     procedure ::  viewReal1D,  viewReal2D,  viewReal3D,  viewReal4D          !< Associate a Fortran pointer to array container
-     procedure :: allocReal1D, allocReal2D, allocReal3D, allocReal4D          !< Allocate memory and associate a Fortran pointer
-     generic   :: view => viewReal1D, viewReal2D, viewReal3D, viewReal4D      !< Generic interface for view
-     generic   :: free => freeReal                                            !< Generic interface for deallocate
-     generic   :: alloc => allocReal1D, allocReal2D, allocReal3D, allocReal4D !< Generic interface for array container allocation
+     procedure :: allocReal, freeReal              !< Allocate and deallocate memory in container
+     procedure :: viewReal1D,  viewReal2D,  &      !< Associate a Fortran pointer to array container
+                  viewReal3D,  viewReal4D
+     procedure :: allocReal1D, allocReal2D, &      !< allocate memory and associate a fortran pointer
+                  allocReal3D, allocReal4D
+     generic   :: view => viewReal1D, viewReal2D, &
+                  viewReal3D, viewReal4D           !< Generic interface for view
+     generic   :: free => freeReal                 !< Generic interface for deallocate
+     generic   :: alloc => allocReal1D, allocReal2D,  &
+                  allocReal3D, allocReal4D !< Generic interface for array container allocation
   end type RealArray_t
 
   type :: IntArray_t
      integer, pointer :: data(:) => null() !< Pointer to storage for array container
-     integer :: rank = 0                   !< Rank of array             
+     integer :: rank = 0                   !< Rank of array
      integer, allocatable :: shape(:)      !< Shape of array
      integer, allocatable :: lb(:)         !< Lower bounds
      integer, allocatable :: ub(:)         !< Upper bounds
    contains
-     procedure :: allocInt, freeInt                                       !< Allocate and deallocate memory in container
-     procedure ::  viewInt1D,  viewInt2D,  viewInt3D,  viewInt4D          !< Associate a Fortran pointer to array container
-     procedure :: allocInt1D, allocInt2D, allocInt3D, allocInt4D          !< Allocate memory and associate a Fortran pointer
-     generic   :: view  => viewInt1D, viewInt2D, viewInt3D, viewInt4D     !< Generic interface for view
-     generic   :: free => freeInt                                         !< Generic interface for deallocate
-     generic   :: alloc => allocInt1D, allocInt2D, allocInt3D, allocInt4D !< Generic interface for array container allocation
+     procedure :: allocInt, freeInt                !< Allocate and deallocate memory in container
+     procedure ::  viewInt1D,  viewInt2D,  &
+                    viewInt3D,  viewInt4D          !< Associate a Fortran pointer to array container
+     procedure :: allocInt1D, allocInt2D,  &
+                  allocInt3D, allocInt4D          !< Allocate memory and associate a Fortran pointer
+     generic   :: view  => viewInt1D, viewInt2D, &
+                  viewInt3D, viewInt4D     !< Generic interface for view
+     generic   :: free => freeInt          !< Generic interface for deallocate
+     generic   :: alloc => allocInt1D, allocInt2D, &
+                   allocInt3D, allocInt4D !< Generic interface for array container allocation
   end type intArray_t
 
 contains
@@ -50,8 +58,8 @@ subroutine allocReal(this, dims,lb,ub,source)
   if (allocated(this%lb))    deallocate(this%lb)
   if (allocated(this%ub))    deallocate(this%ub)
 
-  if(present(ub) .and. present(lb) .and. .not. present(dims)) then 
-    if(size(lb) .ne. size(ub)) then 
+  if(present(ub) .and. present(lb) .and. .not. present(dims)) then
+    if(size(lb) .ne. size(ub)) then
         call MOM_err(FATAL, "allocReal: size of lb and ub must match")
     endif
     this%rank     = size(lb)
@@ -64,7 +72,7 @@ subroutine allocReal(this, dims,lb,ub,source)
     allocate(this%data(product(this%shape)))
     if(present(source)) this%data(:)=source
     !stat=0
-  elseif(present(dims) .and. .not. present(ub) .and. .not. present(lb)) then 
+  elseif(present(dims) .and. .not. present(ub) .and. .not. present(lb)) then
     this%rank     = size(dims)
     ! Allocate shape and bound information
     allocate(this%shape(this%rank),this%lb(this%rank),this%ub(this%rank))
@@ -92,8 +100,8 @@ subroutine allocInt(this, dims,lb,ub,source)
   if (allocated(this%lb))    deallocate(this%lb)
   if (allocated(this%ub))    deallocate(this%ub)
 
-  if(present(ub) .and. present(lb) .and. .not. present(dims)) then 
-    if(size(lb) .ne. size(ub)) then 
+  if(present(ub) .and. present(lb) .and. .not. present(dims)) then
+    if(size(lb) .ne. size(ub)) then
         call MOM_err(FATAL, "allocReal: size of lb and ub must match")
     endif
     this%rank     = size(lb)
@@ -105,7 +113,7 @@ subroutine allocInt(this, dims,lb,ub,source)
     this%shape(:) = ub(:)-lb(:)+1
     allocate(this%data(product(this%shape)))
     if(present(source)) this%data(:)=source
-  elseif(present(dims) .and. .not. present(ub) .and. .not. present(lb)) then 
+  elseif(present(dims) .and. .not. present(ub) .and. .not. present(lb)) then
     this%rank     = size(dims)
     ! Allocate shape and bound information
     allocate(this%shape(this%rank),this%lb(this%rank),this%ub(this%rank))
@@ -258,7 +266,7 @@ subroutine viewReal4D(this,a)
 end subroutine viewReal4D
 
 subroutine allocInt1D(this, a, dims, lb, ub, source)
-   class(intArray_t), intent(inout) :: this !< The array container to allocate                     
+   class(intArray_t), intent(inout) :: this !< The array container to allocate
    integer, intent(inout), pointer :: a(:)  !< The Fortran pointer array
    integer, intent(in), optional :: dims(:) !< Dimensions (1-indexed)
    integer, intent(in), optional :: lb(:)   !< Lower bounds

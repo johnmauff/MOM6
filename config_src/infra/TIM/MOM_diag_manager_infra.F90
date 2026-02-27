@@ -25,7 +25,7 @@ use diag_manager_mod, only : register_static_field_fms => register_static_field
 use diag_manager_mod, only : get_diag_field_id_fms => get_diag_field_id
 use MOM_time_manager, only : time_type, set_time
 use MOM_domain_infra, only : MOM_domain_type
-use MOM_error_infra,  only : MOM_error => MOM_err, FATAL, WARNING
+use MOM_error_infra,  only : MOM_err, FATAL, WARNING
 
 implicit none ; private
 
@@ -119,11 +119,11 @@ integer function MOM_diag_axis_init(name, data, units, cart_name, long_name, MOM
               direction=direction, set_name=set_name, edges=edges, &
               domain2=MOM_domain%mpp_domain_d2, domain_position=position)
     else
-      call MOM_error(FATAL, "diag_axis_init called with an invalid value of coarsen.")
+      call MOM_err(FATAL, "diag_axis_init called with an invalid value of coarsen.")
     endif
   else
     if (present(coarsen)) then ; if (coarsen /= 1) then
-      call MOM_error(FATAL, "diag_axis_init does not support grid coarsening without a MOM_domain.")
+      call MOM_err(FATAL, "diag_axis_init does not support grid coarsening without a MOM_domain.")
     endif ; endif
     MOM_diag_axis_init = fms_axis_init(name, data, units, cart_name, long_name=long_name, &
             direction=direction, set_name=set_name, edges=edges)
