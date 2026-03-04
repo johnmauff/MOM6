@@ -5,10 +5,12 @@ module MOM_coms_infra
 
 use iso_fortran_env, only : int32, int64
 
-use mpp_mod, only : mpp_broadcast, mpp_chksum
+use mpp_mod, only : mpp_broadcast
 use mpp_mod, only : mpp_sum, mpp_max, mpp_min, mpp_sync_self
 use memutils_mod, only : print_memuse_stats
 use fms_mod, only : fms_end, fms_init
+use amrex_base_module, only: amrex_init, amrex_finalize
+use tim_coms_infra_interface, only: tim_chksum
 
 use MOM_coms_helpers, only : PE_here, root_PE, num_PEs, set_rootPE
 use MOM_coms_helpers, only : Set_PElist, Get_PElist, sync_PEs
@@ -291,7 +293,7 @@ function field_chksum_real_0d(field, pelist, mask_val) result(chksum)
   real,    optional, intent(in) :: mask_val   !< FMS mask value
   integer(kind=int64) :: chksum               !< checksum of array
 
-  chksum = mpp_chksum(field, pelist, mask_val)
+  chksum = tim_chksum(field, pelist, mask_val)
 end function field_chksum_real_0d
 
 !> Compute a checksum for a field distributed over a PE list.  If no PE list is
@@ -302,7 +304,7 @@ function field_chksum_real_1d(field, pelist, mask_val) result(chksum)
   real,     optional, intent(in) :: mask_val  !< FMS mask value
   integer(kind=int64) :: chksum               !< checksum of array
 
-  chksum = mpp_chksum(field, pelist, mask_val)
+  chksum = tim_chksum(field, pelist, mask_val)
 end function field_chksum_real_1d
 
 !> Compute a checksum for a field distributed over a PE list.  If no PE list is
@@ -313,7 +315,7 @@ function field_chksum_real_2d(field, pelist, mask_val) result(chksum)
   real,       optional, intent(in) :: mask_val  !< FMS mask value
   integer(kind=int64) :: chksum                 !< checksum of array
 
-  chksum = mpp_chksum(field, pelist, mask_val)
+  chksum = tim_chksum(field, pelist, mask_val)
 end function field_chksum_real_2d
 
 !> Compute a checksum for a field distributed over a PE list.  If no PE list is
@@ -324,7 +326,7 @@ function field_chksum_real_3d(field, pelist, mask_val) result(chksum)
   real,         optional, intent(in) :: mask_val  !< FMS mask value
   integer(kind=int64) :: chksum               !< checksum of array
 
-  chksum = mpp_chksum(field, pelist, mask_val)
+  chksum = tim_chksum(field, pelist, mask_val)
 end function field_chksum_real_3d
 
 !> Compute a checksum for a field distributed over a PE list.  If no PE list is
@@ -335,7 +337,7 @@ function field_chksum_real_4d(field, pelist, mask_val) result(chksum)
   real,           optional, intent(in) :: mask_val  !< FMS mask value
   integer(kind=int64) :: chksum               !< checksum of array
 
-  chksum = mpp_chksum(field, pelist, mask_val)
+  chksum = tim_chksum(field, pelist, mask_val)
 end function field_chksum_real_4d
 
 ! sum_across_PEs wrappers
@@ -510,6 +512,7 @@ end function all_across_PEs
 !! If no communicator ID is provided, the framework's default communicator is used.
 subroutine MOM_infra_init(localcomm)
   integer, optional, intent(in) :: localcomm  !< Communicator ID to initialize
+  call amrex_init(localcomm)
   call fms_init(localcomm)
 end subroutine
 
@@ -518,6 +521,7 @@ end subroutine
 subroutine MOM_infra_end
   call print_memuse_stats( 'Memory HiWaterMark', always=.TRUE. )
   call fms_end()
+  call amrex_finalize()
 end subroutine MOM_infra_end
 
 end module MOM_coms_infra
