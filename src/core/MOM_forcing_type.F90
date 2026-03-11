@@ -58,10 +58,10 @@ interface allocate_mech_forcing
 end interface allocate_mech_forcing
 
 !> Allocate arrays if optional flag is present and true (works for 2D and 3D)
-interface myAlloc
-  module procedure myAlloc_2d
-  module procedure myAlloc_3d
-end interface myAlloc
+!JMD interface myAlloc
+!JMD   module procedure myAlloc_2d
+!JMD   module procedure myAlloc_3d
+!JMD end interface myAlloc
 
 !> Determine the friction velocity from a forcing type or a mechanical forcing type.
 interface find_ustar
@@ -187,7 +187,7 @@ type, public :: forcing
     heat_content_frunoff_glc => NULL(), & !< heat content associated with frozen runoff      [Q R Z T-1 ~> W m-2]
     heat_content_massout     => NULL(), & !< heat content associated with mass leaving ocean [Q R Z T-1 ~> W m-2]
     heat_content_massin      => NULL()    !< heat content associated with mass entering ocean [Q R Z T-1 ~> W m-2]
-  type(RealArray_t) heat_content_conf_c, &        !< Array container for heat_content_cond
+  type(RealArray_t) heat_content_cond_c, &        !< Array container for heat_content_cond
                     heat_content_evap_c, &        !< Array container for heat_content_evap
                     heat_content_lprec_c, &       !< Array container for heat_content_lprec
                     heat_content_fprec_c, &       !< Array container for heat_content_fprec
@@ -235,8 +235,8 @@ type, public :: forcing
     BBL_tidal_dis => NULL(), & !< Tidal energy dissipation in the bottom boundary layer that can act
                                !! as a source of energy for bottom boundary layer mixing [R Z L2 T-3 ~> W m-2]
     ustar_tidal   => NULL()    !< tidal contribution to bottom ustar [Z T-1 ~> m s-1]
-  type(RealArray_t) :: BBL_tidal_dis_g, & !< Array container for BBL_tidal_dis
-                       ustar_tidal_g      !< Array container for ustar_tidal
+  type(RealArray_t) :: BBL_tidal_dis_c, & !< Array container for BBL_tidal_dis
+                       ustar_tidal_c      !< Array container for ustar_tidal
 
   ! iceberg related inputs
   real, pointer, dimension(:,:) :: &
@@ -308,7 +308,7 @@ type, public :: forcing
     fracr_cat   => NULL(),           & !< per-category ice fraction [nondim]
     qsw_cat     => NULL()              !< per-category shortwave [Q R Z T-1 ~> W m-2]
   type(RealArray_t) :: fracr_cat_c, & !< Array container for fracr_cat
-                       gsw_cat_c      !< Array container for qsw_cat
+                       qsw_cat_c      !< Array container for qsw_cat
 
   real, pointer, dimension(:,:) :: &
     lamult => NULL()            !< Langmuir enhancement factor [nondim]
@@ -3551,92 +3551,246 @@ subroutine allocate_forcing_by_group(G, fluxes, water, heat, ustar, press, &
       !JMD call myAlloc(fluxes%ustar_gustless,isd,ied,jsd,jed, ustar)
       !JMD call myAlloc(fluxes%tau_mag,isd,ied,jsd,jed, ustar)
       call fluxes%ustar_c%alloc(fluxes%ustar,lb=[isd,jsd], ub=[ied,jed], source=0.0)
-      call fluxes%ustar_gustless_c%alloc(fluxes%ustar_gustless,lb=[isd,jsd],ub=[ied,jed], source=0.0)
+      call fluxes%ustar_gustless_c%alloc(fluxes%ustar_gustless, &
+              lb=[isd,jsd],ub=[ied,jed], source=0.0)
       call fluxes%tau_mag_c%alloc(fluxes%tau_mag,lb=[isd,jsd],ub=[ied,jed], source=0.0)
     endif; 
   endif
 
   ! Note that myAlloc can be called safely multiple times for the same pointer.
-  call myAlloc(fluxes%tau_mag,isd,ied,jsd,jed, tau_mag)
-  call myAlloc(fluxes%tau_mag_gustless,isd,ied,jsd,jed, tau_mag)
+  if(present(tau_mag)) then
+    if(tau_mag) then
+      !JMD call myAlloc(fluxes%tau_mag,isd,ied,jsd,jed, tau_mag)
+      !JMD call myAlloc(fluxes%tau_mag_gustless,isd,ied,jsd,jed, tau_mag)
+      call fluxes%tau_mag_c%alloc(fluxes%tau_mag,lb=[isd,jsd],ub=[ied,jed], source=0.0)
+      call fluxes%tau_mag_gustless_c%alloc(fluxes%tau_mag_gustless, &
+               lb=[isd,jsd], ub=[ied,jed], source=0.0)
+    endif
+  endif
 
-  call myAlloc(fluxes%evap,isd,ied,jsd,jed, water)
-  call myAlloc(fluxes%lprec,isd,ied,jsd,jed, water)
-  call myAlloc(fluxes%fprec,isd,ied,jsd,jed, water)
-  call myAlloc(fluxes%vprec,isd,ied,jsd,jed, water)
-  call myAlloc(fluxes%lrunoff,isd,ied,jsd,jed, water)
-  call myAlloc(fluxes%frunoff,isd,ied,jsd,jed, water)
-  call myAlloc(fluxes%lrunoff_glc,isd,ied,jsd,jed, water)
-  call myAlloc(fluxes%frunoff_glc,isd,ied,jsd,jed, water)
-  call myAlloc(fluxes%seaice_melt,isd,ied,jsd,jed, water)
-  call myAlloc(fluxes%netMassOut,isd,ied,jsd,jed, water)
-  call myAlloc(fluxes%netMassIn,isd,ied,jsd,jed, water)
-  call myAlloc(fluxes%seaice_melt_heat,isd,ied,jsd,jed, heat)
-  call myAlloc(fluxes%sw,isd,ied,jsd,jed, heat)
-  call myAlloc(fluxes%lw,isd,ied,jsd,jed, heat)
-  call myAlloc(fluxes%latent,isd,ied,jsd,jed, heat)
-  call myAlloc(fluxes%sens,isd,ied,jsd,jed, heat)
-  call myAlloc(fluxes%latent_evap_diag,isd,ied,jsd,jed, heat)
-  call myAlloc(fluxes%latent_fprec_diag,isd,ied,jsd,jed, heat)
-  call myAlloc(fluxes%latent_frunoff_diag,isd,ied,jsd,jed, heat)
-  call myAlloc(fluxes%latent_frunoff_glc_diag,isd,ied,jsd,jed, heat)
+  if(present(water)) then 
+    if(water) then 
+      !JMD call myAlloc(fluxes%evap,isd,ied,jsd,jed,water) 
+      !JMD call myAlloc(fluxesS%lprec,isd,ied,jsd,jed,water)
+      !JMD call myAlloc(fluxes%fprec,isd,ied,jsd,jed, water)
+      !JMD call myAlloc(fluxes%vprec,isd,ied,jsd,jed, water)
+      !JMD call myAlloc(fluxes%lrunoff,isd,ied,jsd,jed, water)
+      !JMD call myAlloc(fluxes%frunoff,isd,ied,jsd,jed, water)
+      !JMD call myAlloc(fluxes%lrunoff_glc,isd,ied,jsd,jed, water)
+      !JMD call myAlloc(fluxes%frunoff_glc,isd,ied,jsd,jed, water)
+      !JMD call myAlloc(fluxes%seaice_melt,isd,ied,jsd,jed, water)
+      !JMD call myAlloc(fluxes%netMassOut,isd,ied,jsd,jed, water)
+      !JMD call myAlloc(fluxes%netMassIn,isd,ied,jsd,jed, water)
+      call fluxes%evap_c%alloc(fluxes%evap, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%lprec_c%alloc(fluxes%lprec, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%fprec_c%alloc(fluxes%fprec, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%vprec_c%alloc(fluxes%vprec, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%lrunoff_c%alloc(fluxes%lrunoff, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%frunoff_c%alloc(fluxes%frunoff, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%lrunoff_glc_c%alloc(fluxes%lrunoff_glc, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%frunoff_glc_c%alloc(fluxes%frunoff_glc, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%Seaice_melt_c%alloc(fluxes%seaice_melt, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%netMassOut_c%alloc(fluxes%netMassOut, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%netMassIn_c%alloc(fluxes%netMassIn, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+    endif
+  endif
 
-  call myAlloc(fluxes%salt_flux,isd,ied,jsd,jed, salt)
+  !JMD call myAlloc(fluxes%seaice_melt_heat,isd,ied,jsd,jed, heat)
+  !JMD call myAlloc(fluxes%sw,isd,ied,jsd,jed, heat)
+  !JMD call myAlloc(fluxes%lw,isd,ied,jsd,jed, heat)
+  !JMD call myAlloc(fluxes%latent,isd,ied,jsd,jed, heat)
+  !JMD call myAlloc(fluxes%sens,isd,ied,jsd,jed, heat)
+  !JMD call myAlloc(fluxes%latent_evap_diag,isd,ied,jsd,jed, heat)
+  !JMD call myAlloc(fluxes%latent_fprec_diag,isd,ied,jsd,jed, heat)
+  !JMD call myAlloc(fluxes%latent_frunoff_diag,isd,ied,jsd,jed, heat)
+  !JMD call myAlloc(fluxes%latent_frunoff_glc_diag,isd,ied,jsd,jed, heat)
 
+  if(present(heat)) then 
+    if(heat) then 
+      call fluxes%seaice_melt_heat_c%alloc(fluxes%seaice_melt_heat, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%sw_c%alloc(fluxes%sw, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%lw_c%alloc(fluxes%lw, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%latent_c%alloc(fluxes%latent, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%sens_c%alloc(fluxes%sens, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%latent_evap_diag_c%alloc(fluxes%latent_evap_diag, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%latent_fprec_diag_c%alloc(fluxes%latent_fprec_diag, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%latent_frunoff_diag_c%alloc(fluxes%latent_frunoff_diag, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%latent_frunoff_glc_diag_c%alloc(fluxes%latent_frunoff_glc_diag, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+     endif
+  endif
+
+  !JMD  call myAlloc(fluxes%salt_flux,isd,ied,jsd,jed, salt)
+  if(present(salt)) then 
+    if(salt) call fluxes%salt_flux_c%alloc(fluxes%salt_flux, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+  endif
+
+  !JMD  call myAlloc(fluxes%heat_content_cond,isd,ied,jsd,jed, .true.)
+  !JMD  call myAlloc(fluxes%heat_content_evap,isd,ied,jsd,jed, .not. enthalpy_mom)
+  !JMD  call myAlloc(fluxes%heat_content_lprec,isd,ied,jsd,jed, .true.)
+  !JMD  call myAlloc(fluxes%heat_content_fprec,isd,ied,jsd,jed, .true.)
+  !JMD  call myAlloc(fluxes%heat_content_vprec,isd,ied,jsd,jed, .true.)
+  !JMD  call myAlloc(fluxes%heat_content_lrunoff,isd,ied,jsd,jed, .true.)
+  !JMD  call myAlloc(fluxes%heat_content_frunoff,isd,ied,jsd,jed, .true.)
+  !JMD  call myAlloc(fluxes%heat_content_lrunoff_glc,isd,ied,jsd,jed, .true.)
+  !JMD  call myAlloc(fluxes%heat_content_frunoff_glc,isd,ied,jsd,jed, .true.)
+  !JMD  call myAlloc(fluxes%heat_content_massout,isd,ied,jsd,jed, enthalpy_mom)
+  !JMD  call myAlloc(fluxes%heat_content_massin,isd,ied,jsd,jed,  enthalpy_mom)
   if (present(heat) .and. present(water)) then ; if (heat .and. water) then
-    call myAlloc(fluxes%heat_content_cond,isd,ied,jsd,jed, .true.)
-    call myAlloc(fluxes%heat_content_evap,isd,ied,jsd,jed, .not. enthalpy_mom)
-    call myAlloc(fluxes%heat_content_lprec,isd,ied,jsd,jed, .true.)
-    call myAlloc(fluxes%heat_content_fprec,isd,ied,jsd,jed, .true.)
-    call myAlloc(fluxes%heat_content_vprec,isd,ied,jsd,jed, .true.)
-    call myAlloc(fluxes%heat_content_lrunoff,isd,ied,jsd,jed, .true.)
-    call myAlloc(fluxes%heat_content_frunoff,isd,ied,jsd,jed, .true.)
-    call myAlloc(fluxes%heat_content_lrunoff_glc,isd,ied,jsd,jed, .true.)
-    call myAlloc(fluxes%heat_content_frunoff_glc,isd,ied,jsd,jed, .true.)
-    call myAlloc(fluxes%heat_content_massout,isd,ied,jsd,jed, enthalpy_mom)
-    call myAlloc(fluxes%heat_content_massin,isd,ied,jsd,jed,  enthalpy_mom)
+    if(enthalpy_mom) then  
+      call fluxes%heat_content_massout_c%alloc(fluxes%heat_content_massout, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%heat_content_massin_c%alloc(fluxes%heat_content_massin, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+    else
+      call fluxes%heat_content_evap_c%alloc(fluxes%heat_content_evap, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+    endif
+    call fluxes%heat_content_cond_c%alloc(fluxes%heat_content_cond, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+    call fluxes%heat_content_lprec_c%alloc(fluxes%heat_content_lprec, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+    call fluxes%heat_content_fprec_c%alloc(fluxes%heat_content_fprec, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+    call fluxes%heat_content_vprec_c%alloc(fluxes%heat_content_vprec, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+    call fluxes%heat_content_lrunoff_c%alloc(fluxes%heat_content_lrunoff, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+    call fluxes%heat_content_frunoff_c%alloc(fluxes%heat_content_frunoff, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+    call fluxes%heat_content_lrunoff_glc_c%alloc(fluxes%heat_content_lrunoff_glc, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+    call fluxes%heat_content_frunoff_glc_c%alloc(fluxes%heat_content_frunoff_glc, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
   endif ; endif
 
-  call myAlloc(fluxes%p_surf,isd,ied,jsd,jed, press)
+  !JMD    call myAlloc(fluxes%p_surf,isd,ied,jsd,jed, press)
+  if(present(press)) then 
+    if(press) then 
+      call fluxes%p_surf_c%alloc(fluxes%p_surf, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+    endif
+  endif
 
+  !JMD  call myAlloc(fluxes%frac_shelf_h,isd,ied,jsd,jed, shelf)
+  !JMD  call myAlloc(fluxes%ustar_shelf,isd,ied,jsd,jed, shelf)
+  !JMD  call myAlloc(fluxes%iceshelf_melt,isd,ied,jsd,jed, shelf)
   ! These fields should only be allocated if ice shelf is enabled.
   if (present(shelf)) then; if (shelf) then
-    call myAlloc(fluxes%frac_shelf_h,isd,ied,jsd,jed, shelf)
-    call myAlloc(fluxes%ustar_shelf,isd,ied,jsd,jed, shelf)
-    call myAlloc(fluxes%iceshelf_melt,isd,ied,jsd,jed, shelf)
-    if (shelf_sfc_acc) call myAlloc(fluxes%shelf_sfc_mass_flux,isd,ied,jsd,jed, shelf_sfc_acc)
+    call fluxes%frac_shelf_h_c%alloc(fluxes%frac_shelf_h, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+    call fluxes%ustar_shelf_c%alloc(fluxes%ustar_shelf, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+    call fluxes%iceshelf_melt_c%alloc(fluxes%iceshelf_melt, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+    !JMDif (shelf_sfc_acc) call myAlloc(fluxes%shelf_sfc_mass_flux,isd,ied,jsd,jed, shelf_sfc_acc)
+    if (shelf_sfc_acc)  &
+       call fluxes%shelf_sfc_mass_flux_c%alloc(fluxes%shelf_sfc_mass_flux, &
+             lb=[isd,jsd], ub=[ied,jed], source=0.0 )
   endif; endif
 
   !These fields should only be allocated when iceberg area is being passed through the coupler.
 
-  call myAlloc(fluxes%ustar_berg,isd,ied,jsd,jed, iceberg)
-  call myAlloc(fluxes%area_berg,isd,ied,jsd,jed, iceberg)
-  call myAlloc(fluxes%mass_berg,isd,ied,jsd,jed, iceberg)
+  !JMD    call myAlloc(fluxes%ustar_berg,isd,ied,jsd,jed, iceberg)
+  !JMD    call myAlloc(fluxes%area_berg,isd,ied,jsd,jed, iceberg)
+  !JMD    call myAlloc(fluxes%mass_berg,isd,ied,jsd,jed, iceberg)
+  if(present(iceberg)) then 
+    if(iceberg) then 
+      call fluxes%ustar_berg_c%alloc(fluxes%ustar_berg, &
+             lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%area_berg_c%alloc(fluxes%area_berg, &
+             lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%mass_berg_c%alloc(fluxes%mass_berg, &
+             lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+    endif
+  endif
 
+  !JMD call myAlloc(fluxes%ice_fraction,isd,ied,jsd,jed, cfc)
+  !JMD call myAlloc(fluxes%u10_sqr,isd,ied,jsd,jed, cfc)
   !These fields should only be allocated when USE_CFC_CAP is activated.
-  call myAlloc(fluxes%ice_fraction,isd,ied,jsd,jed, cfc)
-  call myAlloc(fluxes%u10_sqr,isd,ied,jsd,jed, cfc)
+  if(present(cfc)) then 
+    if(cfc) then 
+      call fluxes%ice_fraction_c%alloc(fluxes%ice_fraction, &
+             lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%u10_sqr_c%alloc(fluxes%u10_sqr, &
+             lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+    endif
+  endif
 
+  !JMD call myAlloc(fluxes%ice_fraction,isd,ied,jsd,jed, waves)
+  !JMD call myAlloc(fluxes%lamult,isd,ied,jsd,jed, lamult)
   !These fields should only be allocated when wave coupling is activated.
-  call myAlloc(fluxes%ice_fraction,isd,ied,jsd,jed, waves)
-  call myAlloc(fluxes%lamult,isd,ied,jsd,jed, lamult)
+  if(present(waves)) then; if(waves) then 
+    call fluxes%ice_fraction_c%alloc(fluxes%ice_fraction, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+  endif; endif
+  if(present(lamult)) then; if(lamult) then 
+    call fluxes%lamult_c%alloc(fluxes%lamult, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+  endif; endif
 
   if (present(fix_accum_bug)) fluxes%gustless_accum_bug = .not.fix_accum_bug
 
   !These fields should only be allocated when USE_MARBL is activated.
-  call myAlloc(fluxes%ice_fraction,isd,ied,jsd,jed, marbl)
-  call myAlloc(fluxes%u10_sqr,isd,ied,jsd,jed, marbl)
-  call myAlloc(fluxes%noy_dep,isd,ied,jsd,jed, marbl)
-  call myAlloc(fluxes%nhx_dep,isd,ied,jsd,jed, marbl)
-  call myAlloc(fluxes%atm_co2,isd,ied,jsd,jed, marbl)
-  call myAlloc(fluxes%atm_alt_co2,isd,ied,jsd,jed, marbl)
-  call myAlloc(fluxes%dust_flux,isd,ied,jsd,jed, marbl)
-  call myAlloc(fluxes%iron_flux,isd,ied,jsd,jed, marbl)
+    !JMD  call myAlloc(fluxes%ice_fraction,isd,ied,jsd,jed, marbl)
+    !JMD  call myAlloc(fluxes%u10_sqr,isd,ied,jsd,jed, marbl)
+    !JMD  call myAlloc(fluxes%noy_dep,isd,ied,jsd,jed, marbl)
+    !JMD  call myAlloc(fluxes%nhx_dep,isd,ied,jsd,jed, marbl)
+    !JMD  call myAlloc(fluxes%atm_co2,isd,ied,jsd,jed, marbl)
+    !JMD  call myAlloc(fluxes%atm_alt_co2,isd,ied,jsd,jed, marbl)
+    !JMD  call myAlloc(fluxes%dust_flux,isd,ied,jsd,jed, marbl)
+    !JMD  call myAlloc(fluxes%iron_flux,isd,ied,jsd,jed, marbl)
+  if(present(marbl)) then 
+    if(marbl) then 
+      call fluxes%ice_fraction_c%alloc(fluxes%ice_fraction, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%u10_sqr_c%alloc(fluxes%u10_sqr, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%noy_dep_c%alloc(fluxes%noy_dep, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%nhx_dep_c%alloc(fluxes%nhx_dep, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%atm_co2_c%alloc(fluxes%atm_co2, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%atm_alt_co2_c%alloc(fluxes%atm_alt_co2, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%dust_flux_c%alloc(fluxes%dust_flux, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+      call fluxes%iron_flux_c%alloc(fluxes%iron_flux, &
+                lb=[isd,jsd], ub=[ied,jed], source=0.0 )
+    endif
+  endif
 
   ! These fields should only be allocated when receiving multiple ice categories
   if (present(ice_ncat)) then
-    call myAlloc(fluxes%fracr_cat,isd,ied,jsd,jed,1,ice_ncat+1, ice_ncat > 0)
-    call myAlloc(fluxes%qsw_cat,isd,ied,jsd,jed,1,ice_ncat+1, ice_ncat > 0)
+    !JMD call myAlloc(fluxes%fracr_cat,isd,ied,jsd,jed,1,ice_ncat+1, ice_ncat > 0)
+    !JMD call myAlloc(fluxes%qsw_cat,isd,ied,jsd,jed,1,ice_ncat+1, ice_ncat > 0)
+    if(ice_ncat>0) then 
+      call fluxes%fracr_cat_c%alloc(fluxes%fracr_cat, &
+                lb=[isd,jsd,1], ub=[ied,jed,ice_ncat+1], source=0.0)
+      call fluxes%qsw_cat_c%alloc(fluxes%qsw_cat, &
+                lb=[isd,jsd,1], ub=[ied,jed,ice_ncat+1], source=0.0)
+    endif
   endif
 
 end subroutine allocate_forcing_by_group
@@ -3660,32 +3814,83 @@ subroutine allocate_forcing_by_ref(fluxes_ref, G, fluxes, turns)
       do_press, do_shelf, do_iceberg, do_salt, tau_mag=do_taumag)
 
   ! The following fluxes would typically be allocated by the driver
-  call myAlloc(fluxes%sw_vis_dir, G%isd, G%ied, G%jsd, G%jed, &
-      associated(fluxes_ref%sw_vis_dir))
-  call myAlloc(fluxes%sw_vis_dif, G%isd, G%ied, G%jsd, G%jed, &
-      associated(fluxes_ref%sw_vis_dif))
-  call myAlloc(fluxes%sw_nir_dir, G%isd, G%ied, G%jsd, G%jed, &
-      associated(fluxes_ref%sw_nir_dir))
-  call myAlloc(fluxes%sw_nir_dif, G%isd, G%ied, G%jsd, G%jed, &
-      associated(fluxes_ref%sw_nir_dif))
 
-  call myAlloc(fluxes%salt_flux_in, G%isd, G%ied, G%jsd, G%jed, &
-      associated(fluxes_ref%salt_flux_in))
-  call myAlloc(fluxes%salt_flux_added, G%isd, G%ied, G%jsd, G%jed, &
-      associated(fluxes_ref%salt_flux_added))
+  !JMD call myAlloc(fluxes%sw_vis_dir, G%isd, G%ied, G%jsd, G%jed, &
+  !JMD    associated(fluxes_ref%sw_vis_dir))
+  if(.not.associated(fluxes_ref%sw_vis_dir)) then 
+    call fluxes%sw_vis_dir_c%alloc(fluxes%sw_vis_dir, &
+        lb=[G%isd, G%jsd], ub=[G%ied, G%jed], source=0.0)
+  endif
 
-  call myAlloc(fluxes%p_surf_full, G%isd, G%ied, G%jsd, G%jed, &
-      associated(fluxes_ref%p_surf_full))
+  !JMD call myAlloc(fluxes%sw_vis_dif, G%isd, G%ied, G%jsd, G%jed, &
+  !JMD     associated(fluxes_ref%sw_vis_dif)
+  if(.not.associated(fluxes_ref%sw_vis_dif)) then 
+    call fluxes%sw_vis_dif_c%alloc(fluxes%sw_vis_dif, &
+        lb=[G%isd, G%jsd], ub=[G%ied, G%jed], source=0.0)
+  endif
 
-  call myAlloc(fluxes%heat_added, G%isd, G%ied, G%jsd, G%jed, &
-      associated(fluxes_ref%heat_added))
-  call myAlloc(fluxes%buoy, G%isd, G%ied, G%jsd, G%jed, &
-      associated(fluxes_ref%buoy))
+  !JMD call myAlloc(fluxes%sw_nir_dir, G%isd, G%ied, G%jsd, G%jed, &
+  !JMD     associated(fluxes_ref%sw_nir_dir)
+  if(.not.associated(fluxes_ref%sw_nir_dir)) then 
+    call fluxes%sw_nir_dir_c%alloc(fluxes%sw_nir_dir,  &
+        lb=[G%isd, G%jsd], ub=[G%ied, G%jed], source=0.0)
+  endif
 
-  call myAlloc(fluxes%BBL_tidal_dis, G%isd, G%ied, G%jsd, G%jed, &
-      associated(fluxes_ref%BBL_tidal_dis))
-  call myAlloc(fluxes%ustar_tidal, G%isd, G%ied, G%jsd, G%jed, &
-      associated(fluxes_ref%ustar_tidal))
+  !JMD call myAlloc(fluxes%sw_nir_dif, G%isd, G%ied, G%jsd, G%jed, &
+  !JMD     associated(fluxes_ref%sw_nir_dif))
+  if(.not.associated(fluxes_ref%sw_nir_dif)) then 
+    call fluxes%sw_nir_dif_c%alloc(fluxes%sw_nir_dif, &
+        lb=[G%isd, G%jsd], ub=[G%ied, G%jed], source=0.0)
+  endif
+
+  !JMD call myAlloc(fluxes%salt_flux_in, G%isd, G%ied, G%jsd, G%jed, &
+  !JMD     associated(fluxes_ref%salt_flux_in))
+  if(.not.associated(fluxes_ref%salt_flux_in)) then 
+    call fluxes%salt_flux_in_c%alloc(fluxes%salt_flux_in, &
+        lb=[G%isd, G%jsd], ub=[G%ied, G%jed], source=0.0)
+  endif
+
+  !JMD call myAlloc(fluxes%salt_flux_added, G%isd, G%ied, G%jsd, G%jed, &
+  !JMD     associated(fluxes_ref%salt_flux_added))
+  if(.not.associated(fluxes_ref%salt_flux_added)) then 
+    call fluxes%salt_flux_added_c%alloc(fluxes%salt_flux_added, &
+        lb=[G%isd, G%jsd], ub=[G%ied, G%jed], source=0.0)
+  endif
+
+  !JMD call myAlloc(fluxes%p_surf_full, G%isd, G%ied, G%jsd, G%jed, &
+  !JMD    associated(fluxes_ref%p_surf_full))
+  if(.not.associated(fluxes_ref%p_surf_full)) then 
+    call fluxes%p_surf_full_c%alloc(fluxes%p_surf_full, &
+        lb=[G%isd, G%jsd], ub=[G%ied, G%jed], source=0.0)
+  endif
+
+  !JMD call myAlloc(fluxes%heat_added, G%isd, G%ied, G%jsd, G%jed, &
+  !JMD     associated(fluxes_ref%heat_added))
+  if(.not.associated(fluxes_ref%heat_added)) then 
+    call fluxes%heat_added_c%alloc(fluxes%heat_added, &
+        lb=[G%isd, G%jsd], ub=[G%ied, G%jed], source=0.0)
+  endif
+
+  !JMD call myAlloc(fluxes%buoy, G%isd, G%ied, G%jsd, G%jed, &
+  !JMD     associated(fluxes_ref%buoy))
+  if(.not.associated(fluxes_ref%buoy)) then 
+    call fluxes%buoy_c%alloc(fluxes%buoy, &
+        lb=[G%isd, G%jsd], ub=[G%ied, G%jed], source=0.0)
+  endif
+
+  !JMD call myAlloc(fluxes%BBL_tidal_dis, G%isd, G%ied, G%jsd, G%jed, &
+  !JMD     associated(fluxes_ref%BBL_tidal_dis))
+  if(.not.associated(fluxes_ref%BBL_tidal_dis)) then 
+    call fluxes%BBL_tidal_dis_c%alloc(fluxes%BBL_tidal_dis, &
+        lb=[G%isd, G%jsd], ub=[G%ied, G%jed], source=0.0)
+  endif
+
+  !JMD call myAlloc(fluxes%ustar_tidal, G%isd, G%ied, G%jsd, G%jed, &
+  !JMD     associated(fluxes_ref%ustar_tidal))
+  if(.not.associated(fluxes_ref%ustar_tidal)) then 
+    call fluxes%ustar_tidal_c%alloc(fluxes%ustar_tidal, &
+        lb=[G%isd, G%jsd], ub=[G%ied, G%jed], source=0.0)
+  endif
 
   ! This flag would normally be set by a control flag in allocate_forcing_type.
   ! Here we copy the flag from the reference forcing.
@@ -3873,105 +4078,164 @@ subroutine get_mech_forcing_groups(forces, stress, ustar, tau_mag, shelf, press,
 end subroutine get_mech_forcing_groups
 
 
-!> Allocates and zeroes-out array.
-subroutine myAlloc_2d(array, is, ie, js, je, flag)
-  real, dimension(:,:), pointer :: array !< Array to be allocated
-  integer,           intent(in) :: is !< Start i-index
-  integer,           intent(in) :: ie !< End i-index
-  integer,           intent(in) :: js !< Start j-index
-  integer,           intent(in) :: je !< End j-index
-  logical, optional, intent(in) :: flag !< Flag to indicate to allocate
+!JMD !> Allocates and zeroes-out array.
+!JMD subroutine myAlloc_2d(array, is, ie, js, je, flag)
+!JMD   real, dimension(:,:), pointer :: array !< Array to be allocated
+!JMD   integer,           intent(in) :: is !< Start i-index
+!JMD   integer,           intent(in) :: ie !< End i-index
+!JMD   integer,           intent(in) :: js !< Start j-index
+!JMD   integer,           intent(in) :: je !< End j-index
+!JMD   logical, optional, intent(in) :: flag !< Flag to indicate to allocate
+!JMD 
+!JMD   if (present(flag)) then ; if (flag) then ; if (.not.associated(array)) then
+!JMD     allocate(array(is:ie,js:je), source=0.0)
+!JMD   endif ; endif ; endif
+!JMD end subroutine myAlloc_2d
 
-  if (present(flag)) then ; if (flag) then ; if (.not.associated(array)) then
-    allocate(array(is:ie,js:je), source=0.0)
-  endif ; endif ; endif
-end subroutine myAlloc_2d
-
-subroutine myAlloc_3d(array, is, ie, js, je, ks, ke, flag)
-  real, dimension(:,:,:), pointer :: array !< Array to be allocated
-  integer,             intent(in) :: is !< Start i-index
-  integer,             intent(in) :: ie !< End i-index
-  integer,             intent(in) :: js !< Start j-index
-  integer,             intent(in) :: je !< End j-index
-  integer,             intent(in) :: ks !< Start k-index
-  integer,             intent(in) :: ke !< End k-index
-  logical, optional,   intent(in) :: flag !< Flag to indicate to allocate
-
-  if (present(flag)) then ; if (flag) then ; if (.not.associated(array)) then
-    allocate(array(is:ie,js:je,ks:ke), source=0.0)
-  endif ; endif ; endif
-end subroutine myAlloc_3d
+!JMD subroutine myAlloc_3d(array, is, ie, js, je, ks, ke, flag)
+!JMD   real, dimension(:,:,:), pointer :: array !< Array to be allocated
+!JMD   integer,             intent(in) :: is !< Start i-index
+!JMD   integer,             intent(in) :: ie !< End i-index
+!JMD   integer,             intent(in) :: js !< Start j-index
+!JMD   integer,             intent(in) :: je !< End j-index
+!JMD   integer,             intent(in) :: ks !< Start k-index
+!JMD   integer,             intent(in) :: ke !< End k-index
+!JMD   logical, optional,   intent(in) :: flag !< Flag to indicate to allocate
+!JMD 
+!JMD   if (present(flag)) then ; if (flag) then ; if (.not.associated(array)) then
+!JMD     allocate(array(is:ie,js:je,ks:ke), source=0.0)
+!JMD  endif ; endif ; endif
+!JMD end subroutine myAlloc_3d
 
 !> Deallocate the forcing type
 subroutine deallocate_forcing_type(fluxes)
   type(forcing), intent(inout) :: fluxes !< Forcing fields structure
 
-  if (associated(fluxes%omega_w2x))            deallocate(fluxes%omega_w2x)
+  !JMD if (associated(fluxes%omega_w2x))            deallocate(fluxes%omega_w2x)
   !JMD if (associated(fluxes%ustar))                deallocate(fluxes%ustar)
   !JMD if (associated(fluxes%ustar_gustless))       deallocate(fluxes%ustar_gustless)
   !JMD if (associated(fluxes%tau_mag))              deallocate(fluxes%tau_mag)
+  !JMD if (associated(fluxes%buoy))                 deallocate(fluxes%buoy)
+  !JMD if (associated(fluxes%sw))                   deallocate(fluxes%sw)
+  !JMD if (associated(fluxes%seaice_melt_heat))     deallocate(fluxes%seaice_melt_heat)
+  !JMD if (associated(fluxes%sw_vis_dir))           deallocate(fluxes%sw_vis_dir)
+  !JMD if (associated(fluxes%sw_vis_dif))           deallocate(fluxes%sw_vis_dif)
+  !JMD if (associated(fluxes%sw_nir_dir))           deallocate(fluxes%sw_nir_dir)
+  !JMD if (associated(fluxes%sw_nir_dif))           deallocate(fluxes%sw_nir_dif)
+  !JMD if (associated(fluxes%lw))                   deallocate(fluxes%lw)
+  !JMD if (associated(fluxes%latent))               deallocate(fluxes%latent)
+  !JMD if (associated(fluxes%latent_evap_diag))     deallocate(fluxes%latent_evap_diag)
+  call fluxes%omega_w2x_c%free()
   call fluxes%ustar_c%free()
   call fluxes%ustar_gustless_c%free()
   call fluxes%tau_mag_c%free()
-  if (associated(fluxes%buoy))                 deallocate(fluxes%buoy)
-  if (associated(fluxes%sw))                   deallocate(fluxes%sw)
-  if (associated(fluxes%seaice_melt_heat))     deallocate(fluxes%seaice_melt_heat)
-  if (associated(fluxes%sw_vis_dir))           deallocate(fluxes%sw_vis_dir)
-  if (associated(fluxes%sw_vis_dif))           deallocate(fluxes%sw_vis_dif)
-  if (associated(fluxes%sw_nir_dir))           deallocate(fluxes%sw_nir_dir)
-  if (associated(fluxes%sw_nir_dif))           deallocate(fluxes%sw_nir_dif)
-  if (associated(fluxes%lw))                   deallocate(fluxes%lw)
-  if (associated(fluxes%latent))               deallocate(fluxes%latent)
-  if (associated(fluxes%latent_evap_diag))     deallocate(fluxes%latent_evap_diag)
-  if (associated(fluxes%latent_fprec_diag))    deallocate(fluxes%latent_fprec_diag)
-  if (associated(fluxes%latent_frunoff_diag))  deallocate(fluxes%latent_frunoff_diag)
-  if (associated(fluxes%latent_frunoff_glc_diag))  deallocate(fluxes%latent_frunoff_glc_diag)
-  if (associated(fluxes%sens))                 deallocate(fluxes%sens)
-  if (associated(fluxes%heat_added))           deallocate(fluxes%heat_added)
-  if (associated(fluxes%heat_content_lrunoff)) deallocate(fluxes%heat_content_lrunoff)
-  if (associated(fluxes%heat_content_frunoff)) deallocate(fluxes%heat_content_frunoff)
-  if (associated(fluxes%heat_content_lrunoff_glc)) deallocate(fluxes%heat_content_lrunoff_glc)
-  if (associated(fluxes%heat_content_frunoff_glc)) deallocate(fluxes%heat_content_frunoff_glc)
-  if (associated(fluxes%heat_content_lprec))   deallocate(fluxes%heat_content_lprec)
-  if (associated(fluxes%heat_content_fprec))   deallocate(fluxes%heat_content_fprec)
-  if (associated(fluxes%heat_content_cond))    deallocate(fluxes%heat_content_cond)
-  if (associated(fluxes%heat_content_evap))    deallocate(fluxes%heat_content_evap)
-  if (associated(fluxes%heat_content_massout)) deallocate(fluxes%heat_content_massout)
-  if (associated(fluxes%heat_content_massin))  deallocate(fluxes%heat_content_massin)
-  if (associated(fluxes%evap))                 deallocate(fluxes%evap)
-  if (associated(fluxes%lprec))                deallocate(fluxes%lprec)
-  if (associated(fluxes%fprec))                deallocate(fluxes%fprec)
-  if (associated(fluxes%vprec))                deallocate(fluxes%vprec)
-  if (associated(fluxes%lrunoff))              deallocate(fluxes%lrunoff)
-  if (associated(fluxes%frunoff))              deallocate(fluxes%frunoff)
-  if (associated(fluxes%lrunoff_glc))          deallocate(fluxes%lrunoff_glc)
-  if (associated(fluxes%frunoff_glc))          deallocate(fluxes%frunoff_glc)
-  if (associated(fluxes%seaice_melt))          deallocate(fluxes%seaice_melt)
-  if (associated(fluxes%netMassOut))           deallocate(fluxes%netMassOut)
-  if (associated(fluxes%netMassIn))            deallocate(fluxes%netMassIn)
-  if (associated(fluxes%salt_flux))            deallocate(fluxes%salt_flux)
-  if (associated(fluxes%p_surf_full))          deallocate(fluxes%p_surf_full)
-  if (associated(fluxes%p_surf))               deallocate(fluxes%p_surf)
-  if (associated(fluxes%BBL_tidal_dis))        deallocate(fluxes%BBL_tidal_dis)
-  if (associated(fluxes%ustar_tidal))          deallocate(fluxes%ustar_tidal)
-  if (associated(fluxes%ustar_shelf))          deallocate(fluxes%ustar_shelf)
-  if (associated(fluxes%iceshelf_melt))        deallocate(fluxes%iceshelf_melt)
-  if (associated(fluxes%shelf_sfc_mass_flux)) &
-                                               deallocate(fluxes%shelf_sfc_mass_flux)
-  if (associated(fluxes%frac_shelf_h))         deallocate(fluxes%frac_shelf_h)
-  if (associated(fluxes%ustar_berg))           deallocate(fluxes%ustar_berg)
-  if (associated(fluxes%area_berg))            deallocate(fluxes%area_berg)
-  if (associated(fluxes%mass_berg))            deallocate(fluxes%mass_berg)
-  if (associated(fluxes%ice_fraction))         deallocate(fluxes%ice_fraction)
-  if (associated(fluxes%u10_sqr))              deallocate(fluxes%u10_sqr)
-  if (associated(fluxes%noy_dep))              deallocate(fluxes%noy_dep)
-  if (associated(fluxes%nhx_dep))              deallocate(fluxes%nhx_dep)
-  if (associated(fluxes%atm_co2))              deallocate(fluxes%atm_co2)
-  if (associated(fluxes%atm_alt_co2))          deallocate(fluxes%atm_alt_co2)
-  if (associated(fluxes%dust_flux))            deallocate(fluxes%dust_flux)
-  if (associated(fluxes%iron_flux))            deallocate(fluxes%iron_flux)
-  if (associated(fluxes%fracr_cat))            deallocate(fluxes%fracr_cat)
-  if (associated(fluxes%qsw_cat))              deallocate(fluxes%qsw_cat)
+  call fluxes%buoy_c%free()
+  call fluxes%sw_c%free()
+  call fluxes%seaice_melt_heat_c%free()
+  call fluxes%sw_vis_dir_c%free()
+  call fluxes%sw_vis_dif_c%free()
+  call fluxes%sw_nir_dir_c%free()
+  call fluxes%sw_nir_dif_c%free()
+  call fluxes%lw_c%free()
+  call fluxes%latent_c%free()
+  call fluxes%latent_evap_diag_c%free()
+  !JMD if (associated(fluxes%latent_fprec_diag))    deallocate(fluxes%latent_fprec_diag)
+  call fluxes%latent_fprec_diag_c%free()
+  !JMD if (associated(fluxes%latent_frunoff_diag))  deallocate(fluxes%latent_frunoff_diag)
+  call fluxes%latent_frunoff_diag_c%free()
+  !JMD if (associated(fluxes%latent_frunoff_glc_diag))  deallocate(fluxes%latent_frunoff_glc_diag)
+  call fluxes%latent_frunoff_glc_diag_c%free()
+  !JMD if (associated(fluxes%sens))                 deallocate(fluxes%sens)
+  call fluxes%sens_c%free()
+  !JMD if (associated(fluxes%heat_added))           deallocate(fluxes%heat_added)
+  call fluxes%heat_added_c%free()
+  !JMD if (associated(fluxes%heat_content_lrunoff)) deallocate(fluxes%heat_content_lrunoff)
+  call fluxes%heat_content_lrunoff_c%free()
+  !JMD if (associated(fluxes%heat_content_frunoff)) deallocate(fluxes%heat_content_frunoff)
+  call fluxes%heat_content_frunoff_c%free()
+  !JMD if (associated(fluxes%heat_content_lrunoff_glc)) deallocate(fluxes%heat_content_lrunoff_glc)
+  call fluxes%heat_content_lrunoff_glc_c%free()
+  !JMD if (associated(fluxes%heat_content_frunoff_glc)) deallocate(fluxes%heat_content_frunoff_glc)
+  call fluxes%heat_content_frunoff_glc_c%free()
+  !JMD if (associated(fluxes%heat_content_lprec))   deallocate(fluxes%heat_content_lprec)
+  call fluxes%heat_content_lprec_c%free()
+  !JMD if (associated(fluxes%heat_content_fprec))   deallocate(fluxes%heat_content_fprec)
+  call fluxes%heat_content_fprec_c%free()
+  !JMD if (associated(fluxes%heat_content_cond))    deallocate(fluxes%heat_content_cond)
+  call fluxes%heat_content_cond_c%free()
+  !JMD if (associated(fluxes%heat_content_evap))    deallocate(fluxes%heat_content_evap)
+  call fluxes%heat_content_evap_c%free()
+  !JMD if (associated(fluxes%heat_content_massout)) deallocate(fluxes%heat_content_massout)
+  call fluxes%heat_content_massout_c%free()
+  !JMD if (associated(fluxes%heat_content_massin))  deallocate(fluxes%heat_content_massin)
+  call fluxes%heat_content_massin_c%free()
+  !JMD if (associated(fluxes%evap))                 deallocate(fluxes%evap)
+  call fluxes%evap_c%free()
+  !JMD if (associated(fluxes%lprec))                deallocate(fluxes%lprec)
+  call fluxes%lprec_c%free()
+  !JMD if (associated(fluxes%fprec))                deallocate(fluxes%fprec)
+  call fluxes%fprec_c%free()
+  !JMD if (associated(fluxes%vprec))                deallocate(fluxes%vprec)
+  call fluxes%vprec_c%free()
+  !JMD if (associated(fluxes%lrunoff))              deallocate(fluxes%lrunoff)
+  call fluxes%lrunoff_c%free()
+  !JMD if (associated(fluxes%frunoff))              deallocate(fluxes%frunoff)
+  call fluxes%frunoff_c%free()
+  !JMD if (associated(fluxes%lrunoff_glc))          deallocate(fluxes%lrunoff_glc)
+  call fluxes%lrunoff_glc_c%free()
+  !JMD if (associated(fluxes%frunoff_glc))          deallocate(fluxes%frunoff_glc)
+  call fluxes%frunoff_glc_c%free()
+  !JMD if (associated(fluxes%seaice_melt))          deallocate(fluxes%seaice_melt)
+  call fluxes%seaice_melt_c%free()
+  !JMD if (associated(fluxes%netMassOut))           deallocate(fluxes%netMassOut)
+  call fluxes%netMassOut_c%free()
+  !JMD if (associated(fluxes%netMassIn))            deallocate(fluxes%netMassIn)
+  call fluxes%netMassIn_c%free()
+  !JMD if (associated(fluxes%salt_flux))            deallocate(fluxes%salt_flux)
+  call fluxes%salt_flux_c%free()
+  !JMD if (associated(fluxes%p_surf_full))          deallocate(fluxes%p_surf_full)
+  call fluxes%p_surf_full_c%free()
+  !JMD if (associated(fluxes%p_surf))               deallocate(fluxes%p_surf)
+  call fluxes%p_surf_c%free()
+  !JMD if (associated(fluxes%BBL_tidal_dis))        deallocate(fluxes%BBL_tidal_dis)
+  call fluxes%BBL_tidal_dis_c%free()
+  !JMD if (associated(fluxes%ustar_tidal))          deallocate(fluxes%ustar_tidal)
+  call fluxes%ustar_tidal_c%free()
+  !JMD if (associated(fluxes%ustar_shelf))          deallocate(fluxes%ustar_shelf)
+  call fluxes%ustar_shelf_c%free()
+  !JMD if (associated(fluxes%iceshelf_melt))        deallocate(fluxes%iceshelf_melt)
+  call fluxes%iceshelf_melt_c%free()
+  !JMD if (associated(fluxes%shelf_sfc_mass_flux)) &
+  !JMD                                              deallocate(fluxes%shelf_sfc_mass_flux)
+  call fluxes%shelf_sfc_mass_flux_c%free()
+  !JMD if (associated(fluxes%frac_shelf_h))         deallocate(fluxes%frac_shelf_h)
+  call fluxes%frac_shelf_h_c%free()
+  !JMD if (associated(fluxes%ustar_berg))           deallocate(fluxes%ustar_berg)
+  call fluxes%ustar_berg_c%free()
+  !JMD if (associated(fluxes%area_berg))            deallocate(fluxes%area_berg)
+  call fluxes%area_berg_c%free()
+  !JMD if (associated(fluxes%mass_berg))            deallocate(fluxes%mass_berg)
+  call fluxes%mass_berg_c%free()
+  !JMD if (associated(fluxes%ice_fraction))         deallocate(fluxes%ice_fraction)
+  call fluxes%ice_fraction_c%free()
+  !JMD if (associated(fluxes%u10_sqr))              deallocate(fluxes%u10_sqr)
+  call fluxes%u10_sqr_c%free()
+  !JMD if (associated(fluxes%noy_dep))              deallocate(fluxes%noy_dep)
+  call fluxes%noy_dep_c%free()
+  !JMD if (associated(fluxes%nhx_dep))              deallocate(fluxes%nhx_dep)
+  call fluxes%nhx_dep_c%free()
+  !JMD if (associated(fluxes%atm_co2))              deallocate(fluxes%atm_co2)
+  call fluxes%atm_co2_c%free()
+  !JMD if (associated(fluxes%atm_alt_co2))          deallocate(fluxes%atm_alt_co2)
+  call fluxes%atm_alt_co2_c%free()
+  !JMD if (associated(fluxes%dust_flux))            deallocate(fluxes%dust_flux)
+  call fluxes%dust_flux_c%free()
+  !JMD if (associated(fluxes%iron_flux))            deallocate(fluxes%iron_flux)
+  call fluxes%iron_flux_c%free()
+  !JMD if (associated(fluxes%fracr_cat))            deallocate(fluxes%fracr_cat)
+  call fluxes%fracr_cat_c%free()
+  !JMD if (associated(fluxes%qsw_cat))              deallocate(fluxes%qsw_cat)
+  call fluxes%qsw_cat_c%free()
 
   call coupler_type_destructor(fluxes%tr_fluxes)
 
