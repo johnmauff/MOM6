@@ -6,7 +6,7 @@ module MOM_io_infra
 use MOM_domain_infra,     only : MOM_domain_type, rescale_comp_data, AGRID, BGRID_NE, CGRID_NE
 use MOM_domain_infra,     only : domain2d, domain1d, CENTER, CORNER, NORTH_FACE, EAST_FACE
 use MOM_error_infra,      only : MOM_error=>MOM_err, NOTE, FATAL, WARNING, is_root_PE
-use MOM_string_functions, only : lowercase
+use MOM_string_infra,     only : lowercase
 
 use fms2_io_mod,          only : fms2_open_file => open_file, check_if_open, fms2_close_file => close_file
 use fms2_io_mod,          only : fms2_flush_file => flush_file

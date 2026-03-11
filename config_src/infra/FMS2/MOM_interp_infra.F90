@@ -8,7 +8,7 @@ use MOM_io,              only : axis_info
 use MOM_io,              only : get_var_axes_info
 use MOM_time_manager,    only : time_type
 use MOM_error_infra, only : MOM_err, FATAL
-use MOM_string_functions, only : lowercase
+use MOM_string_infra, only : lowercase
 use horiz_interp_mod, only : horiz_interp_new, horiz_interp, horiz_interp_init, horiz_interp_type
 use netcdf_io_mod, only : FmsNetcdfFile_t, netcdf_file_open, netcdf_file_close
 use netcdf_io_mod, only : get_num_variables, get_variable_names
