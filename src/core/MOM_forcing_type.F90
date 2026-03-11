@@ -275,10 +275,10 @@ type, public :: mech_forcing
                               !! to the horizontal abscissa (x-coordinate) at tracer points [rad].
   type(RealArray_t) :: taux_c, &         !< The array container for taux
                        tauy_c, &         !< The array container for tauy
-                       tau_mag_c         !! The array container for tau_mag
+                       tau_mag_c         !< The array container for tau_mag
   type(RealArray_t) :: ustar_c, &        !< The array container for ustar
                        net_mass_src_c, & !< The array container for net_mass_src
-                       omega_w2x_c       !! The array container for omega_w2x
+                       omega_w2x_c       !< The array container for omega_w2x
 
   ! applied surface pressure from other component models (e.g., atmos, sea ice, land ice)
   real, pointer, dimension(:,:) :: p_surf_full => NULL()
@@ -301,7 +301,7 @@ type, public :: mech_forcing
     area_berg  => NULL(), &    !< fractional area of ocean surface covered by icebergs [nondim]
     mass_berg  => NULL()       !< mass of icebergs per unit ocean area [R Z ~> kg m-2]
   type (RealArray_t) :: area_berg_c, & !< The array container for area_berg
-                        mass_berg_c    !! The array container for mass_berg
+                        mass_berg_c    !< The array container for mass_berg
 
   ! land ice-shelf related inputs
   real, pointer, dimension(:,:) :: frac_shelf_u  => NULL() !< Fractional ice shelf coverage of u-cells,
@@ -341,7 +341,7 @@ type, public :: mech_forcing
                                 !! Horizontal - v points
                                 !! 3rd dimension - wavenumber
   type(RealArray_t) :: ustkb_c,  & !< The array container for ustkb
-                       vstkb_c     !! The array container for vstkb
+                       vstkb_c     !< The array container for vstkb
 
   logical :: initialized = .false. !< This indicates whether the appropriate arrays have been initialized.
 end type mech_forcing
@@ -3649,44 +3649,55 @@ subroutine allocate_mech_forcing_by_group(G, forces, stress, ustar, shelf, &
 
   ! Local variables
   integer :: isd, ied, jsd, jed, IsdB, IedB, JsdB, JedB
+  logical :: stressl 
 
   isd  = G%isd   ; ied  = G%ied    ; jsd  = G%jsd   ; jed  = G%jed
   IsdB = G%IsdB  ; IedB = G%IedB   ; JsdB = G%JsdB  ; JedB = G%JedB
-
-  if(stress) then
-    call forces%taux_c%alloc(forces%taux, lb=[IsdB,jsd], ub=[ieDB,jed], source=0.0)
-    call forces%tauy_c%alloc(forces%tauy, lb=[isd,JsdB], ub=[ied,JedB], source=0.0)
+  if(present(stress)) then
+    if(stress) then
+      call forces%taux_c%alloc(forces%taux, lb=[IsdB,jsd], ub=[ieDB,jed], source=0.0)
+      call forces%tauy_c%alloc(forces%tauy, lb=[isd,JsdB], ub=[ied,JedB], source=0.0)
+    endif
   endif
 
-  if(ustar) then
-    call forces%ustar_c%alloc(forces%ustar,lb=[isd,jsd], ub=[ied,jed], source=0.0)
-    call forces%tau_mag_c%alloc(forces%tau_mag,lb=[isd,jsd], ub=[ied,jed], source=0.0)
+  if(present(ustar) then 
+    if(ustar) then
+      call forces%ustar_c%alloc(forces%ustar,lb=[isd,jsd], ub=[ied,jed], source=0.0)
+      call forces%tau_mag_c%alloc(forces%tau_mag,lb=[isd,jsd], ub=[ied,jed], source=0.0)
+    endif
   endif
   ! Note that alloc method  can be called safely multiple times for the same pointer.
-  if(tau_mag) &
-    call forces%tau_mag_c%alloc(forces%tau_mag,lb=[isd,jsd], ub=[ied,jed], source=0.0)
+  if(present(tau_mag)) &
+    if(tau_mag) &
+      call forces%tau_mag_c%alloc(forces%tau_mag,lb=[isd,jsd], ub=[ied,jed], source=0.0)
 
-  if(press) then
-    call forces%net_mass_src_c%alloc(forces%net_mass_src, lb=[isd,jsd], ub=[ied,jed], source=0.0)
-    call forces%p_surf_c%alloc(forces%p_surf, lb=[isd,jsd], ub=[ied,jed], source=0.0)
-    call forces%p_surf_full_c%alloc(forces%p_surf_full, lb=[isd,jsd], ub=[ied,jed], source=0.0)
+  if(present(press) then 
+    if(press) then
+      call forces%net_mass_src_c%alloc(forces%net_mass_src, lb=[isd,jsd], ub=[ied,jed], source=0.0)
+      call forces%p_surf_c%alloc(forces%p_surf, lb=[isd,jsd], ub=[ied,jed], source=0.0)
+      call forces%p_surf_full_c%alloc(forces%p_surf_full, lb=[isd,jsd], ub=[ied,jed], source=0.0)
+    endif
   endif
 
-  if(shelf) then
-    call forces%rigidity_ice_u_c%alloc(forces%rigidity_ice_u, &
+  if(present(shelf)) then 
+    if(shelf) then
+      call forces%rigidity_ice_u_c%alloc(forces%rigidity_ice_u, &
                 lb=[IsdB,jsd], ub=[IedB,jed], source=0.0)
-    call forces%rigidity_ice_v_c%alloc(forces%rigidity_ice_v, &
+      call forces%rigidity_ice_v_c%alloc(forces%rigidity_ice_v, &
                 lb=[isd,jsdB], ub=[ied,JedB], source=0.0)
-    call forces%frac_shelf_u_c%alloc(forces%frac_shelf_u, &
+      call forces%frac_shelf_u_c%alloc(forces%frac_shelf_u, &
                 lb=[IsdB,jsd], ub=[IedB,jed], source=0.0)
-    call forces%frac_shelf_v_c%alloc(forces%frac_shelf_v, &
+      call forces%frac_shelf_v_c%alloc(forces%frac_shelf_v, &
                 lb=[isd,jsdB], ub=[ied,JedB], source=0.0)
+    endif
   endif
 
   !These fields should only on allocated when iceberg area is being passed through the coupler.
-  if(iceberg) then
-    call forces%area_berg_c%alloc(forces%area_berg,lb=[isd,jsd], ub=[ied,jed], source=0.0)
-    call forces%mass_berg_c%alloc(forces%mass_berg,lb=[isd,jsd], ub=[ied,jed], source=0.0)
+  if(present(iceberg)) then 
+    if(iceberg) then
+      call forces%area_berg_c%alloc(forces%area_berg,lb=[isd,jsd], ub=[ied,jed], source=0.0)
+      call forces%mass_berg_c%alloc(forces%mass_berg,lb=[isd,jsd], ub=[ied,jed], source=0.0)
+    endif
   endif
 
   !These fields should only be allocated when waves
