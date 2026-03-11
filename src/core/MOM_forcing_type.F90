@@ -273,11 +273,12 @@ type, public :: mech_forcing
     net_mass_src => NULL(), & !< The net mass source to the ocean [R Z T-1 ~> kg m-2 s-1]
     omega_w2x    => NULL()    !< the counter-clockwise angle of the wind stress with respect
                               !! to the horizontal abscissa (x-coordinate) at tracer points [rad].
-  type(RealArray_t) :: taux_c, & !< The array container for taux
-                       tauy_c, & !< The array container for tauy
-                       tau_mag_c !< The array containers for tau_mag_c
-  type(RealArray_t) :: ustar_c, net_mass_src_c, omega_w2x_c !< Array containers for ustar, net_mass_src,
-                                                            !! and omega_w2x
+  type(RealArray_t) :: taux_c, &       !< The array container for taux
+                       tauy_c, &       !< The array container for tauy
+                       tau_mag_c       !< The array container for tau_mag
+  type(RealArray_t) :: ustar_c, &      !< The array container for ustar
+                       net_mass_src_c, !< The array container for net_mass_src
+                       omega_w2x_c     !< The array container for omega_w2x
 
   ! applied surface pressure from other component models (e.g., atmos, sea ice, land ice)
   real, pointer, dimension(:,:) :: p_surf_full => NULL()
@@ -299,22 +300,26 @@ type, public :: mech_forcing
   real, pointer, dimension(:,:) :: &
     area_berg  => NULL(), &    !< fractional area of ocean surface covered by icebergs [nondim]
     mass_berg  => NULL()       !< mass of icebergs per unit ocean area [R Z ~> kg m-2]
-  type (RealArray_t) :: area_berg_c, mass_berg_c !< Array containers for area_berg, and mass_bert
+  type (RealArray_t) :: area_berg_c, & !< The array container for area_berg
+                        mass_berg_c    !< The array container for mass_berg
 
   ! land ice-shelf related inputs
   real, pointer, dimension(:,:) :: frac_shelf_u  => NULL() !< Fractional ice shelf coverage of u-cells,
                 !! nondimensional from 0 to 1 [nondim]. This is only associated if ice shelves are enabled,
                 !! and is exactly 0 away from shelves or on land.
+  type(RealArray_t) :: frac_shelf_u_c  !< The array container for frac_shelf_u
   real, pointer, dimension(:,:) :: frac_shelf_v  => NULL() !< Fractional ice shelf coverage of v-cells,
                 !! nondimensional from 0 to 1 [nondim]. This is only associated if ice shelves are enabled,
                 !! and is exactly 0 away from shelves or on land.
-  type(RealArray_t) :: frac_shelf_u_c, frac_shelf_v_c  !< Array containers for frac_shelf_{u,v}
+  type(RealArray_t) :: frac_shelf_v_c  !< The array container for frac_shelf_v
+
   real, pointer, dimension(:,:) :: &
     rigidity_ice_u => NULL(), & !< Depth-integrated lateral viscosity of ice shelves or sea ice at
                                 !! u-points [L4 Z-1 T-1 ~> m3 s-1]
     rigidity_ice_v => NULL()    !< Depth-integrated lateral viscosity of ice shelves or sea ice at
                                 !! v-points [L4 Z-1 T-1 ~> m3 s-1]
-  type(RealArray_t) :: rigidity_ice_u_c, rigidity_ice_v_c  !< Array containers for rigidity_ice_{u,v}
+  type(RealArray_t) :: rigidity_ice_u_c, & !< The array container for ridigity_ice_u
+                       rigidity_ice_v_c    !< The array container for ridigity_ice_v
   real :: dt_force_accum = -1.0 !< The amount of time over which the mechanical forcing fluxes
                                 !! have been averaged [T ~> s].
   logical :: net_mass_src_set = .false. !< If true, an estimate of net_mass_src has been provided.
@@ -335,7 +340,8 @@ type, public :: mech_forcing
     vstkb => NULL()             !< Stokes Drift spectrum, meridional [L T-1 ~> m s-1]
                                 !! Horizontal - v points
                                 !! 3rd dimension - wavenumber
-  type(RealArray_t) :: ustkb_c, vstkb_c   !< Array containers for {u,v}stkb variables
+  type(RealArray_t) :: ustkb_c,  & !< The array container for ustkb
+                       vstkb_c     !< The array container for vstkb
 
   logical :: initialized = .false. !< This indicates whether the appropriate arrays have been initialized.
 end type mech_forcing
@@ -3648,8 +3654,8 @@ subroutine allocate_mech_forcing_by_group(G, forces, stress, ustar, shelf, &
   IsdB = G%IsdB  ; IedB = G%IedB   ; JsdB = G%JsdB  ; JedB = G%JedB
 
   if(stress) then
-    call forces%taux_c%alloc(forces%taux,lb=[IsdB,jsd], ub=[ieDB,jed], source=0.0)
-    call forces%tauy_c%alloc(forces%tauy,lb=[isd,JsdB], ub=[ied,JedB], source=0.0) 
+    call forces%taux_c%alloc(forces%taux, lb=[IsdB,jsd], ub=[ieDB,jed], source=0.0)
+    call forces%tauy_c%alloc(forces%tauy, lb=[isd,JsdB], ub=[ied,JedB], source=0.0)
   endif
 
   if(ustar) then
@@ -3668,13 +3674,13 @@ subroutine allocate_mech_forcing_by_group(G, forces, stress, ustar, shelf, &
 
   if(shelf) then
     call forces%rigidity_ice_u_c%alloc(forces%rigidity_ice_u, &
-                lb=[IsdB,jsd], ub=[IedB,jed], source=0.0) 
+                lb=[IsdB,jsd], ub=[IedB,jed], source=0.0)
     call forces%rigidity_ice_v_c%alloc(forces%rigidity_ice_v, &
                 lb=[isd,jsdB], ub=[ied,JedB], source=0.0)
     call forces%frac_shelf_u_c%alloc(forces%frac_shelf_u, &
                 lb=[IsdB,jsd], ub=[IedB,jed], source=0.0)
     call forces%frac_shelf_v_c%alloc(forces%frac_shelf_v, &
-                lb=[isd,jsdB], ub=[ied,JedB], source=0.0) 
+                lb=[isd,jsdB], ub=[ied,JedB], source=0.0)
   endif
 
   !These fields should only on allocated when iceberg area is being passed through the coupler.
