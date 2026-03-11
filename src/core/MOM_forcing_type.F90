@@ -273,12 +273,12 @@ type, public :: mech_forcing
     net_mass_src => NULL(), & !< The net mass source to the ocean [R Z T-1 ~> kg m-2 s-1]
     omega_w2x    => NULL()    !< the counter-clockwise angle of the wind stress with respect
                               !! to the horizontal abscissa (x-coordinate) at tracer points [rad].
-  type(RealArray_t) :: taux_c, &       !< The array container for taux
-                       tauy_c, &       !< The array container for tauy
-                       tau_mag_c       !< The array container for tau_mag
-  type(RealArray_t) :: ustar_c, &      !< The array container for ustar
-                       net_mass_src_c, !< The array container for net_mass_src
-                       omega_w2x_c     !< The array container for omega_w2x
+  type(RealArray_t) :: taux_c, &         !< The array container for taux
+                       tauy_c, &         !< The array container for tauy
+                       tau_mag_c         !! The array container for tau_mag
+  type(RealArray_t) :: ustar_c, &        !< The array container for ustar
+                       net_mass_src_c, & !< The array container for net_mass_src
+                       omega_w2x_c       !! The array container for omega_w2x
 
   ! applied surface pressure from other component models (e.g., atmos, sea ice, land ice)
   real, pointer, dimension(:,:) :: p_surf_full => NULL()
@@ -301,7 +301,7 @@ type, public :: mech_forcing
     area_berg  => NULL(), &    !< fractional area of ocean surface covered by icebergs [nondim]
     mass_berg  => NULL()       !< mass of icebergs per unit ocean area [R Z ~> kg m-2]
   type (RealArray_t) :: area_berg_c, & !< The array container for area_berg
-                        mass_berg_c    !< The array container for mass_berg
+                        mass_berg_c    !! The array container for mass_berg
 
   ! land ice-shelf related inputs
   real, pointer, dimension(:,:) :: frac_shelf_u  => NULL() !< Fractional ice shelf coverage of u-cells,
@@ -341,7 +341,7 @@ type, public :: mech_forcing
                                 !! Horizontal - v points
                                 !! 3rd dimension - wavenumber
   type(RealArray_t) :: ustkb_c,  & !< The array container for ustkb
-                       vstkb_c     !< The array container for vstkb
+                       vstkb_c     !! The array container for vstkb
 
   logical :: initialized = .false. !< This indicates whether the appropriate arrays have been initialized.
 end type mech_forcing
