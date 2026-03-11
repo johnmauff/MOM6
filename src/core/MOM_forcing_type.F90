@@ -23,10 +23,13 @@ use MOM_spatial_means, only : global_area_mean_u, global_area_mean_v
 use MOM_unit_scaling,  only : unit_scale_type
 use MOM_variables,     only : surface, thermo_var_ptrs
 use MOM_verticalGrid,  only : verticalGrid_type
+use array_mod,         only : RealArray_t
 
 implicit none ; private
 
 #include <MOM_memory.h>
+
+public RealArray_t
 
 public extractFluxes1d, extractFluxes2d, optics_type
 public MOM_forcing_chksum, MOM_mech_forcing_chksum
@@ -270,14 +273,20 @@ type, public :: mech_forcing
     net_mass_src => NULL(), & !< The net mass source to the ocean [R Z T-1 ~> kg m-2 s-1]
     omega_w2x    => NULL()    !< the counter-clockwise angle of the wind stress with respect
                               !! to the horizontal abscissa (x-coordinate) at tracer points [rad].
+  type(RealArray_t) :: taux_c, tauy_c, tau_mag_c !< The array containers for taux, tauy, tau_mag_c
+  type(RealArray_t) :: ustar_c, net_mass_src_c, omega_w2x_c !< Array containers for ustar, net_mass_src,
+                                                            !! and omega_w2x
 
   ! applied surface pressure from other component models (e.g., atmos, sea ice, land ice)
   real, pointer, dimension(:,:) :: p_surf_full => NULL()
                 !< Pressure at the top ocean interface [R L2 T-2 ~> Pa].
                 !! if there is sea-ice, then p_surf_flux is at ice-ocean interface
+  type(RealArray_t) :: p_surf_full_c  !< Array container for p_surf_full
   real, pointer, dimension(:,:) :: p_surf => NULL()
                 !< Pressure at the top ocean interface [R L2 T-2 ~> Pa] as used to drive the ocean model.
                 !! If p_surf is limited, p_surf may be smaller than p_surf_full, otherwise they are the same.
+  type(RealArray_t) :: p_surf_c  !< Array container for p_surf
+
   real, pointer, dimension(:,:) :: p_surf_SSH => NULL()
                 !< Pressure at the top ocean interface [R L2 T-2 ~> Pa] that is used in corrections
                 !! to the sea surface height field that is passed back to the calling routines.
@@ -287,6 +296,7 @@ type, public :: mech_forcing
   real, pointer, dimension(:,:) :: &
     area_berg  => NULL(), &    !< fractional area of ocean surface covered by icebergs [nondim]
     mass_berg  => NULL()       !< mass of icebergs per unit ocean area [R Z ~> kg m-2]
+  type (RealArray_t) :: area_berg_c, mass_berg_c !< Array containers for area_berg, and mass_bert
 
   ! land ice-shelf related inputs
   real, pointer, dimension(:,:) :: frac_shelf_u  => NULL() !< Fractional ice shelf coverage of u-cells,
@@ -295,11 +305,13 @@ type, public :: mech_forcing
   real, pointer, dimension(:,:) :: frac_shelf_v  => NULL() !< Fractional ice shelf coverage of v-cells,
                 !! nondimensional from 0 to 1 [nondim]. This is only associated if ice shelves are enabled,
                 !! and is exactly 0 away from shelves or on land.
+  type(RealArray_t) :: frac_shelf_u_c, frac_shelf_v_c  !< Array containers for frac_shelf_{u,v}
   real, pointer, dimension(:,:) :: &
     rigidity_ice_u => NULL(), & !< Depth-integrated lateral viscosity of ice shelves or sea ice at
                                 !! u-points [L4 Z-1 T-1 ~> m3 s-1]
     rigidity_ice_v => NULL()    !< Depth-integrated lateral viscosity of ice shelves or sea ice at
                                 !! v-points [L4 Z-1 T-1 ~> m3 s-1]
+  type(RealArray_t) :: rigidity_ice_u_c, rigidity_ice_v_c  !< Array containers for rigidity_ice_{u,v}
   real :: dt_force_accum = -1.0 !< The amount of time over which the mechanical forcing fluxes
                                 !! have been averaged [T ~> s].
   logical :: net_mass_src_set = .false. !< If true, an estimate of net_mass_src has been provided.
@@ -312,6 +324,7 @@ type, public :: mech_forcing
                                 !! reset to zero at the driver level when appropriate.
   real, pointer, dimension(:) :: &
     stk_wavenumbers => NULL()   !< The central wave number of Stokes bands [rad Z-1 ~> rad m-1]
+  type(RealArray_t) :: stk_wavenumbers_c !< Array container for stk_wavenumbers
   real, pointer, dimension(:,:,:) :: &
     ustkb => NULL(), &          !< Stokes Drift spectrum, zonal [L T-1 ~> m s-1]
                                 !! Horizontal - u points
@@ -319,6 +332,7 @@ type, public :: mech_forcing
     vstkb => NULL()             !< Stokes Drift spectrum, meridional [L T-1 ~> m s-1]
                                 !! Horizontal - v points
                                 !! 3rd dimension - wavenumber
+  type(RealArray_t) :: ustkb_c, vstkb_c   !< Array containers for {u,v}stkb variables 
 
   logical :: initialized = .false. !< This indicates whether the appropriate arrays have been initialized.
 end type mech_forcing
@@ -3510,6 +3524,7 @@ subroutine allocate_forcing_by_group(G, fluxes, water, heat, ustar, press, &
   endif; endif
 
   !These fields should only be allocated when iceberg area is being passed through the coupler.
+
   call myAlloc(fluxes%ustar_berg,isd,ied,jsd,jed, iceberg)
   call myAlloc(fluxes%area_berg,isd,ied,jsd,jed, iceberg)
   call myAlloc(fluxes%mass_berg,isd,ied,jsd,jed, iceberg)
@@ -3629,26 +3644,37 @@ subroutine allocate_mech_forcing_by_group(G, forces, stress, ustar, shelf, &
   isd  = G%isd   ; ied  = G%ied    ; jsd  = G%jsd   ; jed  = G%jed
   IsdB = G%IsdB  ; IedB = G%IedB   ; JsdB = G%JsdB  ; JedB = G%JedB
 
-  call myAlloc(forces%taux,IsdB,IedB,jsd,jed, stress)
-  call myAlloc(forces%tauy,isd,ied,JsdB,JedB, stress)
+  if(stress) then
+    call forces%taux_c%alloc(forces%taux,lb=[IsdB,jsd], ub=[ieDB,jed], source=0.0)
+    call forces%tauy_c%alloc(forces%tauy,lb=[isd,JsdB], ub=[ied,JedB], source=0.0) 
+  endif
 
-  call myAlloc(forces%ustar,isd,ied,jsd,jed, ustar)
-  call myAlloc(forces%tau_mag,isd,ied,jsd,jed, ustar)
-  ! Note that myAlloc can be called safely multiple times for the same pointer.
-  call myAlloc(forces%tau_mag,isd,ied,jsd,jed, tau_mag)
+  if(ustar) then 
+    call forces%ustar_c%alloc(forces%ustar,lb=[isd,jsd], ub=[ied,jed], source=0.0)
+    call forces%tau_mag_c%alloc(forces%tau_mag,lb=[isd,jsd], ub=[ied,jed], source=0.0)
+  endif
+  ! Note that alloc method  can be called safely multiple times for the same pointer.
+  if(tau_mag) &
+    call forces%tau_mag_c%alloc(forces%tau_mag,lb=[isd,jsd], ub=[ied,jed], source=0.0)
 
-  call myAlloc(forces%p_surf,isd,ied,jsd,jed, press)
-  call myAlloc(forces%p_surf_full,isd,ied,jsd,jed, press)
-  call myAlloc(forces%net_mass_src,isd,ied,jsd,jed, press)
+  if(press) then 
+    call forces%net_mass_src_c%alloc(forces%net_mass_src, lb=[isd,jsd], ub=[ied,jed], source=0.0)
+    call forces%p_surf_c%alloc(forces%p_surf, lb=[isd,jsd], ub=[ied,jed], source=0.0)
+    call forces%p_surf_full_c%alloc(forces%p_surf_full, lb=[isd,jsd], ub=[ied,jed], source=0.0)
+  endif
 
-  call myAlloc(forces%rigidity_ice_u,IsdB,IedB,jsd,jed, shelf)
-  call myAlloc(forces%rigidity_ice_v,isd,ied,JsdB,JedB, shelf)
-  call myAlloc(forces%frac_shelf_u,IsdB,IedB,jsd,jed, shelf)
-  call myAlloc(forces%frac_shelf_v,isd,ied,JsdB,JedB, shelf)
+  if(shelf) then 
+    call forces%rigidity_ice_u_c%alloc(forces%rigidity_ice_u, lb=[IsdB,jsd], ub=[IedB,jed], source=0.0) 
+    call forces%rigidity_ice_v_c%alloc(forces%rigidity_ice_v, lb=[isd,jsdB], ub=[ied,JedB], source=0.0)
+    call forces%frac_shelf_u_c%alloc(forces%frac_shelf_u, lb=[IsdB,jsd], ub=[IedB,jed], source=0.0)
+    call forces%frac_shelf_v_c%alloc(forces%frac_shelf_v, lb=[isd,jsdB], ub=[ied,JedB], source=0.0) 
+  endif
 
   !These fields should only on allocated when iceberg area is being passed through the coupler.
-  call myAlloc(forces%area_berg,isd,ied,jsd,jed, iceberg)
-  call myAlloc(forces%mass_berg,isd,ied,jsd,jed, iceberg)
+  if(iceberg) then 
+    call forces%area_berg_c%alloc(forces%area_berg,lb=[isd,jsd], ub=[ied,jed], source=0.0)
+    call forces%mass_berg_c%alloc(forces%mass_berg,lb=[isd,jsd], ub=[ied,jed], source=0.0)
+  endif
 
   !These fields should only be allocated when waves
   if (present(waves)) then; if (waves) then;
@@ -3658,9 +3684,9 @@ subroutine allocate_mech_forcing_by_group(G, forces, stress, ustar, shelf, &
     endif
     if (num_stk_bands > 0) then
       if (.not.associated(forces%ustkb)) then
-        allocate(forces%stk_wavenumbers(num_stk_bands), source=0.0)
-        allocate(forces%ustkb(isd:ied,jsd:jed,num_stk_bands), source=0.0)
-        allocate(forces%vstkb(isd:ied,jsd:jed,num_stk_bands), source=0.0)
+        call forces%stk_wavenumbers_c%alloc(forces%stk_wavenumbers,dims=[num_stk_bands], source=0.0)
+        call forces%ustkb_c%alloc(forces%ustkb,lb=[isd,jsd,1],ub=[ied,jed,num_stk_bands], source=0.0)
+        call forces%vstkb_c%alloc(forces%vstkb,lb=[isd,jsd,1],ub=[ied,jed,num_stk_bands], source=0.0)
       endif
     endif
   endif ; endif
@@ -3851,20 +3877,25 @@ end subroutine deallocate_forcing_type
 subroutine deallocate_mech_forcing(forces)
   type(mech_forcing), intent(inout) :: forces  !< Forcing fields structure
 
-  if (associated(forces%omega_w2x))      deallocate(forces%omega_w2x)
-  if (associated(forces%taux))           deallocate(forces%taux)
-  if (associated(forces%tauy))           deallocate(forces%tauy)
-  if (associated(forces%ustar))          deallocate(forces%ustar)
-  if (associated(forces%tau_mag))        deallocate(forces%tau_mag)
-  if (associated(forces%p_surf))         deallocate(forces%p_surf)
-  if (associated(forces%p_surf_full))    deallocate(forces%p_surf_full)
-  if (associated(forces%net_mass_src))   deallocate(forces%net_mass_src)
-  if (associated(forces%rigidity_ice_u)) deallocate(forces%rigidity_ice_u)
-  if (associated(forces%rigidity_ice_v)) deallocate(forces%rigidity_ice_v)
-  if (associated(forces%frac_shelf_u))   deallocate(forces%frac_shelf_u)
-  if (associated(forces%frac_shelf_v))   deallocate(forces%frac_shelf_v)
-  if (associated(forces%area_berg))      deallocate(forces%area_berg)
-  if (associated(forces%mass_berg))      deallocate(forces%mass_berg)
+  call forces%omega_w2x_c%free()
+  call forces%taux_c%free()
+  call forces%tauy_c%free()
+  call forces%ustar_c%free()
+  call forces%tau_mag_c%free()
+  call forces%p_surf_c%free()
+  call forces%p_surf_full_c%free()
+  call forces%net_mass_src_c%free()
+  call forces%rigidity_ice_u_c%free()
+  call forces%rigidity_ice_v_c%free()
+  call forces%frac_shelf_u_c%free()
+  call forces%frac_shelf_v_c%free()
+  call forces%area_berg_c%free()
+  call forces%mass_berg_c%free()
+
+  call forces%stk_wavenumbers_c%free()
+  call forces%ustkb_c%free()
+  call forces%vstkb_c%free()
+
 
 end subroutine deallocate_mech_forcing
 
