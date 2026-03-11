@@ -3649,10 +3649,10 @@ subroutine allocate_mech_forcing_by_group(G, forces, stress, ustar, shelf, &
 
   ! Local variables
   integer :: isd, ied, jsd, jed, IsdB, IedB, JsdB, JedB
-  logical :: stressl 
 
   isd  = G%isd   ; ied  = G%ied    ; jsd  = G%jsd   ; jed  = G%jed
   IsdB = G%IsdB  ; IedB = G%IedB   ; JsdB = G%JsdB  ; JedB = G%JedB
+
   if(present(stress)) then
     if(stress) then
       call forces%taux_c%alloc(forces%taux, lb=[IsdB,jsd], ub=[ieDB,jed], source=0.0)
@@ -3660,18 +3660,18 @@ subroutine allocate_mech_forcing_by_group(G, forces, stress, ustar, shelf, &
     endif
   endif
 
-  if(present(ustar) then 
+  if(present(ustar)) then
     if(ustar) then
       call forces%ustar_c%alloc(forces%ustar,lb=[isd,jsd], ub=[ied,jed], source=0.0)
       call forces%tau_mag_c%alloc(forces%tau_mag,lb=[isd,jsd], ub=[ied,jed], source=0.0)
     endif
   endif
   ! Note that alloc method  can be called safely multiple times for the same pointer.
-  if(present(tau_mag)) &
-    if(tau_mag) &
-      call forces%tau_mag_c%alloc(forces%tau_mag,lb=[isd,jsd], ub=[ied,jed], source=0.0)
+  if(present(tau_mag)) then
+    if(tau_mag) call forces%tau_mag_c%alloc(forces%tau_mag,lb=[isd,jsd], ub=[ied,jed], source=0.0)
+  endif
 
-  if(present(press) then 
+  if(present(press)) then
     if(press) then
       call forces%net_mass_src_c%alloc(forces%net_mass_src, lb=[isd,jsd], ub=[ied,jed], source=0.0)
       call forces%p_surf_c%alloc(forces%p_surf, lb=[isd,jsd], ub=[ied,jed], source=0.0)
@@ -3679,7 +3679,7 @@ subroutine allocate_mech_forcing_by_group(G, forces, stress, ustar, shelf, &
     endif
   endif
 
-  if(present(shelf)) then 
+  if(present(shelf)) then
     if(shelf) then
       call forces%rigidity_ice_u_c%alloc(forces%rigidity_ice_u, &
                 lb=[IsdB,jsd], ub=[IedB,jed], source=0.0)
@@ -3693,7 +3693,7 @@ subroutine allocate_mech_forcing_by_group(G, forces, stress, ustar, shelf, &
   endif
 
   !These fields should only on allocated when iceberg area is being passed through the coupler.
-  if(present(iceberg)) then 
+  if(present(iceberg)) then
     if(iceberg) then
       call forces%area_berg_c%alloc(forces%area_berg,lb=[isd,jsd], ub=[ied,jed], source=0.0)
       call forces%mass_berg_c%alloc(forces%mass_berg,lb=[isd,jsd], ub=[ied,jed], source=0.0)
