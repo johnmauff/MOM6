@@ -29,7 +29,7 @@ implicit none ; private
 
 #include <MOM_memory.h>
 
-public RealArray_t
+!public RealArray_t
 
 public extractFluxes1d, extractFluxes2d, optics_type
 public MOM_forcing_chksum, MOM_mech_forcing_chksum
@@ -96,10 +96,16 @@ type, public :: forcing
                                !! without any augmentation for sub-gridscale variability
                                !! or gustiness, rescaled to units that are more convenient for
                                !! calculating turbulent fluxes and friction velocities [R Z2 T-2 ~> Pa]
+  type(RealArray_t) :: omega_w2x_c, &       !< Array container for omega_w2x
+                       ustar_c, &           !< Array container for ustar
+                       tau_mag_c, &         !< Array container for tau_mag
+                       ustar_gustless_c, &  !< Array container for ustar_gustless
+                       tau_mag_gustless_c   !< Array container for tau_mag_gustless
 
   ! surface buoyancy force, used when temperature is not a state variable
   real, pointer, dimension(:,:) :: &
     buoy          => NULL()  !< buoyancy flux [L2 T-3 ~> m2 s-3]
+  type(RealArray_t) :: buoy_c !< Array container for buoy
 
   ! radiative heat fluxes into the ocean [Q R Z T-1 ~> W m-2]
   real, pointer, dimension(:,:) :: &
@@ -109,6 +115,12 @@ type, public :: forcing
     sw_nir_dir => NULL(), & !< near-IR, direct shortwave [Q R Z T-1 ~> W m-2]
     sw_nir_dif => NULL(), & !< near-IR, diffuse shortwave [Q R Z T-1 ~> W m-2]
     lw         => NULL()    !< longwave [Q R Z T-1 ~> W m-2] (typically negative)
+  type(RealArray_t) :: sw_c, &         !< Array container for sw 
+                       sw_vis_dir_c, & !< Array container for sw_vis_dir
+                       sw_vis_dif_c, & !< Array container for sw_vis_dif
+                       sw_nir_dir_c, & !< Array container for sw_nir_dir
+                       sw_nir_dif_c, & !< Array container for sw_nir_dif
+                       lw_c            !< Array container for lw
 
   ! turbulent heat fluxes into the ocean [Q R Z T-1 ~> W m-2]
   real, pointer, dimension(:,:) :: &
@@ -116,6 +128,10 @@ type, public :: forcing
     sens             => NULL(), & !< sensible [Q R Z T-1 ~> W m-2] (typically negative)
     seaice_melt_heat => NULL(), & !< sea ice and snow melt or formation [Q R Z T-1 ~> W m-2] (typically negative)
     heat_added       => NULL()    !< additional heat flux from SST restoring or flux adjustments [Q R Z T-1 ~> W m-2]
+  type(RealArray_t) :: latent_c,           & !< Array container for latent
+                       sens_c,             & !< Array container for sens
+                       seaice_melt_heat_c, & !< Array container for seaice_melt_heat
+                       heat_added_c          !< Array container for heat_added
 
   ! components of latent heat fluxes used for diagnostic purposes
   real, pointer, dimension(:,:) :: &
@@ -123,6 +139,10 @@ type, public :: forcing
     latent_fprec_diag       => NULL(), & !< latent [Q R Z T-1 ~> W m-2] from melting fprec  (typically < 0)
     latent_frunoff_diag     => NULL(), & !< latent [Q R Z T-1 ~> W m-2] from melting frunoff (calving) (typically < 0)
     latent_frunoff_glc_diag => NULL()    !< latent [Q R Z T-1 ~> W m-2] from melting glacier frunoff (typically < 0)
+  type(RealArray_t) :: latent_evap_diag_c,       & !< Array container for latent_evap_diag
+                       latent_fprec_diag_c,      & !< Array container for latent_fprec_diag
+                       latent_frunoff_diag_c,    & !< Array container for latent_frunoff_diag
+                       latent_frunoff_glc_diag_c   !< Array container for latent_frunoff_glc_diag
 
   ! water mass fluxes into the ocean [R Z T-1 ~> kg m-2 s-1]; these fluxes impact the ocean mass
   real, pointer, dimension(:,:) :: &
@@ -135,6 +155,15 @@ type, public :: forcing
     lrunoff_glc   => NULL(), & !< liquid river glacier runoff entering ocean [R Z T-1 ~> kg m-2 s-1]
     frunoff_glc   => NULL(), & !< frozen river glacier runoff entering ocean [R Z T-1 ~> kg m-2 s-1]
     seaice_melt   => NULL()    !< snow/seaice melt (positive) or formation (negative) [R Z T-1 ~> kg m-2 s-1]
+  type(RealArray_t) :: evap_c,        & !< Array container for evap
+                       lprec_c,       & !< Array container for lprec
+                       fprec_c,       & !< Array container for fprec
+                       vprec_c,       & !< Array container for vprec
+                       lrunoff_c,     & !< Array container for lrunoff
+                       frunoff_c,     & !< Array container for frunoff
+                       lrunoff_glc_c, & !< Array container for lrunoff_glc
+                       frunoff_glc_c, & !< Array container for frunoff_glc
+                       seaice_melt_c    !< Array container for seaice_melt
 
   ! Integrated water mass fluxes into the ocean, used for passive tracer sources [H ~> m or kg m-2]
   real, pointer, dimension(:,:) :: &
@@ -142,6 +171,8 @@ type, public :: forcing
                                !! forcing timestep [H ~> m or kg m-2]
     netMassOut    => NULL()    !< Net water mass flux out of the ocean integrated over a forcing timestep,
                                !! with negative values for water leaving the ocean [H ~> m or kg m-2]
+  type(RealArray_t) :: netMassIn_c, & !< Array container for netMassIn
+                       netMassOut_c   !< Array container for netMassOut
 
   ! heat associated with water crossing ocean surface
   real, pointer, dimension(:,:) :: &
@@ -156,6 +187,17 @@ type, public :: forcing
     heat_content_frunoff_glc => NULL(), & !< heat content associated with frozen runoff      [Q R Z T-1 ~> W m-2]
     heat_content_massout     => NULL(), & !< heat content associated with mass leaving ocean [Q R Z T-1 ~> W m-2]
     heat_content_massin      => NULL()    !< heat content associated with mass entering ocean [Q R Z T-1 ~> W m-2]
+  type(RealArray_t) heat_content_conf_c, &        !< Array container for heat_content_cond
+                    heat_content_evap_c, &        !< Array container for heat_content_evap
+                    heat_content_lprec_c, &       !< Array container for heat_content_lprec
+                    heat_content_fprec_c, &       !< Array container for heat_content_fprec
+                    heat_content_vprec_c, &       !< Array container for heat_content_vprec
+                    heat_content_lrunoff_c, &     !< Array container for heat_content_lrunoff
+                    heat_content_frunoff_c,  &    !< Array container for heat_content_frunoff
+                    heat_content_lrunoff_glc_c, & !< Array container for heat_content_lrunoff_glc
+                    heat_content_frunoff_glc_c, & !< Array container for heat_content_frunoff_glc
+                    heat_content_massout_c, &     !< Array container for heat_content_massout
+                    heat_content_massin_c         !< Array container for heat_content_massin
 
   ! salt mass flux (contributes to ocean mass only if non-Bouss )
   real, pointer, dimension(:,:) :: &
@@ -165,14 +207,20 @@ type, public :: forcing
                                  !! to net zero [R Z T-1 ~> kgSalt m-2 s-1]
     salt_left_behind => NULL()   !< salt left in ocean at the surface from brine rejection
                                  !! [R Z T-1 ~> kgSalt m-2 s-1]
+  type(RealArray_t) :: salt_flux_c,       & !< Array container for salt_flux
+                       salt_flux_in_c,    & !< Array container for salt_flux_in
+                       salt_flux_added_c, & !< Array container for salt_flux_added
+                       salt_left_behind_c   !< Array container for salt_left_behind
 
   ! applied surface pressure from other component models (e.g., atmos, sea ice, land ice)
   real, pointer, dimension(:,:) :: p_surf_full => NULL()
                 !< Pressure at the top ocean interface [R L2 T-2 ~> Pa].
                 !! if there is sea-ice, then p_surf_flux is at ice-ocean interface
+  type(RealArray_t) :: p_surf_full_c  !< Array container for p_surf_full
   real, pointer, dimension(:,:) :: p_surf => NULL()
                 !< Pressure at the top ocean interface [R L2 T-2 ~> Pa] as used to drive the ocean model.
                 !! If p_surf is limited, p_surf may be smaller than p_surf_full, otherwise they are the same.
+  type(RealArray_t) :: p_surf_c  !< Array container for p_surf
   real, pointer, dimension(:,:) :: p_surf_SSH => NULL()
                 !< Pressure at the top ocean interface [R L2 T-2 ~> Pa] that is used in corrections to the sea surface
                 !! height field that is passed back to the calling routines.
@@ -187,24 +235,33 @@ type, public :: forcing
     BBL_tidal_dis => NULL(), & !< Tidal energy dissipation in the bottom boundary layer that can act
                                !! as a source of energy for bottom boundary layer mixing [R Z L2 T-3 ~> W m-2]
     ustar_tidal   => NULL()    !< tidal contribution to bottom ustar [Z T-1 ~> m s-1]
+  type(RealArray_t) :: BBL_tidal_dis_g, & !< Array container for BBL_tidal_dis
+                       ustar_tidal_g      !< Array container for ustar_tidal
 
   ! iceberg related inputs
   real, pointer, dimension(:,:) :: &
     ustar_berg => NULL(), &   !< iceberg contribution to top ustar [Z T-1 ~> m s-1].
     area_berg  => NULL(), &   !< fractional area of ocean surface covered by icebergs [nondim]
     mass_berg  => NULL()      !< mass of icebergs [R Z ~> kg m-2]
+  type(RealArray_t) :: ustar_berg_c, & !< Array container for ustar_berg
+                       area_berg_c,  & !< Array container for area_berg
+                       mass_berg_c     !< Array container for mass_bert
 
   ! land ice-shelf related inputs
   real, pointer, dimension(:,:) :: ustar_shelf => NULL()  !< Friction velocity under ice-shelves [Z T-1 ~> m s-1].
                                  !! as computed by the ocean at the previous time step.
+  type(RealArray_t) :: ustar_shelf_c !< Array container for ustar_shelf
   real, pointer, dimension(:,:) :: frac_shelf_h => NULL() !< Fractional ice shelf coverage of
                                  !! h-cells, from 0 to 1 [nondim]. This is only
                                  !! associated if ice shelves are enabled, and are
                                  !! exactly 0 away from shelves or on land.
+  type(RealArray_t) :: frac_shelf_h_c !< Array container for frac_shelf_h
   real, pointer, dimension(:,:) :: iceshelf_melt => NULL() !< Ice shelf melt rate (positive)
                                  !! or freezing (negative) [R Z T-1 ~> kg m-2 s-1]
+  type(RealArray_t) :: iceshelf_melt_c !< Array container for ishelf_melt
   real, pointer, dimension(:,:) :: shelf_sfc_mass_flux => NULL() !< Ice shelf surface mass flux
                                  !! deposition from the atmosphere. [R Z T-1 ~> kg m-2 s-1]
+  type(RealArray_t) :: shelf_sfc_mass_flux_c !< Array container for shelf_sfc_mass_flux
 
   ! Scalars set by surface forcing modules
   real :: vPrecGlobalAdj = 0.     !< adjustment to restoring vprec to zero out global net [R Z T-1 ~> kg m-2 s-1]
@@ -229,6 +286,8 @@ type, public :: forcing
   real, pointer, dimension(:,:) :: &
     ice_fraction  => NULL(), &  !< fraction of sea ice coverage at h-cells, from 0 to 1 [nondim].
     u10_sqr       => NULL()     !< wind magnitude at 10 m squared [L2 T-2 ~> m2 s-2]
+  type(RealArray_t) :: ice_fraction_c, & !< Array container for ice_fraction
+                       u10_sqr_c         !< Array container for u10_sqr
 
   ! Forcing fields required for MARBL
   real, pointer, dimension(:,:) :: &
@@ -238,13 +297,22 @@ type, public :: forcing
     atm_alt_co2 => NULL(),           & !< Alternate atmospheric CO2 Concentration [ppm]
     dust_flux => NULL(),             & !< Flux of dust into the ocean [R Z T-1 ~> kgN m-2 s-1]
     iron_flux => NULL()                !< Flux of dust into the ocean [conc Z T-1 ~> conc m s-1]
+  type(RealArray_t) :: noy_dep_c,     & !< Array container for noy_dep
+                       nhx_dep_c,     & !< Array container for nhx_dep
+                       atm_co2_c,     & !< Array container for atm_co2
+                       atm_alt_co2_c, & !< Array container for atm_alt_co2
+                       dust_flux_c,   & !< Array container for dust_flux
+                       iron_flux_c      !< Array container for iron_flux
 
   real, pointer, dimension(:,:,:) :: &
     fracr_cat   => NULL(),           & !< per-category ice fraction [nondim]
     qsw_cat     => NULL()              !< per-category shortwave [Q R Z T-1 ~> W m-2]
+  type(RealArray_t) :: fracr_cat_c, & !< Array container for fracr_cat
+                       gsw_cat_c      !< Array container for qsw_cat
 
   real, pointer, dimension(:,:) :: &
     lamult => NULL()            !< Langmuir enhancement factor [nondim]
+  type(RealArray_t) :: lamult_c !< Array container for lamult
 
   ! passive tracer surface fluxes
   type(coupler_2d_bc_type) :: tr_fluxes !< This structure contains arrays of
@@ -3477,9 +3545,16 @@ subroutine allocate_forcing_by_group(G, fluxes, water, heat, ustar, press, &
   shelf_sfc_acc=.false.
   if (present(shelf_sfc_accumulation)) shelf_sfc_acc=shelf_sfc_accumulation
 
-  call myAlloc(fluxes%ustar,isd,ied,jsd,jed, ustar)
-  call myAlloc(fluxes%ustar_gustless,isd,ied,jsd,jed, ustar)
-  call myAlloc(fluxes%tau_mag,isd,ied,jsd,jed, ustar)
+  if(present(ustar)) then
+    if(ustar) then
+      !JMD call myAlloc(fluxes%ustar,isd,ied,jsd,jed, ustar)
+      !JMD call myAlloc(fluxes%ustar_gustless,isd,ied,jsd,jed, ustar)
+      !JMD call myAlloc(fluxes%tau_mag,isd,ied,jsd,jed, ustar)
+      call fluxes%ustar_c%alloc(fluxes%ustar,lb=[isd,jsd], ub=[ied,jed], source=0.0)
+      call fluxes%ustar_gustless_c%alloc(fluxes%ustar_gustless,lb=[isd,jsd],ub=[ied,jed], source=0.0)
+      call fluxes%tau_mag_c%alloc(fluxes%tau_mag,lb=[isd,jsd],ub=[ied,jed], source=0.0)
+    endif; 
+  endif
 
   ! Note that myAlloc can be called safely multiple times for the same pointer.
   call myAlloc(fluxes%tau_mag,isd,ied,jsd,jed, tau_mag)
@@ -3832,9 +3907,12 @@ subroutine deallocate_forcing_type(fluxes)
   type(forcing), intent(inout) :: fluxes !< Forcing fields structure
 
   if (associated(fluxes%omega_w2x))            deallocate(fluxes%omega_w2x)
-  if (associated(fluxes%ustar))                deallocate(fluxes%ustar)
-  if (associated(fluxes%ustar_gustless))       deallocate(fluxes%ustar_gustless)
-  if (associated(fluxes%tau_mag))              deallocate(fluxes%tau_mag)
+  !JMD if (associated(fluxes%ustar))                deallocate(fluxes%ustar)
+  !JMD if (associated(fluxes%ustar_gustless))       deallocate(fluxes%ustar_gustless)
+  !JMD if (associated(fluxes%tau_mag))              deallocate(fluxes%tau_mag)
+  call fluxes%ustar_c%free()
+  call fluxes%ustar_gustless_c%free()
+  call fluxes%tau_mag_c%free()
   if (associated(fluxes%buoy))                 deallocate(fluxes%buoy)
   if (associated(fluxes%sw))                   deallocate(fluxes%sw)
   if (associated(fluxes%seaice_melt_heat))     deallocate(fluxes%seaice_melt_heat)
