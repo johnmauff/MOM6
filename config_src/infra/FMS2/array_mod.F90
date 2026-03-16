@@ -69,9 +69,6 @@ subroutine allocReal(this, dims,lb,ub,source)
     this%lb(:)    = lb(:)
     this%ub(:)    = ub(:)
     this%shape(:) = ub(:)-lb(:)+1
-    allocate(this%data(product(this%shape)))
-    if(present(source)) this%data(:)=source
-    !stat=0
   elseif(present(dims) .and. .not. present(ub) .and. .not. present(lb)) then
     this%rank     = size(dims)
     ! Allocate shape and bound information
@@ -80,11 +77,14 @@ subroutine allocReal(this, dims,lb,ub,source)
     this%lb(:)    = 1
     this%ub(:)    = dims(:)
     this%shape(:) = dims(:)
-    allocate(this%data(product(dims)))
-    if(present(source)) this%data(:)=source
   else
     call MOM_err(FATAL, "allocReal: Must specify either ub and lb or dims")
   endif
+
+  ! Allocate the memory
+  allocate(this%data(product(this%shape)))
+  ! initialize the array
+  if(present(source)) this%data(:)=source
 
 end subroutine allocReal
 
@@ -111,8 +111,6 @@ subroutine allocInt(this, dims,lb,ub,source)
     this%lb(:)    = lb(:)
     this%ub(:)    = ub(:)
     this%shape(:) = ub(:)-lb(:)+1
-    allocate(this%data(product(this%shape)))
-    if(present(source)) this%data(:)=source
   elseif(present(dims) .and. .not. present(ub) .and. .not. present(lb)) then
     this%rank     = size(dims)
     ! Allocate shape and bound information
@@ -121,11 +119,15 @@ subroutine allocInt(this, dims,lb,ub,source)
     this%lb(:)    = 1
     this%ub(:)    = dims(:)
     this%shape(:) = dims(:)
-    allocate(this%data(product(dims)))
-    if(present(source)) this%data(:)=source
   else
     call MOM_err(FATAL, "allocReal: Must specify either ub and lb or dims")
   endif
+
+  ! allocate the memory
+  allocate(this%data(product(this%shape)))
+
+  ! initialize the array
+  if(present(source)) this%data(:)=source
 
 end subroutine allocInt
 

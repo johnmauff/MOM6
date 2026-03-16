@@ -1,13 +1,14 @@
 module array_mod
   use, intrinsic :: iso_fortran_env, only : real64
   use MOM_error_infra, only : MOM_err, FATAL
+  use amrex_mempool_module, only : amrex_allocate, amrex_deallocate
   implicit none
   private
   public :: RealArray_t, IntArray_t
 
 
   type :: RealArray_t
-     real(kind=real64), pointer :: data(:) => null() !< Pointer to storage for array container
+     real(kind=real64), pointer, contiguous :: data(:) => null() !< Storage ptr for array container
      integer :: rank = 0                             !< Rank of array
      integer, allocatable :: shape(:)                !< Shape of array
      integer, allocatable :: lb(:)                   !< Lower bounds
@@ -26,7 +27,7 @@ module array_mod
   end type RealArray_t
 
   type :: IntArray_t
-     integer, pointer :: data(:) => null() !< Pointer to storage for array container
+     integer, pointer, contiguous :: data(:) => null() !< Storage ptr for array container
      integer :: rank = 0                   !< Rank of array
      integer, allocatable :: shape(:)      !< Shape of array
      integer, allocatable :: lb(:)         !< Lower bounds
@@ -53,7 +54,7 @@ subroutine allocReal(this, dims,lb,ub,source)
   integer, intent(in),optional :: ub(:)             !< Upper bounds
   real(kind=real64), intent(in), optional :: source !< Initial value for all elements
 
-  if (associated(this%data)) deallocate(this%data)
+  if (associated(this%data)) call amrex_deallocate(this%data)
   if (allocated(this%shape)) deallocate(this%shape)
   if (allocated(this%lb))    deallocate(this%lb)
   if (allocated(this%ub))    deallocate(this%ub)
@@ -69,9 +70,6 @@ subroutine allocReal(this, dims,lb,ub,source)
     this%lb(:)    = lb(:)
     this%ub(:)    = ub(:)
     this%shape(:) = ub(:)-lb(:)+1
-    allocate(this%data(product(this%shape)))
-    if(present(source)) this%data(:)=source
-    !stat=0
   elseif(present(dims) .and. .not. present(ub) .and. .not. present(lb)) then
     this%rank     = size(dims)
     ! Allocate shape and bound information
@@ -80,11 +78,18 @@ subroutine allocReal(this, dims,lb,ub,source)
     this%lb(:)    = 1
     this%ub(:)    = dims(:)
     this%shape(:) = dims(:)
-    allocate(this%data(product(dims)))
-    if(present(source)) this%data(:)=source
   else
     call MOM_err(FATAL, "allocReal: Must specify either ub and lb or dims")
   endif
+
+  ! allocate the memory
+  call amrex_allocate(this%data,1,product(this%shape))
+
+  ! initialize the variable
+  ! Note this this is a CPU only assignment.
+  ! It will not work correctly on the GPU
+  if(present(source)) this%data(:) = source
+
 
 end subroutine allocReal
 
@@ -95,7 +100,10 @@ subroutine allocInt(this, dims,lb,ub,source)
   integer, intent(in),optional :: ub(:)    !< Upper bounds
   integer, optional :: source              !< Initial value for all elements
 
-  if (associated(this%data)) deallocate(this%data)
+  integer :: len                           !< the length of the array to allocate
+  integer :: i
+
+  if (associated(this%data)) call amrex_deallocate(this%data)
   if (allocated(this%shape)) deallocate(this%shape)
   if (allocated(this%lb))    deallocate(this%lb)
   if (allocated(this%ub))    deallocate(this%ub)
@@ -111,8 +119,6 @@ subroutine allocInt(this, dims,lb,ub,source)
     this%lb(:)    = lb(:)
     this%ub(:)    = ub(:)
     this%shape(:) = ub(:)-lb(:)+1
-    allocate(this%data(product(this%shape)))
-    if(present(source)) this%data(:)=source
   elseif(present(dims) .and. .not. present(ub) .and. .not. present(lb)) then
     this%rank     = size(dims)
     ! Allocate shape and bound information
@@ -121,18 +127,24 @@ subroutine allocInt(this, dims,lb,ub,source)
     this%lb(:)    = 1
     this%ub(:)    = dims(:)
     this%shape(:) = dims(:)
-    allocate(this%data(product(dims)))
-    if(present(source)) this%data(:)=source
   else
     call MOM_err(FATAL, "allocReal: Must specify either ub and lb or dims")
   endif
+
+  ! allocate the memory
+  call amrex_allocate(this%data,1,product(this%shape))
+
+  ! initialize the variable
+  ! Note this this is a CPU only assignment.
+  ! It will not work correctly on the GPU
+  if(present(source)) this%data(:)=source
 
 end subroutine allocInt
 
 subroutine freeReal(this)
   class(RealArray_t), intent(inout) :: this  !< The array container to deallocate
 
-  if (associated(this%data)) deallocate(this%data)
+  if (associated(this%data)) call amrex_deallocate(this%data)
   if (allocated(this%shape)) deallocate(this%shape)
   if (allocated(this%lb))    deallocate(this%lb)
   if (allocated(this%ub))    deallocate(this%ub)
@@ -142,7 +154,7 @@ end subroutine freeReal
 subroutine freeInt(this)
   class(IntArray_t), intent(inout) :: this  !< The array container to deallocate
 
-  if (associated(this%data))  deallocate(this%data)
+  if (associated(this%data))  call amrex_deallocate(this%data)
   if (allocated(this%shape)) deallocate(this%shape)
   if (allocated(this%lb))    deallocate(this%lb)
   if (allocated(this%ub))    deallocate(this%ub)
