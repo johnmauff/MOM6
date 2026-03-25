@@ -512,16 +512,23 @@ end function all_across_PEs
 !! If no communicator ID is provided, the framework's default communicator is used.
 subroutine MOM_infra_init(localcomm)
   integer, optional, intent(in) :: localcomm  !< Communicator ID to initialize
-  call amrex_init(localcomm)
+
   call fms_init(localcomm)
+
+  if(present(localcomm)) then 
+     call amrex_init(localcomm)
+  else
+     call amrex_init()
+  endif
+
 end subroutine
 
 !> This subroutine carries out all of the calls required to close out the infrastructure cleanly.
 !! This should only be called in ocean-only runs, as the coupler takes care of this in coupled runs.
 subroutine MOM_infra_end
   call print_memuse_stats( 'Memory HiWaterMark', always=.TRUE. )
-  call fms_end()
   call amrex_finalize()
+  call fms_end()
 end subroutine MOM_infra_end
 
 end module MOM_coms_infra
