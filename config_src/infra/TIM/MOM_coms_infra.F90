@@ -514,12 +514,7 @@ subroutine MOM_infra_init(localcomm)
   integer, optional, intent(in) :: localcomm  !< Communicator ID to initialize
 
   call fms_init(localcomm)
-
-  if(present(localcomm)) then
-     call amrex_init(localcomm)
-  else
-     call amrex_init()
-  endif
+  call amrex_init()
 
 end subroutine
 
