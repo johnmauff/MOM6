@@ -515,7 +515,7 @@ subroutine MOM_infra_init(localcomm)
 
   call fms_init(localcomm)
 
-  if(present(localcomm)) then 
+  if(present(localcomm)) then
      call amrex_init(localcomm)
   else
      call amrex_init()
