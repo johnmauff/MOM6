@@ -514,7 +514,7 @@ subroutine MOM_infra_init(localcomm)
   integer, optional, intent(in) :: localcomm  !< Communicator ID to initialize
 
   call fms_init(localcomm)
-  call amrex_init()
+  call amrex_init(localcomm)
 
 end subroutine
 
