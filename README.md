@@ -3,7 +3,8 @@
 
 # MOM6
 
-This is the MOM6 source code.
+This is a version of MOM6 specific for the TURBO project. It will include modifcations to allow science code 
+to be  be replaced by AMReX implemenetations. 
 
 
 # Where to find information
