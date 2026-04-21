@@ -275,8 +275,8 @@ end function get_extern_field_missing
 
 !> Get information about the external fields.
 subroutine get_external_field_info(field, size, axes, missing)
-  type(external_field), intent(in) :: field           !< handle for time interpolated external field returned from a previous
-                                                      !! call to init_external_field()
+  type(external_field), intent(in) :: field           !< handle for time interpolated external field returned
+                                                      !! from a previous call to init_external_field()
   integer, optional, intent(inout) :: size(4)         !< Dimension sizes for the input data
   type(axistype), optional, intent(inout) :: axes(4)  !< Axis types for the input data
   real, optional, intent(inout) :: missing            !< Missing value for the input data
