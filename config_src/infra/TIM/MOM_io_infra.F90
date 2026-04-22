@@ -726,7 +726,7 @@ subroutine get_axis_data(axis, axis_name, axis_data)
 
   if (allocated(axis%ax_data)) then
     if (size(axis%ax_data) > size(axis_data)) &
-      call MOM_error(FATAL, "get_axis_data called with too small of an " &
+      call MOM_err(FATAL, "get_axis_data called with too small of an " &
           // "output data array for " // trim(axis%name) // ".")
     do i=1,size(axis%ax_data)
       axis_data(i) = axis%ax_data(i)
