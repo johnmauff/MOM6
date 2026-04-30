@@ -23,11 +23,11 @@ public :: broadcast, sum_across_PEs, min_across_PEs, max_across_PEs
 public :: any_across_PEs, all_across_PEs, field_chksum
 public :: MOM_infra_init, MOM_infra_end
 
-! Activate the AMReX profiling 
+! Activate the AMReX profiling
 interface
   subroutine tim_set_profile(level) bind(C)
-     use iso_c_binding
-     integer(c_int), value :: level
+     use iso_c_binding, only : c_int
+     integer(c_int), value :: level     !< The detail for the AMReX timers
   end subroutine tim_set_profile
 end interface
 
