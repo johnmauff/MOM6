@@ -23,6 +23,14 @@ public :: broadcast, sum_across_PEs, min_across_PEs, max_across_PEs
 public :: any_across_PEs, all_across_PEs, field_chksum
 public :: MOM_infra_init, MOM_infra_end
 
+! Activate the AMReX profiling 
+interface
+  subroutine tim_set_profile(level) bind(C)
+     use iso_c_binding
+     integer(c_int), value :: level
+  end subroutine tim_set_profile
+end interface
+
 ! This module provides interfaces to the non-domain-oriented communication
 ! subroutines.
 
@@ -515,6 +523,9 @@ subroutine MOM_infra_init(localcomm)
 
   call fms_init(localcomm)
   call amrex_init(localcomm)
+
+  ! Activate the AMReX profile timers
+  call tim_set_profile(1)
 
 end subroutine
 
