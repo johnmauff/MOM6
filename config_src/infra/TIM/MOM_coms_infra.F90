@@ -27,7 +27,7 @@ public :: MOM_infra_init, MOM_infra_end
 interface
   subroutine tim_set_profile(level) bind(C)
      use iso_c_binding, only : c_int
-     integer(c_int), value :: level     !< The detail for the AMReX timers
+     integer(c_int), value, intent(in) :: level     !< The detail for the AMReX timers
   end subroutine tim_set_profile
 end interface
 
