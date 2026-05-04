@@ -186,6 +186,13 @@ subroutine MOM_initialize_state(u, v, h, tv, Time, G, GV, US, PF, dirs, &
   integer :: i, j, k, is, ie, js, je, Isq, Ieq, Jsq, Jeq, nz
   integer :: isd, ied, jsd, jed, IsdB, IedB, JsdB, JedB
 
+  ! Local variables for random number generator initialization for perturbations to initial conditions
+  integer :: rndm_seed_sz, ig, jg, ni_global
+  integer, dimension(:), allocatable :: rndm_seed
+  real :: init_t_perturb
+  real :: pertval
+
+
   is = G%isc ; ie = G%iec ; js = G%jsc ; je = G%jec ; nz = GV%ke
   Isq = G%IscB ; Ieq = G%IecB ; Jsq = G%JscB ; Jeq = G%JecB
   isd = G%isd ; ied = G%ied ; jsd = G%jsd ; jed = G%jed
@@ -435,6 +442,35 @@ subroutine MOM_initialize_state(u, v, h, tv, Time, G, GV, US, PF, dirs, &
   endif  ! not from_Z_file.
   if (use_temperature .and. use_OBC) &
     call fill_temp_salt_segments(G, GV, US, OBC, tv)
+
+  init_t_perturb = 0.0
+  if (use_temperature) then
+    call get_param(PF, mdl, "INIT_T_PERTURB", init_t_perturb, &
+            "If > 0, the amplitude of random perturbations to add to the initial temperature field.", &
+            default=0.0, units="degC", scale=US%degC_to_C)
+  endif
+
+  ! Apply random perturbations to the initial temperature if requested.
+  if (init_t_perturb > 0.0) then
+    call random_seed(size=rndm_seed_sz)
+    allocate(rndm_seed(rndm_seed_sz))
+    ni_global = G%ieg - G%isg + 1
+    do j=js,je
+      do i=is,ie
+        ! Seed random_number generator based on global column index
+        ig = i + G%idg_offset
+        jg = j + G%jdg_offset
+        rndm_seed = ig + (jg-1)*ni_global
+        call random_seed(put=rndm_seed)
+        do k=1,nz
+          call random_number(pertval)
+          pertval = 2.0*init_t_perturb*(0.5 - pertval)
+          tv%T(i,j,k) = tv%T(i,j,k) * (1.0+pertval)
+        enddo
+      enddo
+    enddo
+    deallocate(rndm_seed)
+  endif
 
   ! Convert thicknesses from geometric distances in depth units to thickness units or mass-per-unit-area.
   if (new_sim .and. convert) call dz_to_thickness(dz, tv, h, G, GV, US)
