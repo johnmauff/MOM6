@@ -2689,14 +2689,14 @@ subroutine continuity_PPM_init(Time, G, GV, US, param_file, diag, CS)
   stencil = continuity_PPM_stencil(CS)
   isl = G%isc ; iel = G%iec ; jsl = G%jsc ; jel = G%jec
 
-  ! Check to see if the the x-halo is sufficiently large 
+  ! Check to see if the the x-halo is sufficiently large
   if ((isl-stencil < G%isd) .or. (iel+stencil > G%ied)) then
     write(mesg,'("In MOM_continuity_PPM, continuity_PPM_init called with a ", &
                & "x-halo that needs to be increased by ",i2,".")') &
                stencil + max(G%isd-isl,iel-G%ied)
     call MOM_error(FATAL,mesg)
   endif
-  ! Check to see if the the y-halo is sufficiently large 
+  ! Check to see if the the y-halo is sufficiently large
   if ((jsl-stencil < G%jsd) .or. (jel+stencil > G%jed)) then
     write(mesg,'("In MOM_continuity_PPM, continuity_PPM_init called with a ", &
                  & "y-halo that needs to be increased by ",i2,".")') &
