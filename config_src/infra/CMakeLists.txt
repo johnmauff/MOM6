@@ -31,6 +31,6 @@ target_include_directories(mom6_infra
     INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/mod>
 )
 target_link_libraries(mom6_infra
-    PUBLIC  FMS::fms_r8 MPI::MPI_Fortran NetCDF::NetCDF_Fortran
+    PUBLIC  TURBO::infra_r8 MPI::MPI_Fortran NetCDF::NetCDF_Fortran
     PRIVATE MOM6::framework_base
 )
