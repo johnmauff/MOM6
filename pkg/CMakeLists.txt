@@ -227,9 +227,9 @@ target_sources(mom6_gsw PRIVATE
 )
 
 # ── MARBL ──────────────────────────────────────────────────────────────────
-# MOM6::MARBL is NOT built here. It is a TURBO-stack-specific biogeochemistry
+# MARBL::marbl is NOT built here. It is a TURBO-stack-specific biogeochemistry
 # plugin that the parent project (turbo-stack) builds and provides as a
 # pre-defined CMake target before calling add_subdirectory on this repo —
 # the same pattern as FMS::fms_r8.  src/CMakeLists.txt links against it
-# directly.  If MOM6::MARBL is not defined at configure time the build will
+# directly.  If MARBL::marbl is not defined at configure time the build will
 # fail with a clear "target not found" error.

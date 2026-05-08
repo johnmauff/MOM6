@@ -2,7 +2,7 @@ set(_EXT    "${MOM6_SOURCE_DIR}/config_src/external")
 set(_MEMDIR "${MOM6_SOURCE_DIR}/config_src/memory/${TURBO_MEMORY_MODE}")
 
 # mom6_ocean: all MOM6 src/ files not already in the framework/grid/io/infra targets,
-# plus config_src/external/ stubs (MARBL excluded — provided by MOM6::MARBL).
+# plus config_src/external/ stubs (MARBL excluded — provided by MARBL::marbl).
 add_library(mom6_ocean STATIC)
 add_library(MOM6::ocean ALIAS mom6_ocean)
 
@@ -14,7 +14,7 @@ target_include_directories(mom6_ocean
     PRIVATE   ${_MEMDIR}
 )
 target_link_libraries(mom6_ocean
-    PUBLIC MOM6::io MOM6::grid MOM6::CVMix MOM6::GSW MOM6::MARBL
+    PUBLIC MOM6::io MOM6::grid MOM6::CVMix MOM6::GSW MARBL::marbl
 )
 
 # 3 framework files deferred from the framework layer; they depend on modules
@@ -25,7 +25,7 @@ target_sources(mom6_ocean PRIVATE
     framework/MOM_horizontal_regridding.F90
 )
 
-# External stubs (MARBL excluded — provided by MOM6::MARBL).
+# External stubs (MARBL excluded — provided by MARBL::marbl).
 target_sources(mom6_ocean PRIVATE
     ${_EXT}/GFDL_ocean_BGC/FMS_coupler_util.F90
     ${_EXT}/GFDL_ocean_BGC/MOM_generic_tracer.F90
