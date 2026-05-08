@@ -2331,8 +2331,7 @@ subroutine PPM_reconstruction_x(h_in, h_W, h_E, G, LB, h_min, monotonic, simple_
   real :: h_ip1, h_im1 ! Neighboring thicknesses or sensibly extrapolated values [H ~> m or kg m-2]
   real :: dMx, dMn     ! The difference between the local thickness and the maximum (dMx) or
                        ! minimum (dMn) of the surrounding values [H ~> m or kg m-2]
-  character(len=256) :: mesg
-  integer :: i, j, isl, iel, jsl, jel, n, stencil
+  integer :: i, j, isl, iel, jsl, jel, n
   logical :: local_open_BC
   type(OBC_segment_type), pointer :: segment => NULL()
 
@@ -2451,8 +2450,7 @@ subroutine PPM_reconstruction_y(h_in, h_S, h_N, G, LB, h_min, monotonic, simple_
   real :: h_jp1, h_jm1 ! Neighboring thicknesses or sensibly extrapolated values [H ~> m or kg m-2]
   real :: dMx, dMn     ! The difference between the local thickness and the maximum (dMx) or
                        ! minimum (dMn) of the surrounding values [H ~> m or kg m-2]
-  character(len=256) :: mesg
-  integer :: i, j, isl, iel, jsl, jel, n, stencil
+  integer :: i, j, isl, iel, jsl, jel, n
   logical :: local_open_BC
   type(OBC_segment_type), pointer :: segment => NULL()
 
@@ -2689,14 +2687,14 @@ subroutine continuity_PPM_init(Time, G, GV, US, param_file, diag, CS)
   stencil = continuity_PPM_stencil(CS)
   isl = G%isc ; iel = G%iec ; jsl = G%jsc ; jel = G%jec
 
-  ! Check to see if the the x-halo is sufficiently large
+  ! Check to see if the x-halo is sufficiently large
   if ((isl-stencil < G%isd) .or. (iel+stencil > G%ied)) then
     write(mesg,'("In MOM_continuity_PPM, continuity_PPM_init called with a ", &
                & "x-halo that needs to be increased by ",i2,".")') &
                stencil + max(G%isd-isl,iel-G%ied)
     call MOM_error(FATAL,mesg)
   endif
-  ! Check to see if the the y-halo is sufficiently large
+  ! Check to see if the y-halo is sufficiently large
   if ((jsl-stencil < G%jsd) .or. (jel+stencil > G%jed)) then
     write(mesg,'("In MOM_continuity_PPM, continuity_PPM_init called with a ", &
                  & "y-halo that needs to be increased by ",i2,".")') &
