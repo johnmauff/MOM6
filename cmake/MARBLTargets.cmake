@@ -3,6 +3,12 @@
 # Requires MARBL_SOURCE_DIR to point to a MARBL source checkout.
 # This file is safe to include() from any cmake context.
 
+if(NOT MARBL_SOURCE_DIR OR NOT IS_DIRECTORY "${MARBL_SOURCE_DIR}")
+    message(FATAL_ERROR
+        "MARBLTargets.cmake requires MARBL_SOURCE_DIR to be set to a valid MARBL source directory.\n"
+        "Set MARBL_ROOT in the environment or pass -DMARBL_SOURCE_DIR=/path/to/MARBL")
+endif()
+
 set(_marbl_src "${MARBL_SOURCE_DIR}/src")
 
 add_library(mom6_marbl STATIC
