@@ -2953,7 +2953,7 @@ subroutine PPM_reconstruction_y_fortran(bxH, h_in_a, h_S_a, h_N_a, mask2dT_a, h_
   real :: h_jp1, h_jm1 ! Neighboring thicknesses or sensibly extrapolated values [H ~> m or kg m-2]
   real :: dMx, dMn     ! The difference between the local thickness and the maximum (dMx) or
                        ! minimum (dMn) of the surrounding values [H ~> m or kg m-2]
-  integer :: i, j, k
+  integer :: i, j
   integer :: n, ndims
   logical :: local_open_BC
   type(OBC_segment_type), pointer :: segment => NULL()
