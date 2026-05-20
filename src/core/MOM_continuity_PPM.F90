@@ -2786,7 +2786,7 @@ subroutine PPM_reconstruction_x(bxH, h_in, h_W, h_E, G, GV, mask2dT, h_min, mono
   real :: h_ip1, h_im1 ! Neighboring thicknesses or sensibly extrapolated values [H ~> m or kg m-2]
   real :: dMx, dMn     ! The difference between the local thickness and the maximum (dMx) or
                        ! minimum (dMn) of the surrounding values [H ~> m or kg m-2]
-  integer :: i, j, k
+  integer :: i, j
   integer :: n
   logical :: local_open_BC
   type(OBC_segment_type), pointer :: segment => NULL()
@@ -3160,6 +3160,7 @@ subroutine PPM_limit_CW84_fortran(bx, h_in_a, h_L_a, h_R_a)
   ! untested
   do concurrent(k=bx%idxS(3):bx%idxE(3), &
                 j=bx%idxS(2):bx%idxE(2), &
+                i=bx%idxS(1):bx%idxE(1))
     ! This limiter monotonizes the parabola following
     ! Colella and Woodward, 1984, Eq. 1.10
     h_i = h_in(i,j,k)
