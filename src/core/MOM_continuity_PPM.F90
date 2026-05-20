@@ -2628,8 +2628,7 @@ subroutine PPM_reconstruction_x(h_in, h_W, h_E, G, GV, LB, h_min, monotonic, sim
   real :: h_ip1, h_im1 ! Neighboring thicknesses or sensibly extrapolated values [H ~> m or kg m-2]
   real :: dMx, dMn     ! The difference between the local thickness and the maximum (dMx) or
                        ! minimum (dMn) of the surrounding values [H ~> m or kg m-2]
-  character(len=256) :: mesg
-  integer :: i, j, isl, iel, jsl, jel, nz, n, stencil
+  integer :: i, j, isl, iel, jsl, jel, n, nz
   logical :: local_open_BC
   type(OBC_segment_type), pointer :: segment => NULL()
 
@@ -2640,24 +2639,7 @@ subroutine PPM_reconstruction_x(h_in, h_W, h_E, G, GV, LB, h_min, monotonic, sim
 
   isl = LB%ish-1 ; iel = LB%ieh+1 ; jsl = LB%jsh ; jel = LB%jeh ; nz = GV%ke
 
-  ! This is the stencil of the reconstruction, not the scheme overall.
-  stencil = 2 ; if (simple_2nd) stencil = 1
-
-  if ((isl-stencil < G%isd) .or. (iel+stencil > G%ied)) then
-    write(mesg,'("In MOM_continuity_PPM, PPM_reconstruction_x called with a ", &
-               & "x-halo that needs to be increased by ",I0,".")') &
-               stencil + max(G%isd-isl,iel-G%ied)
-    call MOM_error(FATAL,mesg)
-  endif
-  if ((jsl < G%jsd) .or. (jel > G%jed)) then
-    write(mesg,'("In MOM_continuity_PPM, PPM_reconstruction_x called with a ", &
-               & "y-halo that needs to be increased by ",I0,".")') &
-               max(G%jsd-jsl,jel-G%jed)
-    call MOM_error(FATAL,mesg)
-  endif
-
   !$omp target enter data map(alloc: slp)
-
   if (simple_2nd) then
     ! untested
     do concurrent (k =1:nz, j=jsl:jel, i=isl:iel)
@@ -2772,8 +2754,7 @@ subroutine PPM_reconstruction_y(h_in, h_S, h_N, G, GV, LB, h_min, monotonic, sim
   real :: h_jp1, h_jm1 ! Neighboring thicknesses or sensibly extrapolated values [H ~> m or kg m-2]
   real :: dMx, dMn     ! The difference between the local thickness and the maximum (dMx) or
                        ! minimum (dMn) of the surrounding values [H ~> m or kg m-2]
-  character(len=256) :: mesg
-  integer :: i, j, isl, iel, jsl, jel, nz, n, stencil
+  integer :: i, j, isl, iel, jsl, jel, n, nz
   logical :: local_open_BC
   type(OBC_segment_type), pointer :: segment => NULL()
 
@@ -2783,22 +2764,6 @@ subroutine PPM_reconstruction_y(h_in, h_S, h_N, G, GV, LB, h_min, monotonic, sim
   endif
 
   isl = LB%ish ; iel = LB%ieh ; jsl = LB%jsh-1 ; jel = LB%jeh+1 ; nz = G%ke
-
-  ! This is the stencil of the reconstruction, not the scheme overall.
-  stencil = 2 ; if (simple_2nd) stencil = 1
-
-  if ((isl < G%isd) .or. (iel > G%ied)) then
-    write(mesg,'("In MOM_continuity_PPM, PPM_reconstruction_y called with a ", &
-               & "x-halo that needs to be increased by ",I0,".")') &
-               max(G%isd-isl,iel-G%ied)
-    call MOM_error(FATAL,mesg)
-  endif
-  if ((jsl-stencil < G%jsd) .or. (jel+stencil > G%jed)) then
-    write(mesg,'("In MOM_continuity_PPM, PPM_reconstruction_y called with a ", &
-                 & "y-halo that needs to be increased by ",I0,".")') &
-                 stencil + max(G%jsd-jsl,jel-G%jed)
-    call MOM_error(FATAL,mesg)
-  endif
 
   !$omp target enter data map(alloc: slp)
 
@@ -3012,6 +2977,7 @@ subroutine continuity_PPM_init(Time, G, GV, US, param_file, diag, CS, OBC)
   !> This include declares and sets the variable "version".
 # include "version_variable.h"
   character(len=40)  :: mdl = "MOM_continuity_PPM" ! This module's name.
+  integer :: isl, iel, jsl, jel, stencil
   character(len=256) :: mesg
 
   CS%initialized = .true.
@@ -3040,6 +3006,27 @@ subroutine continuity_PPM_init(Time, G, GV, US, param_file, diag, CS, OBC)
                  "continuity solver.  This scheme is highly diffusive "//&
                  "but may be useful for debugging or in single-column "//&
                  "mode where its minimal stencil is useful.", default=.false.)
+
+  ! Now that we know the numerical method used for the continuity
+  ! equation check to see that the stencil is sufficient.
+  stencil = continuity_PPM_stencil(CS)
+  isl = G%isc ; iel = G%iec ; jsl = G%jsc ; jel = G%jec
+
+  ! Check to see if the x-halo is sufficiently large
+  if ((isl-stencil < G%isd) .or. (iel+stencil > G%ied)) then
+    write(mesg,'("In MOM_continuity_PPM, continuity_PPM_init called with a ", &
+               & "x-halo that needs to be increased by ",i2,".")') &
+               stencil + max(G%isd-isl,iel-G%ied)
+    call MOM_error(FATAL,mesg)
+  endif
+  ! Check to see if the y-halo is sufficiently large
+  if ((jsl-stencil < G%jsd) .or. (jel+stencil > G%jed)) then
+    write(mesg,'("In MOM_continuity_PPM, continuity_PPM_init called with a ", &
+                 & "y-halo that needs to be increased by ",i2,".")') &
+                 stencil + max(G%jsd-jsl,jel-G%jed)
+    call MOM_error(FATAL,mesg)
+  endif
+
   call get_param(param_file, mdl, "ETA_TOLERANCE", CS%tol_eta, &
                  "The tolerance for the differences between the "//&
                  "barotropic and baroclinic estimates of the sea surface "//&
