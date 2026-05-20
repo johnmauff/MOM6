@@ -1,13 +1,9 @@
-<<<<<<< HEAD
-#undef _TIM
-=======
 ! This file is part of MOM6, the Modular Ocean Model version 6.
 ! See the LICENSE file for licensing information.
 ! SPDX-License-Identifier: Apache-2.0
 
 #include "do_concurrent_compat.h"
 
->>>>>>> dev/turbo
 !> Solve the layer continuity equation using the PPM method for layer fluxes.
 module MOM_continuity_PPM
 
