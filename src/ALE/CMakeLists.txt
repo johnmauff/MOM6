@@ -21,6 +21,7 @@ target_sources(mom6_ocean PRIVATE
     Recon1d_PCM.F90
     Recon1d_PLM_CW.F90
     Recon1d_PLM_CWK.F90
+    Recon1d_PLM_WLS.F90
     Recon1d_PLM_hybgen.F90
     Recon1d_PPM_CW.F90
     Recon1d_PPM_CWK.F90

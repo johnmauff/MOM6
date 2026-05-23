@@ -17,9 +17,11 @@ target_link_libraries(mom6_ocean
     PUBLIC MOM6::io MOM6::grid MOM6::CVMix MOM6::GSW MARBL::marbl
 )
 
-# 3 framework files deferred from the framework layer; they depend on modules
+# Framework files deferred from the framework layer; they depend on modules
 # defined in mom6_ocean (EOS, core, diagnostics) so they are added here.
 target_sources(mom6_ocean PRIVATE
+    framework/MOM_ANN.F90
+    framework/MOM_diag_buffers.F90
     framework/MOM_diag_mediator.F90
     framework/MOM_diag_remap.F90
     framework/MOM_horizontal_regridding.F90
@@ -27,10 +29,7 @@ target_sources(mom6_ocean PRIVATE
 
 # External stubs (MARBL excluded — provided by MARBL::marbl).
 target_sources(mom6_ocean PRIVATE
-    ${_EXT}/GFDL_ocean_BGC/FMS_coupler_util.F90
     ${_EXT}/GFDL_ocean_BGC/MOM_generic_tracer.F90
-    ${_EXT}/GFDL_ocean_BGC/generic_tracer.F90
-    ${_EXT}/GFDL_ocean_BGC/generic_tracer_utils.F90
     ${_EXT}/ODA_hooks/kdtree.f90
     ${_EXT}/ODA_hooks/ocean_da_core.F90
     ${_EXT}/ODA_hooks/ocean_da_types.F90

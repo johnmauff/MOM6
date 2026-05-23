@@ -6,7 +6,7 @@ target_sources(mom6_ocean PRIVATE
     lateral/MOM_interface_filter.F90
     lateral/MOM_internal_tides.F90
     lateral/MOM_lateral_mixing_coeffs.F90
-    lateral/MOM_load_love_numbers.F90
+    lateral/MOM_load_Love_numbers.F90
     lateral/MOM_mixed_layer_restrat.F90
     lateral/MOM_self_attr_load.F90
     lateral/MOM_spherical_harmonics.F90
