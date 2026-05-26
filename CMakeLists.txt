@@ -14,14 +14,37 @@ include(MOM6Options)
 # build those dependencies ourselves.
 
 if(NOT TARGET TURBO::infra_r8)
+    # FMSConfig.cmake / TIMConfig.cmake both call find_dependency(NetCDF) on
+    # the way in. Most NetCDF installs (incl. NCAR Derecho's spack module)
+    # ship no NetCDFConfig.cmake — only nc-config — so a FindNetCDF.cmake
+    # must be on CMAKE_MODULE_PATH *before* find_package(FMS|TIM). FMS and
+    # TIM each ship their own copy; discover the bundled module via the
+    # backend's install prefix (FMS_ROOT / TIM_ROOT env or var, or via
+    # CMAKE_PREFIX_PATH) and prepend it so the transitive resolution works.
     if(TURBO_INFRA STREQUAL "FMS2")
+        if(NOT DEFINED FMS_ROOT AND DEFINED ENV{FMS_ROOT})
+            set(FMS_ROOT "$ENV{FMS_ROOT}")
+        endif()
+        find_path(_FMS_module_dir NAMES FindNetCDF.cmake
+            HINTS ${FMS_ROOT} ${CMAKE_PREFIX_PATH}
+            PATH_SUFFIXES lib/cmake/fms cmake)
+        if(_FMS_module_dir)
+            list(APPEND CMAKE_MODULE_PATH "${_FMS_module_dir}")
+        endif()
         find_package(FMS REQUIRED COMPONENTS R8)
-        list(APPEND CMAKE_MODULE_PATH "${FMS_INSTALL_PREFIX}/lib/cmake/fms")
         add_library(turbo_infra_r8 INTERFACE)
         target_link_libraries(turbo_infra_r8 INTERFACE FMS::fms_r8)
     elseif(TURBO_INFRA STREQUAL "TIM")
+        if(NOT DEFINED TIM_ROOT AND DEFINED ENV{TIM_ROOT})
+            set(TIM_ROOT "$ENV{TIM_ROOT}")
+        endif()
+        find_path(_TIM_module_dir NAMES FindNetCDF.cmake
+            HINTS ${TIM_ROOT} ${CMAKE_PREFIX_PATH}
+            PATH_SUFFIXES lib/cmake/tim cmake)
+        if(_TIM_module_dir)
+            list(APPEND CMAKE_MODULE_PATH "${_TIM_module_dir}")
+        endif()
         find_package(TIM REQUIRED COMPONENTS R8)
-        list(APPEND CMAKE_MODULE_PATH "${TIM_DIR}")
         add_library(turbo_infra_r8 INTERFACE)
         target_link_libraries(turbo_infra_r8 INTERFACE TIM::tim_r8)
     else()
@@ -44,6 +67,20 @@ if(NOT TARGET MARBL::marbl)
     endif()
     include(MARBLTargets)
 endif()
+
+# pkg/CVMix-src and pkg/GSW-Fortran are git submodules. Fail noisily here if
+# they aren't initialized — much better than the cryptic "file not found"
+# cmake produces when target_sources() references missing files later.
+foreach(_pkg_required
+        pkg/CVMix-src/src/shared/cvmix_kinds_and_types.F90
+        pkg/GSW-Fortran/modules/gsw_mod_kinds.f90)
+    if(NOT EXISTS "${MOM6_SOURCE_DIR}/${_pkg_required}")
+        message(FATAL_ERROR
+            "Missing ${_pkg_required}. pkg/CVMix-src and pkg/GSW-Fortran are "
+            "git submodules; run `git submodule update --init --recursive` "
+            "in the MOM6 repo.")
+    endif()
+endforeach()
 
 add_subdirectory(pkg)
 add_subdirectory(src)
