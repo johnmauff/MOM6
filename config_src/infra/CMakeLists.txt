@@ -1,8 +1,5 @@
 # Layer 2 (mom6_infra): FMS2/TIM infrastructure wrapper.
 # See src/framework/CMakeLists.txt for Layers 1, 3, and 5.
-#
-# MOM_interp_infra.F90 is excluded here; it depends on MOM_io (Layer 5) which
-# is above the infra layer. It is compiled as part of mom6_io.
 add_library(mom6_infra STATIC
     ${TURBO_INFRA}/MOM_error_infra.F90
     ${TURBO_INFRA}/MOM_constants.F90
@@ -17,6 +14,7 @@ add_library(mom6_infra STATIC
     ${TURBO_INFRA}/MOM_couplertype_infra.F90
     ${TURBO_INFRA}/MOM_string_infra.F90
     ${TURBO_INFRA}/MOM_io_infra.F90
+    ${TURBO_INFRA}/MOM_interp_infra.F90
 )
 # MOM_coms_helpers.F90 exists only in the TIM infra directory
 if(TURBO_INFRA STREQUAL "TIM")

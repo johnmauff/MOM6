@@ -95,9 +95,8 @@ target_link_libraries(mom6_framework
 # Tier A
 add_library(mom6_io STATIC MOM_io.F90)
 
-# Tier B -- MOM_interp_infra lives in config_src/infra/, not here
+# Tier B
 target_sources(mom6_io PRIVATE
-    ${MOM6_SOURCE_DIR}/config_src/infra/${TURBO_INFRA}/MOM_interp_infra.F90
     MOM_get_input.F90
     MOM_write_cputime.F90
 )
