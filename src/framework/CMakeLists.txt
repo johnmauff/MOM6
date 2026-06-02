@@ -13,6 +13,30 @@
 #
 # ─────────────────────────────────────────────────────────────────────────────
 
+# ── Adding a new file: which library and tier? ────────────────────────────────
+#
+# A file's tier is determined by what it `use`s. A file must be compiled AFTER
+# every project module it depends on, so it goes in the lowest tier whose
+# dependencies are all already satisfied.
+#
+# Manual procedure:
+#   1. List the file's project `use` statements:
+#        grep -i '^[[:space:]]*use ' src/framework/<newfile>.F90
+#   2. For each used module, find which library/tier defines it (search this
+#      file and src/core/CMakeLists.txt for the module's source file).
+#   3. Place the new file in the first tier that comes AFTER all of its
+#      dependencies. If it depends only on infra + framework_base, it belongs in
+#      mom6_framework Tier A; if it also needs mom6_grid (Layer 4), it belongs in
+#      mom6_io; and so on.
+#   4. If it pulls in modules outside src/framework/ and src/core/ (e.g. MOM_EOS,
+#      MOM_regridding), it likely belongs in mom6_ocean (src/CMakeLists.txt),
+#      like MOM_diag_mediator below.
+#
+# To do this with an AI assistant, paste the new file's `use` statements and ask:
+# "Given the tier layout in src/framework/CMakeLists.txt, which library and tier
+#  should this file go in so it compiles after all its dependencies?"
+# ─────────────────────────────────────────────────────────────────────────────
+
 # Layer 1: pure utility files, no dependencies on anything in this project.
 add_library(mom6_framework_base STATIC
     MOM_string_functions.F90
