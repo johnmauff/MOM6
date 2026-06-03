@@ -1,5 +1,5 @@
 module box_mod
-  use iso_c_binding, only : c_ptr, c_loc
+  use iso_c_binding, only : c_ptr, c_loc, c_int, c_null_ptr
   use MOM_error_infra, only : MOM_err, FATAL
   implicit none
   private
@@ -14,8 +14,8 @@ module box_mod
 
   !< Class box_t defines an iteration index range
   type :: Box_T
-     integer, pointer :: idxS(:) => NULL()  !< Start index of a box
-     integer, pointer :: idxE(:) => NULL()  !< End index of a box
+     integer(c_int), allocatable :: idxS(:)  !< Start index of a box
+     integer(c_int), allocatable :: idxE(:)  !< End index of a box
   contains
      procedure   :: safe_alloc   !< allocate an index box
      procedure   :: set          !< Sets the index range for the bocx
@@ -25,18 +25,17 @@ module box_mod
                                  !! both extents of box are increased by a fixed amount
      procedure   :: shrink       !< Decrease the bounds of a box in one dimension
                                  !! both extents of box are decreased by a fixed amount
-     procedure   :: write_binary !< Writes a box to disk
-     procedure   :: read_binary  !< Reads a box from disk
+     procedure   :: write_binary !< Write a box_t to a binary file
+     procedure   :: read_binary  !< Read a box_t from a binary file
   end type Box_T
 
 contains
 
-!< Reads a box from a binary file
+!< Read a box_t from a binary file
 subroutine read_binary(this, unit)
-  class(Box_t), intent(inout) :: this  !< The box_t varibale to read from disk
-  integer,      intent(in)    :: unit  !< The file unit of the binary file
+  class(Box_t), intent(inout) :: this  !< The box_t variable to read from a binary file
+  integer,      intent(in)    :: unit  !< The file unit
 
-  ! local variables
   integer :: rank
 
   ! --- Read rank ---
@@ -44,16 +43,14 @@ subroutine read_binary(this, unit)
 
   ! --- Null case ---
   if (rank == -1) then
-    if (associated(this%idxS)) deallocate(this%idxS)
-    if (associated(this%idxE)) deallocate(this%idxE)
-    nullify(this%idxS)
-    nullify(this%idxE)
+    if (allocated(this%idxS)) deallocate(this%idxS)
+    if (allocated(this%idxE)) deallocate(this%idxE)
     return
   endif
 
   ! --- Allocate ---
-  if (associated(this%idxS)) deallocate(this%idxS)
-  if (associated(this%idxE)) deallocate(this%idxE)
+  if (allocated(this%idxS)) deallocate(this%idxS)
+  if (allocated(this%idxE)) deallocate(this%idxE)
 
   allocate(this%idxS(rank))
   allocate(this%idxE(rank))
@@ -64,16 +61,15 @@ subroutine read_binary(this, unit)
 
 end subroutine read_binary
 
-!< Writes a box to a binary file
+!< Write a box_t to a binary file
 subroutine write_binary(this, unit)
-  class(Box_t), intent(in) :: this  !< The box_t variable to write to disk
-  integer,      intent(in) :: unit  !< The file unit of the binary file
+  class(Box_t), intent(in) :: this   !< The box_t variable to write to a binary file
+  integer,      intent(in) :: unit   !< The file unit
 
-  ! local variables
   integer :: rank
 
-  ! --- Handle unassociated pointers ---
-  if (.not. associated(this%idxS) .or. .not. associated(this%idxE)) then
+  ! --- Handle unallocated pointers ---
+  if (.not. allocated(this%idxS) .or. .not. allocated(this%idxE)) then
     rank = -1
     write(unit) rank
     return
@@ -101,9 +97,9 @@ subroutine safe_alloc(this,ndims)
   class(Box_t), intent(inout) :: this   !< The box to be allocated
   integer, intent(in) :: ndims          !< The number of dimension in the box
 
-  ! If already associated deallocate
-  if(associated(this%idxS)) deallocate(this%idxS)
-  if(associated(this%idxE)) deallocate(this%idxE)
+  ! If already allocated deallocate
+  if(allocated(this%idxS)) deallocate(this%idxS)
+  if(allocated(this%idxE)) deallocate(this%idxE)
 
   allocate(this%idxS(ndims), source=0)
   allocate(this%idxE(ndims), source=0)
@@ -113,8 +109,8 @@ end subroutine safe_alloc
 subroutine free(this)
   class(Box_t), intent(inout) :: this   !< The box to be deallocated
 
-  if(associated(this%idxS)) deallocate(this%idxS)
-  if(associated(this%idxE)) deallocate(this%idxE)
+  if(allocated(this%idxS)) deallocate(this%idxS)
+  if(allocated(this%idxE)) deallocate(this%idxE)
 
 end subroutine free
 
@@ -124,7 +120,7 @@ subroutine set(this,idxS,idxE)
   integer, dimension(:), intent(in) :: idxS  !< The starting indices
   integer, dimension(:), intent(in) :: idxE  !< The ending indices
 
-  if(associated(this%idxS) .and. associated(this%idxS)) then
+  if(allocated(this%idxS) .and. allocated(this%idxS)) then
     this%idxS(:)=idxS(:)
     this%idxE(:)=idxE(:)
   else
@@ -143,8 +139,8 @@ function grow(this,dim,n) result(new)
   ! Local variables
   integer ::rank
 
-  if(associated(new%idxS)) deallocate(new%idxS)
-  if(associated(new%idxE)) deallocate(new%idxE)
+  if(allocated(new%idxS)) deallocate(new%idxS)
+  if(allocated(new%idxE)) deallocate(new%idxE)
 
   rank = SIZE(this%idxS)
   allocate(new%idxS(rank),new%idxE(rank))
@@ -165,8 +161,8 @@ function shrink(this,dim,n) result(new)
   ! Local variables
   integer ::rank
 
-  if(associated(new%idxS)) deallocate(new%idxS)
-  if(associated(new%idxE)) deallocate(new%idxE)
+  if(allocated(new%idxS)) deallocate(new%idxS)
+  if(allocated(new%idxE)) deallocate(new%idxE)
 
   rank = SIZE(this%idxS)
   allocate(new%idxS(rank),new%idxE(rank))
@@ -179,10 +175,22 @@ end function shrink
 
 !< Convert Fortran box to C
 function to_c(this) result(cdesc)
-  class(Box_t), intent(in) :: this  !< The box to convert
+  class(Box_t), target, intent(in) :: this  !< The box to convert
   type(Box_C) :: cdesc              !< C compatible pointers
-  cdesc%idxS = c_loc(this%idxS)
-  cdesc%idxE = c_loc(this%idxE)
+
+  integer(c_int), pointer :: p(:)
+
+  cdesc%idxS = c_null_ptr
+  cdesc%idxE = c_null_ptr
+
+  if(allocated(this%idxS)) then
+     p => this%idxS
+     cdesc%idxS = c_loc(p(1))
+  endif
+  if(allocated(this%idxE)) then
+     p => this%idxE
+     cdesc%idxE = c_loc(p(1))
+   endif
 end function to_c
 
 end module box_mod
