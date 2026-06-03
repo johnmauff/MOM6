@@ -1,5 +1,3 @@
-set(_MEMDIR "${MOM6_SOURCE_DIR}/config_src/memory/${TURBO_MEMORY_MODE}")
-
 # Remaining core files (MOM_grid and MOM_verticalGrid are in mom6_grid below).
 target_sources(mom6_ocean PRIVATE
     MOM.F90
@@ -43,7 +41,7 @@ set_target_properties(mom6_grid PROPERTIES
 )
 target_include_directories(mom6_grid
     INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/mod>
-    PRIVATE   ${_MEMDIR}
+    PRIVATE   ${TURBO_MEMORY_DIR}
 )
 target_link_libraries(mom6_grid
     PUBLIC MOM6::framework

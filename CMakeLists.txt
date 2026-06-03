@@ -1,10 +1,11 @@
 cmake_minimum_required(VERSION 3.24)
 project(MOM6 VERSION 6 LANGUAGES Fortran)
 
-# Absolute path to this repo's root; used by all subdirectories to locate sources.
-set(MOM6_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
-
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+# project(MOM6) above already defines MOM6_SOURCE_DIR as this repo's root, used
+# by all subdirectories to locate sources. We rely on it rather than
+# CMAKE_SOURCE_DIR, which points at the parent project (turbo-stack) when MOM6
+# is built via add_subdirectory().
+list(APPEND CMAKE_MODULE_PATH "${MOM6_SOURCE_DIR}/cmake")
 include(MOM6Options)
 
 # ── Standalone dependency resolution ─────────────────────────────────────────

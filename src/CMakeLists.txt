@@ -1,5 +1,4 @@
 set(_EXT    "${MOM6_SOURCE_DIR}/config_src/external")
-set(_MEMDIR "${MOM6_SOURCE_DIR}/config_src/memory/${TURBO_MEMORY_MODE}")
 
 # mom6_ocean: all MOM6 src/ files not already in the framework/grid/io/infra targets,
 # plus config_src/external/ stubs (MARBL excluded — provided by MARBL::marbl).
@@ -11,7 +10,7 @@ set_target_properties(mom6_ocean PROPERTIES
 )
 target_include_directories(mom6_ocean
     INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/mod>
-    PRIVATE   ${_MEMDIR}
+    PRIVATE   ${TURBO_MEMORY_DIR}
 )
 target_link_libraries(mom6_ocean
     PUBLIC MOM6::io MOM6::grid MOM6::CVMix MOM6::GSW MARBL::marbl

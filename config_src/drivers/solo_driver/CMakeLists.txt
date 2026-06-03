@@ -10,7 +10,7 @@ set_target_properties(MOM6 PROPERTIES
     Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/mod
 )
 target_include_directories(MOM6
-    PRIVATE ${MOM6_SOURCE_DIR}/config_src/memory/${TURBO_MEMORY_MODE}
+    PRIVATE ${TURBO_MEMORY_DIR}
 )
 target_link_libraries(MOM6
     PRIVATE MOM6::ocean

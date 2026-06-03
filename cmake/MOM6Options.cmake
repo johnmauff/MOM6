@@ -16,3 +16,7 @@ if(NOT TURBO_MEMORY_MODE MATCHES "^(dynamic_symmetric|dynamic_nonsymmetric)$")
         "Valid values: dynamic_symmetric, dynamic_nonsymmetric")
 endif()
 
+# Resolved path to the selected memory-mode sources. Interpreting the memory
+# mode once here lets every target just reference ${TURBO_MEMORY_DIR}.
+set(TURBO_MEMORY_DIR "${MOM6_SOURCE_DIR}/config_src/memory/${TURBO_MEMORY_MODE}")
+
