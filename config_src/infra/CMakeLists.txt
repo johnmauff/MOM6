@@ -1,5 +1,7 @@
-# Layer 2 (mom6_infra): FMS2/TIM infrastructure wrapper.
-# See src/framework/CMakeLists.txt for Layers 1, 3, and 5.
+# mom6_infra: the FMS2/TIM infrastructure wrapper. This is the one hard boundary
+# in MOM6's build — these sources compile against the selected backend only and
+# must not `use` any MOM6 module. Keeping infra a separate target with a minimal
+# link surface is what enforces that at compile time.
 add_library(mom6_infra STATIC
     ${TURBO_INFRA}/MOM_error_infra.F90
     ${TURBO_INFRA}/MOM_constants.F90
@@ -29,6 +31,5 @@ target_include_directories(mom6_infra
     INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/mod>
 )
 target_link_libraries(mom6_infra
-    PUBLIC  TURBO::infra_r8 MPI::MPI_Fortran NetCDF::NetCDF_Fortran
-    PRIVATE MOM6::framework_base
+    PUBLIC TURBO::infra_r8 MPI::MPI_Fortran NetCDF::NetCDF_Fortran
 )

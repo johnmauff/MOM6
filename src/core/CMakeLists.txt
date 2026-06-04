@@ -1,4 +1,7 @@
-# Remaining core files (MOM_grid and MOM_verticalGrid are in mom6_grid below).
+# All core files compile into mom6_ocean. MOM_grid and MOM_verticalGrid used to
+# be a separate mom6_grid library that existed only to order compilation; that
+# ordering is now handled automatically by CMake's Fortran scanner within
+# mom6_ocean, so they are just ordinary mom6_ocean sources here.
 target_sources(mom6_ocean PRIVATE
     MOM.F90
     MOM_CoriolisAdv.F90
@@ -25,24 +28,6 @@ target_sources(mom6_ocean PRIVATE
     MOM_transcribe_grid.F90
     MOM_unit_tests.F90
     MOM_variables.F90
-)
-
-# Layer 4 (mom6_grid): MOM_grid and MOM_verticalGrid.
-# These are the minimal src/core/ files needed to complete the framework layer.
-# MOM_io (Layer 5) needs them; they in turn only need mom6_framework (Layer 3).
-add_library(mom6_grid STATIC
     MOM_grid.F90
     MOM_verticalGrid.F90
-)
-add_library(MOM6::grid ALIAS mom6_grid)
-
-set_target_properties(mom6_grid PROPERTIES
-    Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/mod
-)
-target_include_directories(mom6_grid
-    INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/mod>
-    PRIVATE   ${TURBO_MEMORY_DIR}
-)
-target_link_libraries(mom6_grid
-    PUBLIC MOM6::framework
 )
