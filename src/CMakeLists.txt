@@ -12,7 +12,7 @@ set_target_properties(mom6_ocean PROPERTIES
 )
 target_include_directories(mom6_ocean
     INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/mod>
-    PRIVATE   ${TURBO_MEMORY_DIR}
+    PRIVATE   ${MOM6_MEMORY_DIR}
 )
 target_link_libraries(mom6_ocean
     PUBLIC MOM6::framework MOM6::CVMix MOM6::GSW MARBL::marbl
