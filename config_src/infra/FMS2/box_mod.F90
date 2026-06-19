@@ -23,6 +23,8 @@ module box_mod
      procedure   :: to_c         !< Converts Box to C
      procedure   :: grow         !< Increase the bounds of a box in one dimension
                                  !! both extents of box are increased by a fixed amount
+     procedure   :: growLo       !< Increase the start extent of the box in one dimension
+     procedure   :: growHi       !< Increase the end extent of the box in one dimension
      procedure   :: shrink       !< Decrease the bounds of a box in one dimension
                                  !! both extents of box are decreased by a fixed amount
      procedure   :: write_binary !< Write a box_t to a binary file
@@ -150,6 +152,50 @@ function grow(this,dim,n) result(new)
   new%idxE(dim) = new%idxE(dim)+n
 
 end function grow
+
+!< Return a new box with expanded start iteration extents
+function growLo(this,dim,n) result(new)
+  class(Box_t), intent(in) :: this !< The iteration box to modify
+  integer, intent(in)      :: dim  !< The dimension to grow
+  integer, intent(in)      :: n    !< The length to grow
+  type(Box_t) :: new
+
+  ! Local variables
+  integer ::rank
+
+  if(allocated(new%idxS)) deallocate(new%idxS)
+  if(allocated(new%idxE)) deallocate(new%idxE)
+
+  rank = SIZE(this%idxS)
+  allocate(new%idxS(rank),new%idxE(rank))
+  new%idxS(:) = this%idxS(:)
+  new%idxE(:) = this%idxE(:)
+  new%idxS(dim) = new%idxS(dim)-n
+  new%idxE(dim) = new%idxE(dim)
+
+end function growLo
+
+!< Return a new box with expanded end iteration extents
+function growHi(this,dim,n) result(new)
+  class(Box_t), intent(in) :: this !< The iteration box to modify
+  integer, intent(in)      :: dim  !< The dimension to grow
+  integer, intent(in)      :: n    !< The length to grow
+  type(Box_t) :: new
+
+  ! Local variables
+  integer ::rank
+
+  if(allocated(new%idxS)) deallocate(new%idxS)
+  if(allocated(new%idxE)) deallocate(new%idxE)
+
+  rank = SIZE(this%idxS)
+  allocate(new%idxS(rank),new%idxE(rank))
+  new%idxS(:) = this%idxS(:)
+  new%idxE(:) = this%idxE(:)
+  new%idxS(dim) = new%idxS(dim)
+  new%idxE(dim) = new%idxE(dim)+n
+
+end function growHi
 
 !< Return a new box with contracted iteration extents
 function shrink(this,dim,n) result(new)
