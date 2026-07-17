@@ -282,7 +282,13 @@ subroutine copy2AReal1D(this,var)
   class(RealArray_t), intent(inout) :: this  !< The destination array container
   real, dimension(:), intent(in) :: var      !< The source Fortran array
 
-  this%data(:) = var(:)
+  integer :: i, n1
+
+  n1 = this%shape(1)
+  ! do concurrent so the copy runs on the device under offload
+  do concurrent (i=1:n1)
+    this%data(i) = var(i)
+  enddo
 
 end subroutine copy2AReal1D
 
@@ -292,15 +298,13 @@ subroutine copy2AReal2D(this,var)
   real, dimension(:,:), intent(in) :: var    !< The source Fortran array
 
   ! Local variables
-  integer :: i, j, n1, n2,idx
+  integer :: i, j, n1, n2
 
   n1 = this%shape(1)
   n2 = this%shape(2)
-  do j=1,n2
-    do i=1,n1
-      idx = i + n1*(j-1)
-      this%data(idx) = var(i,j)
-    enddo
+  ! do concurrent so the copy runs on the device under offload
+  do concurrent (j=1:n2, i=1:n1)
+    this%data(i + n1*(j-1)) = var(i,j)
   enddo
 
 end subroutine copy2AReal2D
@@ -311,18 +315,14 @@ subroutine copy2AReal3D(this,var)
   real, dimension(:,:,:), intent(in) :: var  !< The source Fortran array
 
   ! Local variables
-  integer :: i, j, k, n1, n2, n3, idx
+  integer :: i, j, k, n1, n2, n3
 
   n1 = this%shape(1)
   n2 = this%shape(2)
   n3 = this%shape(3)
-  do k=1,n3
-    do j=1,n2
-      do i=1,n1
-        idx = i + n1*(j-1) + n1*n2*(k-1)
-        this%data(idx) = var(i,j,k)
-      enddo
-    enddo
+  ! do concurrent so the copy runs on the device under offload
+  do concurrent (k=1:n3, j=1:n2, i=1:n1)
+    this%data(i + n1*(j-1) + n1*n2*(k-1)) = var(i,j,k)
   enddo
 
 end subroutine copy2AReal3D
@@ -333,21 +333,15 @@ subroutine copy2AReal4D(this,var)
   real, dimension(:,:,:,:), intent(in) :: var !< The source Fortran array
 
   ! Local variables
-  integer :: i, j, k, m, n1, n2, n3, n4, idx
+  integer :: i, j, k, m, n1, n2, n3, n4
 
   n1 = this%shape(1)
   n2 = this%shape(2)
   n3 = this%shape(3)
   n4 = this%shape(4)
-  do m=1,n4
-    do k=1,n3
-      do j=1,n2
-        do i=1,n1
-          idx = i + n1*(j-1) + n1*n2*(k-1) + n1*n2*n3*(m-1)
-          this%data(idx) = var(i,j,k,m)
-        enddo
-      enddo
-    enddo
+  ! do concurrent so the copy runs on the device under offload
+  do concurrent (m=1:n4, k=1:n3, j=1:n2, i=1:n1)
+    this%data(i + n1*(j-1) + n1*n2*(k-1) + n1*n2*n3*(m-1)) = var(i,j,k,m)
   enddo
 
 end subroutine copy2AReal4D
@@ -357,7 +351,13 @@ subroutine copy2FReal1D(this,var)
   class(RealArray_t), intent(in) :: this    !< The source array container
   real, dimension(:), intent(inout) :: var  !< The destination Fortran array
 
-  var(:) = this%data(:)
+  integer :: i, n1
+
+  n1 = this%shape(1)
+  ! do concurrent so the copy runs on the device under offload
+  do concurrent (i=1:n1)
+    var(i) = this%data(i)
+  enddo
 
 end subroutine copy2FReal1D
 
@@ -367,15 +367,13 @@ subroutine copy2FReal2D(this,var)
   real, dimension(:,:), intent(inout) :: var !< The destination Fortran array
 
   ! Local variables
-  integer :: i, j, n1,n2,idx
+  integer :: i, j, n1,n2
 
   n1 = this%shape(1)
   n2 = this%shape(2)
-  do j=1,n2
-    do i=1,n1
-      idx = i + n1*(j-1)
-      var(i,j) = this%data(idx)
-    enddo
+  ! do concurrent so the copy runs on the device under offload
+  do concurrent (j=1:n2, i=1:n1)
+    var(i,j) = this%data(i + n1*(j-1))
   enddo
 
 end subroutine copy2FReal2D
@@ -386,18 +384,14 @@ subroutine copy2FReal3D(this,var)
   real, dimension(:,:,:), intent(inout) :: var !< The destination Fortran array
 
   ! Local variables
-  integer :: i, j, k, n1,n2,n3, idx
+  integer :: i, j, k, n1,n2,n3
 
   n1 = this%shape(1)
   n2 = this%shape(2)
   n3 = this%shape(3)
-  do k=1,n3
-    do j=1,n2
-      do i=1,n1
-        idx = i + n1*(j-1) + n1*n2*(k-1)
-        var(i,j,k) = this%data(idx)
-      enddo
-    enddo
+  ! do concurrent so the copy runs on the device under offload
+  do concurrent (k=1:n3, j=1:n2, i=1:n1)
+    var(i,j,k) = this%data(i + n1*(j-1) + n1*n2*(k-1))
   enddo
 
 end subroutine copy2FReal3D
@@ -408,21 +402,15 @@ subroutine copy2FReal4D(this,var)
   real, dimension(:,:,:,:), intent(inout) :: var  !< The destination Fortran array
 
   ! Local variables
-  integer :: i, j, k, m, n1, n2, n3, n4, idx
+  integer :: i, j, k, m, n1, n2, n3, n4
 
   n1 = this%shape(1)
   n2 = this%shape(2)
   n3 = this%shape(3)
   n4 = this%shape(4)
-  do m=1,n4
-    do k=1,n3
-      do j=1,n2
-        do i=1,n1
-          idx = i + n1*(j-1) + n1*n2*(k-1) + n1*n2*n3*(m-1)
-          var(i,j,k,m) = this%data(idx)
-        enddo
-      enddo
-    enddo
+  ! do concurrent so the copy runs on the device under offload
+  do concurrent (m=1:n4, k=1:n3, j=1:n2, i=1:n1)
+    var(i,j,k,m) = this%data(i + n1*(j-1) + n1*n2*(k-1) + n1*n2*n3*(m-1))
   enddo
 
 end subroutine copy2FReal4D

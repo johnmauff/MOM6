@@ -3117,6 +3117,8 @@ subroutine PPM_reconstruction_x_fortran(bxH, h_in_a, h_W_a, h_E_a, mask2dT_a, h_
     call PPM_limit_pos(bx, h_in_a, h_W_a, h_E_a, h_min)
   endif
 
+  !$omp target exit data map(release: slp)
+
   ! Deallocate local temporary array
   if(allocated(slp)) deallocate(slp)
 
@@ -3125,7 +3127,6 @@ subroutine PPM_reconstruction_x_fortran(bxH, h_in_a, h_W_a, h_E_a, mask2dT_a, h_
   call bxE%free()
 
   return
-  !$omp target exit data map(release: slp)
 
 end subroutine PPM_reconstruction_x_fortran
 
@@ -3281,14 +3282,14 @@ subroutine PPM_reconstruction_y_fortran(bxH, h_in_a, h_S_a, h_N_a, mask2dT_a, h_
     call PPM_limit_pos(bx, h_in_a, h_S_a, h_N_a, h_min)
   endif
 
+  !$omp target exit data map(release: slp)
+
   ! Deallocate local temporary array
   if(allocated(slp)) deallocate(slp)
 
   ! Deallocate local iteration boxes
   call bx%free()
   call bxE%free()
-
-  !$omp target exit data map(release: slp)
 
 end subroutine PPM_reconstruction_y_fortran
 
