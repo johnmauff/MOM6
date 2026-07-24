@@ -668,10 +668,10 @@ subroutine zonal_edge_thickness(bxC, h_in, h_W, h_E, G, GV, US, CS, OBC)
   mode = getenv_mode("ZONAL_EDGE_THICKNESS_MODE", default=TIMH_runFORTRAN)
 
   ! Build containers for all dispatch paths
-  call h_in_a%dup(h_in)         ; call h_in_a%copy2Array(h_in)
-  call h_W_a%dup(h_W)           ; call h_W_a%copy2Array(h_W)
-  call h_E_a%dup(h_E)           ; call h_E_a%copy2Array(h_E)
-  call mask2dT_a%dup(G%mask2dT) ; call mask2dT_a%copy2Array(G%mask2dT)
+  call h_in_a%alloc(lb=LBOUND(h_in), ub=UBOUND(h_in), source=h_in)
+  call h_W_a%alloc( lb=LBOUND(h_W),  ub=UBOUND(h_W),  source=h_W)
+  call h_E_a%alloc( lb=LBOUND(h_E),  ub=UBOUND(h_E),  source=h_E)
+  call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
 
   select case (mode)
 
@@ -812,10 +812,10 @@ subroutine meridional_edge_thickness(bxC, h_in, h_S, h_N, G, GV, US, CS, OBC)
   mode = getenv_mode("MERIDIONAL_EDGE_THICKNESS_MODE", default=TIMH_runFORTRAN)
 
   ! Build containers for all dispatch paths
-  call h_in_a%dup(h_in)         ; call h_in_a%copy2Array(h_in)
-  call h_S_a%dup(h_S)           ; call h_S_a%copy2Array(h_S)
-  call h_N_a%dup(h_N)           ; call h_N_a%copy2Array(h_N)
-  call mask2dT_a%dup(G%mask2dT) ; call mask2dT_a%copy2Array(G%mask2dT)
+  call h_in_a%alloc(lb=LBOUND(h_in), ub=UBOUND(h_in), source=h_in)
+  call h_S_a%alloc( lb=LBOUND(h_S), ub=UBOUND(h_S), source=h_S)
+  call h_N_a%alloc( lb=LBOUND(h_N), ub=UBOUND(h_N), source=h_N)
+  call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
 
   select case (mode)
 

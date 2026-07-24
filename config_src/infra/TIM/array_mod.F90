@@ -8,7 +8,7 @@ module array_mod
   public :: RealArray_t, RealArray_c
   public :: IntArray_t
 
-  !< IntArray struct for C bridge
+  !< Type IntArray_C struct for C++ bridge layer
   type, bind(C) :: IntArray_C
      type(c_ptr) :: data               !< Storage pointer for array container
      type(c_ptr) :: shape              !< An array of dimension extents
@@ -42,27 +42,28 @@ module array_mod
                   allocReal3D, allocReal4D
      procedure :: copy2FReal1D, copy2FReal2D, & !< Copy data in a RealArray_t to a Fortran array
                   copy2FReal3D, copy2FReal4D
-     procedure :: copy2AReal1D, copy2AReal2D, & !< Copy data from a Fortran array to an  container
-                  copy2AReal3D, copy2AReal4D
-     procedure :: dupReal1D, dupReal2D, &       !< Create a duplicate RealArray_t of a Fortran array
-                  dupReal3D, dupReal4D
+     procedure :: copy2AReal1D, copy2AReal2D, & !< Copy data from a Fortran array to a container
+                  copy2AReal3D, copy2AReal4D, &
+                  copy2AReal0D
+     procedure :: allocViewReal1D, allocViewReal2D, &
+                  allocViewReal3D, allocViewReal4D
      procedure :: write_binary                  !< write a variable to a binary file
      procedure :: read_binary                   !< read a variable from a binary file
      generic :: copy2F => copy2FReal1D, &       !< Generic interface for copy to Fortran arrayc
                 copy2FReal2D, copy2FReal3d, &
                 copy2FReal4D
-     generic :: copy2Array => copy2AReal1D, &   !< Generic interface for copy to array container
-                copy2AReal2D, copy2AReal3D, &
-                copy2AReal4D
+     generic :: copy2Array => copy2AReal0D, &   !< Generic interface for copy to array container
+                copy2AReal1D, copy2AReal2D, &
+                copy2AReal3D, copy2AReal4D
      generic :: view => viewReal1D, &         !< Generic interface for view
                 viewReal2D, viewReal3D, &
                 viewReal4D
-     generic :: alloc => allocReal1D, &       !< Generic interface for array container allocation
-                allocReal2D, allocReal3D, &
-                allocReal4D
-     generic :: dup => dupReal1D, &           !< Generic interface for duplicate
-                dupReal2D, dupReal3D, &
-                dupReal4D
+     generic :: alloc =>     allocReal,   &   !< Generic interface for array container allocation and init
+                allocReal1D, allocReal2D, &
+                allocReal3D, allocReal4D
+     generic :: allocView =>   &   !< Generic interface for array container allocation and view
+                allocViewReal1D, allocViewReal2D, &
+                allocViewReal3D, allocViewReal4D
      generic :: to_c => to_c_Real             !< Generic interface for function to_c
      generic :: free => freeReal              !< Generic interface for deallocate
   end type RealArray_t
@@ -84,22 +85,24 @@ module array_mod
      procedure :: copy2FInt1D, copy2FInt2D, & !< Copy data in a IntArray_t to a Fortran array
                   copy2FInt3D, copy2FInt4D
      procedure :: copy2AInt1D, copy2AInt2D, & !< Copy data from a Fortran array to an  container
-                  copy2AInt3D, copy2AInt4D
-     procedure :: dupInt1D, dupInt2D, &       !< Create a duplicate IntArray_t of a Fortran array
-                  dupInt3D, dupInt4D
+                  copy2AInt3D, copy2AInt4D, &
+                  copy2Aint0D
      generic :: copy2F => copy2FInt1D, &       !< Generic interface for copy to Fortran arrayc
                 copy2FInt2D, copy2FInt3d, &
                 copy2FInt4D
-     generic :: copy2Array => copy2AInt1D, &   !< Generic interface for copy to array container
-                copy2AInt2D, copy2AInt3D, &
-                copy2AInt4D
+     generic :: copy2Array => copy2AInt0D, &   !< Generic interface for copy to array container
+                copy2AInt1D, copy2AInt2D, &
+                copy2AInt3D, copy2AInt4D
+     procedure :: allocViewInt1D, allocViewInt2D, &
+                  allocViewInt3D, allocViewInt4D
      generic   :: view  => viewInt1D, &             !< Generic interface for view
                   viewInt2D, viewInt3D, viewInt4D
-     generic   :: alloc => allocInt1D, &      !< Generic interface for array container allocation
-                  allocInt2D, allocInt3D, allocInt4D
-     generic :: dup => dupInt1D, &           !< Generic interface for duplicate
-                dupInt2D, dupInt3D, &
-                dupInt4D
+     generic   :: alloc =>    allocInt,   &      !< Generic interface for array container allocation
+                  allocInt1D, allocInt2D, &
+                  allocInt3D, allocInt4D
+     generic :: allocView =>   &   !< Generic interface for array container allocation and view
+                allocViewInt1D, allocViewInt2D, &
+                allocViewInt3D, allocViewInt4D
      generic   :: to_c => to_c_Int         !< Generic interface for function to_c
      generic   :: free => freeInt          !< Generic interface for deallocate
   end type intArray_t
@@ -273,21 +276,39 @@ subroutine allocReal(this, dims,lb,ub,source)
   ! initialize the variable
   ! Note this this is a CPU only assignment.
   ! It will not work correctly on the GPU
-  if(present(source)) this%data(:) = source
+  if(present(source)) call this%copy2Array(source)
 
 end subroutine allocReal
+
+subroutine copy2AReal0D(this,var)
+  class(RealArray_t), intent(inout) :: this  !< The destination array container
+  real, intent(in) :: var  !< The source Fortran array
+
+  ! Local variables
+  integer :: i, n
+
+  n  = product(this%shape)
+
+  ! do concurrent so the copy runs on the device under offload
+  do concurrent (i=1:n)
+     this%data(i) = var
+  enddo
+
+end subroutine copy2AReal0D
 
 !< Copy from 1D Fortran array to RealArray_t
 subroutine copy2AReal1D(this,var)
   class(RealArray_t), intent(inout) :: this  !< The destination array container
   real, dimension(:), intent(in) :: var      !< The source Fortran array
 
+  ! Local variables
   integer :: i, n1
 
   n1 = this%shape(1)
+
   ! do concurrent so the copy runs on the device under offload
   do concurrent (i=1:n1)
-    this%data(i) = var(i)
+     this%data(i) = var(i)
   enddo
 
 end subroutine copy2AReal1D
@@ -302,9 +323,10 @@ subroutine copy2AReal2D(this,var)
 
   n1 = this%shape(1)
   n2 = this%shape(2)
+
   ! do concurrent so the copy runs on the device under offload
-  do concurrent (j=1:n2, i=1:n1)
-    this%data(i + n1*(j-1)) = var(i,j)
+  do concurrent (j=1:n2,i=1:n1)
+     this%data(i + n1*(j-1)) = var(i,j)
   enddo
 
 end subroutine copy2AReal2D
@@ -320,9 +342,10 @@ subroutine copy2AReal3D(this,var)
   n1 = this%shape(1)
   n2 = this%shape(2)
   n3 = this%shape(3)
+
   ! do concurrent so the copy runs on the device under offload
   do concurrent (k=1:n3, j=1:n2, i=1:n1)
-    this%data(i + n1*(j-1) + n1*n2*(k-1)) = var(i,j,k)
+     this%data(i + n1*(j-1) + n1*n2*(k-1)) = var(i,j,k)
   enddo
 
 end subroutine copy2AReal3D
@@ -339,9 +362,10 @@ subroutine copy2AReal4D(this,var)
   n2 = this%shape(2)
   n3 = this%shape(3)
   n4 = this%shape(4)
+
   ! do concurrent so the copy runs on the device under offload
   do concurrent (m=1:n4, k=1:n3, j=1:n2, i=1:n1)
-    this%data(i + n1*(j-1) + n1*n2*(k-1) + n1*n2*n3*(m-1)) = var(i,j,k,m)
+     this%data(i + n1*(j-1) + n1*n2*(k-1) + n1*n2*n3*(m-1)) = var(i,j,k,m)
   enddo
 
 end subroutine copy2AReal4D
@@ -351,12 +375,14 @@ subroutine copy2FReal1D(this,var)
   class(RealArray_t), intent(in) :: this    !< The source array container
   real, dimension(:), intent(inout) :: var  !< The destination Fortran array
 
+  ! Local variables
   integer :: i, n1
 
   n1 = this%shape(1)
+
   ! do concurrent so the copy runs on the device under offload
   do concurrent (i=1:n1)
-    var(i) = this%data(i)
+     var(i) = this%data(i)
   enddo
 
 end subroutine copy2FReal1D
@@ -367,13 +393,14 @@ subroutine copy2FReal2D(this,var)
   real, dimension(:,:), intent(inout) :: var !< The destination Fortran array
 
   ! Local variables
-  integer :: i, j, n1,n2
+  integer :: i, j, n1, n2
 
   n1 = this%shape(1)
   n2 = this%shape(2)
+
   ! do concurrent so the copy runs on the device under offload
   do concurrent (j=1:n2, i=1:n1)
-    var(i,j) = this%data(i + n1*(j-1))
+     var(i,j) = this%data(i + n1*(j-1))
   enddo
 
 end subroutine copy2FReal2D
@@ -384,14 +411,15 @@ subroutine copy2FReal3D(this,var)
   real, dimension(:,:,:), intent(inout) :: var !< The destination Fortran array
 
   ! Local variables
-  integer :: i, j, k, n1,n2,n3
+  integer :: i, j, k, n1, n2, n3
 
   n1 = this%shape(1)
   n2 = this%shape(2)
   n3 = this%shape(3)
+
   ! do concurrent so the copy runs on the device under offload
   do concurrent (k=1:n3, j=1:n2, i=1:n1)
-    var(i,j,k) = this%data(i + n1*(j-1) + n1*n2*(k-1))
+     var(i,j,k) = this%data(i + n1*(j-1) + n1*n2*(k-1))
   enddo
 
 end subroutine copy2FReal3D
@@ -408,294 +436,14 @@ subroutine copy2FReal4D(this,var)
   n2 = this%shape(2)
   n3 = this%shape(3)
   n4 = this%shape(4)
+
   ! do concurrent so the copy runs on the device under offload
   do concurrent (m=1:n4, k=1:n3, j=1:n2, i=1:n1)
-    var(i,j,k,m) = this%data(i + n1*(j-1) + n1*n2*(k-1) + n1*n2*n3*(m-1))
+     var(i,j,k,m) = this%data(i + n1*(j-1) + n1*n2*(k-1) + n1*n2*n3*(m-1))
   enddo
 
 end subroutine copy2FReal4D
 
-!< Duplicate a Fortran array
-subroutine dupReal1D(this,var)
-  class(RealArray_t), intent(inout) :: this !< The resulting array container
-  real, dimension(:) :: var                 !< The Fortran array to duplicate
-
-  ! Local variables
-  integer, dimension(1) :: lb, ub
-
-  lb(1) = LBOUND(var,dim=1)
-  ub(1) = UBOUND(var,dim=1)
-  call this%allocReal(lb=lb, ub=ub)
-
-end subroutine dupReal1D
-
-!< Duplicate a Fortran array
-subroutine dupReal2D(this,var)
-  class(RealArray_t), intent(inout) :: this !< The resulting array container
-  real, dimension(:,:) :: var               !< The Fortran array to duplicate
-
-  ! Local variables
-  integer, dimension(2) :: lb, ub
-
-  lb(1) = LBOUND(var,dim=1)
-  lb(2) = LBOUND(var,dim=2)
-  ub(1) = UBOUND(var,dim=1)
-  ub(2) = UBOUND(var,dim=2)
-  call this%allocReal(lb=lb, ub=ub)
-
-end subroutine dupReal2D
-
-!< Duplicate a Fortran array
-subroutine dupReal3D(this,var)
-  class(RealArray_t), intent(inout) :: this !< The resulting array container
-  real, dimension(:,:,:) :: var             !< The Fortran array to duplicate
-
-  ! Local variables
-  integer, dimension(3) :: lb, ub
-
-  lb(1) = LBOUND(var,dim=1)
-  lb(2) = LBOUND(var,dim=2)
-  lb(3) = LBOUND(var,dim=3)
-  ub(1) = UBOUND(var,dim=1)
-  ub(2) = UBOUND(var,dim=2)
-  ub(3) = UBOUND(var,dim=3)
-  call this%allocReal(lb=lb, ub=ub)
-
-end subroutine dupReal3D
-
-!< Duplicate a Fortran array
-subroutine dupReal4D(this,var)
-  class(RealArray_t), intent(inout) :: this !< The resulting array container
-  real, dimension(:,:,:,:) :: var           !< The Fortran array to duplicate
-
-  ! Local variables
-  integer, dimension(4) :: lb, ub
-
-  lb(1) = LBOUND(var,dim=1)
-  lb(2) = LBOUND(var,dim=2)
-  lb(3) = LBOUND(var,dim=3)
-  lb(4) = LBOUND(var,dim=4)
-  ub(1) = UBOUND(var,dim=1)
-  ub(2) = UBOUND(var,dim=2)
-  ub(3) = UBOUND(var,dim=3)
-  ub(4) = UBOUND(var,dim=4)
-  call this%allocReal(lb=lb, ub=ub)
-
-end subroutine dupReal4D
-
-!< Copy from Fortran array to IntArray_t
-subroutine copy2AInt1D(this,var)
-  class(IntArray_t), intent(inout) :: this  !< The destination array container
-  integer, dimension(:), intent(in) :: var      !< The source Fortran array
-
-  this%data(:) = var(:)
-
-end subroutine copy2AInt1D
-
-!< Copy from Fortran array to IntArray_t
-subroutine copy2AInt2D(this,var)
-  class(IntArray_t), intent(inout) :: this  !< The destination array container
-  integer, dimension(:,:), intent(in) :: var    !< The source Fortran array
-
-  ! Local variables
-  integer :: i, j, n1, n2,idx
-
-  n1 = this%shape(1)
-  n2 = this%shape(2)
-  do j=1,n2
-    do i=1,n1
-      idx = i + n1*(j-1)
-      this%data(idx) = var(i,j)
-    enddo
-  enddo
-
-end subroutine copy2AInt2D
-
-!< Copy from Fortran array to IntArray_t
-subroutine copy2AInt3D(this,var)
-  class(IntArray_t), intent(inout) :: this  !< The destination array container
-  integer, dimension(:,:,:), intent(in) :: var  !< The source Fortran array
-
-  ! Local variables
-  integer :: i, j, k, n1, n2, n3, idx
-
-  n1 = this%shape(1)
-  n2 = this%shape(2)
-  n3 = this%shape(3)
-  do k=1,n3
-    do j=1,n2
-      do i=1,n1
-        idx = i + n1*(j-1) + n1*n2*(k-1)
-        this%data(idx) = var(i,j,k)
-      enddo
-    enddo
-  enddo
-
-end subroutine copy2AInt3D
-
-!< Copy from Fortran array to IntArray_t
-subroutine copy2AInt4D(this,var)
-  class(IntArray_t), intent(inout) :: this   !< The destination array container
-  integer, dimension(:,:,:,:), intent(in) :: var !< The source Fortran array
-
-  ! Local variables
-  integer :: i, j, k, m, n1, n2, n3, n4, idx
-
-  n1 = this%shape(1)
-  n2 = this%shape(2)
-  n3 = this%shape(3)
-  n4 = this%shape(4)
-  do m=1,n4
-    do k=1,n3
-      do j=1,n2
-        do i=1,n1
-          idx = i + n1*(j-1) + n1*n2*(k-1) + n1*n2*n3*(m-1)
-          this%data(idx) = var(i,j,k,m)
-        enddo
-      enddo
-    enddo
-  enddo
-
-end subroutine copy2AInt4D
-
-! Copy from 1D IntArray_t to Fortran
-subroutine copy2FInt1D(this,var)
-  class(IntArray_t), intent(in) :: this    !< The source array container
-  integer, dimension(:), intent(inout) :: var  !< The destination Fortran array
-
-  var(:) = this%data(:)
-
-end subroutine copy2FInt1D
-
-! Copy from 2D IntArray_t to Fortran
-subroutine copy2FInt2D(this,var)
-  class(IntArray_t), intent(in) :: this     !< The source array container
-  integer, dimension(:,:), intent(inout) :: var !< The destination Fortran array
-
-  ! Local variables
-  integer :: i, j, n1,n2,idx
-
-  n1 = this%shape(1)
-  n2 = this%shape(2)
-  do j=1,n2
-    do i=1,n1
-      idx = i + n1*(j-1)
-      var(i,j) = this%data(idx)
-    enddo
-  enddo
-
-end subroutine copy2FInt2D
-
-! Copy from 3D IntArray_t to Fortran
-subroutine copy2FInt3D(this,var)
-  class(IntArray_t), intent(in) :: this       !< The source array container
-  integer, dimension(:,:,:), intent(inout) :: var !< The destination Fortran array
-
-  ! Local variables
-  integer :: i, j, k, n1,n2,n3, idx
-
-  n1 = this%shape(1)
-  n2 = this%shape(2)
-  n3 = this%shape(3)
-  do k=1,n3
-    do j=1,n2
-      do i=1,n1
-        idx = i + n1*(j-1) + n1*n2*(k-1)
-        var(i,j,k) = this%data(idx)
-      enddo
-    enddo
-  enddo
-
-end subroutine copy2FInt3D
-
-! Copy from 4D IntArray_t to Fortran
-subroutine copy2FInt4D(this,var)
-  class(IntArray_t), intent(in) :: this          !< The source array container
-  integer, dimension(:,:,:,:), intent(inout) :: var  !< The destination Fortran array
-
-  ! Local variables
-  integer :: i, j, k, m, n1, n2, n3, n4, idx
-
-  n1 = this%shape(1)
-  n2 = this%shape(2)
-  n3 = this%shape(3)
-  n4 = this%shape(4)
-  do m=1,n4
-    do k=1,n3
-      do j=1,n2
-        do i=1,n1
-          idx = i + n1*(j-1) + n1*n2*(k-1) + n1*n2*n3*(m-1)
-          var(i,j,k,m) = this%data(idx)
-        enddo
-      enddo
-    enddo
-  enddo
-
-end subroutine copy2FInt4D
-
-subroutine dupInt1D(this,var)
-  class(IntArray_t), intent(inout) :: this !< The resulting array container
-  integer, dimension(:) :: var                 !< The Fortran array to duplicate
-
-  ! Local variables
-  integer, dimension(1) :: lb, ub
-
-  lb(1) = LBOUND(var,dim=1)
-  ub(1) = UBOUND(var,dim=1)
-  call this%allocInt(lb=lb, ub=ub)
-
-end subroutine dupInt1D
-
-subroutine dupInt2D(this,var)
-  class(IntArray_t), intent(inout) :: this !< The resulting array container
-  integer, dimension(:,:) :: var               !< The Fortran array to duplicate
-
-  ! Local variables
-  integer, dimension(2) :: lb, ub
-
-  lb(1) = LBOUND(var,dim=1)
-  lb(2) = LBOUND(var,dim=2)
-  ub(1) = UBOUND(var,dim=1)
-  ub(2) = UBOUND(var,dim=2)
-  call this%allocInt(lb=lb, ub=ub)
-
-end subroutine dupInt2D
-
-subroutine dupInt3D(this,var)
-  class(IntArray_t), intent(inout) :: this !< The resulting array container
-  integer, dimension(:,:,:) :: var             !< The Fortran array to duplicate
-
-  ! Local variables
-  integer, dimension(3) :: lb, ub
-
-  lb(1) = LBOUND(var,dim=1)
-  lb(2) = LBOUND(var,dim=2)
-  lb(3) = LBOUND(var,dim=3)
-  ub(1) = UBOUND(var,dim=1)
-  ub(2) = UBOUND(var,dim=2)
-  ub(3) = UBOUND(var,dim=3)
-  call this%allocInt(lb=lb, ub=ub)
-
-end subroutine dupInt3D
-
-subroutine dupInt4D(this,var)
-  class(IntArray_t), intent(inout) :: this !< The resulting array container
-  integer, dimension(:,:,:,:) :: var           !< The Fortran array to duplicate
-
-  ! Local variables
-  integer, dimension(4) :: lb, ub
-
-  lb(1) = LBOUND(var,dim=1)
-  lb(2) = LBOUND(var,dim=2)
-  lb(3) = LBOUND(var,dim=3)
-  lb(4) = LBOUND(var,dim=4)
-  ub(1) = UBOUND(var,dim=1)
-  ub(2) = UBOUND(var,dim=2)
-  ub(3) = UBOUND(var,dim=3)
-  ub(4) = UBOUND(var,dim=4)
-  call this%allocInt(lb=lb, ub=ub)
-
-end subroutine dupInt4D
 
 subroutine allocInt(this, dims,lb,ub,source)
   class(IntArray_t), intent(inout) :: this !< The array container to allocate
@@ -713,7 +461,7 @@ subroutine allocInt(this, dims,lb,ub,source)
 
   if(present(ub) .and. present(lb) .and. .not. present(dims)) then
     if(size(lb) .ne. size(ub)) then
-        call MOM_err(FATAL, "allocReal: size of lb and ub must match")
+        call MOM_err(FATAL, "allocInt: size of lb and ub must match")
     endif
     this%rank     = size(lb)
     ! Allocate shape and bound information
@@ -731,7 +479,7 @@ subroutine allocInt(this, dims,lb,ub,source)
     this%ub(:)    = dims(:)
     this%shape(:) = dims(:)
   else
-    call MOM_err(FATAL, "allocReal: Must specify either ub and lb or dims")
+    call MOM_err(FATAL, "allocInt: Must specify either ub and lb or dims")
   endif
 
   ! allocate the memory
@@ -740,7 +488,7 @@ subroutine allocInt(this, dims,lb,ub,source)
   ! initialize the variable
   ! Note this this is a CPU only assignment.
   ! It will not work correctly on the GPU
-  if(present(source)) this%data(:)=source
+  if(present(source)) call this%copy2Array(source)
 
 end subroutine allocInt
 
@@ -764,7 +512,22 @@ subroutine freeInt(this)
   this%rank = 0
 end subroutine freeInt
 
-subroutine allocReal1D(this, a, dims, lb, ub, source)
+subroutine allocReal1D(this, dims, lb, ub, source)
+   class(RealArray_t), intent(inout) :: this                !< The array container to allocate
+   integer, intent(in),optional :: dims(:)                  !< Dimensions (1-indexed)
+   integer, intent(in),optional :: lb(:)                    !< Lower bounds
+   integer, intent(in),optional :: ub(:)                    !< Upper bounds
+   real(kind=real64), intent(in) :: source(:) !< Assignment array
+
+   ! allocate the memory
+   call this%allocReal(dims=dims, lb=lb, ub=ub)
+
+   ! copy the array in
+   call this%copy2AReal1D(source)
+
+end subroutine allocReal1D
+
+subroutine allocViewReal1D(this, a, dims, lb, ub, source)
    class(RealArray_t), intent(inout) :: this         !< The array container to allocate
    real(kind=real64), intent(inout), pointer :: a(:) !< The Fortran pointer array
    integer, intent(in),optional :: dims(:)           !< Dimensions (1-indexed)
@@ -778,7 +541,7 @@ subroutine allocReal1D(this, a, dims, lb, ub, source)
    ! Zero copy no allocation
    a(this%lb(1):this%ub(1)) => this%data
 
-end subroutine allocReal1D
+end subroutine allocViewReal1D
 
 subroutine viewReal1D(this, a)
    class(RealArray_t), intent(in) :: this     !< The already allocated array container
@@ -792,7 +555,21 @@ subroutine viewReal1D(this, a)
 
 end subroutine viewReal1D
 
-subroutine allocReal2D(this, a, dims, lb, ub, source)
+subroutine allocReal2D(this, dims, lb, ub, source)
+   class(RealArray_t), intent(inout) :: this                !< The array container to allocate
+   integer, intent(in),optional :: dims(:)                  !< Dimensions (1-indexed)
+   integer, intent(in),optional :: lb(:)                    !< Lower bounds
+   integer, intent(in),optional :: ub(:)                    !< Upper bounds
+   real(kind=real64), intent(in) :: source(:,:) !< Assignment array
+
+   ! allocate the memory
+   call this%allocReal(dims=dims, lb=lb, ub=ub)
+
+   call this%copy2AReal2D(source)
+
+end subroutine allocReal2D
+
+subroutine allocViewReal2D(this, a, dims, lb, ub, source)
    class(RealArray_t), intent(inout) :: this           !< The array container to allocate
    real(kind=real64), intent(inout), pointer :: a(:,:) !< The Fortran pointer array
    integer, intent(in),optional :: dims(:)             !< Dimensions (1-indexed)
@@ -806,7 +583,7 @@ subroutine allocReal2D(this, a, dims, lb, ub, source)
    ! Zero copy no allocation
    a(this%lb(1):this%ub(1), this%lb(2):this%ub(2)) => this%data
 
-end subroutine allocReal2D
+end subroutine allocViewReal2D
 
 subroutine viewReal2D(this,a)
    class(RealArray_t), intent(in) :: this              !< The already allocated array container
@@ -820,7 +597,21 @@ subroutine viewReal2D(this,a)
 
 end subroutine viewReal2D
 
-subroutine allocReal3D(this, a, dims, lb, ub, source)
+subroutine allocReal3D(this, dims, lb, ub, source)
+   class(RealArray_t), intent(inout) :: this                !< The array container to allocate
+   integer, intent(in),optional :: dims(:)                  !< Dimensions (1-indexed)
+   integer, intent(in),optional :: lb(:)                    !< Lower bounds
+   integer, intent(in),optional :: ub(:)                    !< Upper bounds
+   real(kind=real64), intent(in) :: source(:,:,:) !< Assignment array
+
+   ! allocate the memory
+   call this%allocReal(dims=dims, lb=lb, ub=ub)
+
+   call this%copy2AReal3D(source)
+
+end subroutine allocReal3D
+
+subroutine allocViewReal3D(this, a, dims, lb, ub, source)
    class(RealArray_t), intent(inout) :: this             !< The array container to allocate
    real(kind=real64), intent(inout), pointer :: a(:,:,:) !< The Fortran pointer array
    integer, intent(in),optional :: dims(:)               !< Dimensions (1-indexed)
@@ -835,7 +626,7 @@ subroutine allocReal3D(this, a, dims, lb, ub, source)
    a(this%lb(1):this%ub(1), this%lb(2):this%ub(2), &
      this%lb(3):this%ub(3)) => this%data
 
-end subroutine allocReal3D
+end subroutine allocViewReal3D
 
 subroutine viewReal3D(this,a)
    class(RealArray_t), intent(in) :: this                !< The array container to allocate
@@ -850,7 +641,21 @@ subroutine viewReal3D(this,a)
 
 end subroutine viewReal3D
 
-subroutine allocReal4D(this, a, dims, lb, ub, source)
+subroutine allocReal4D(this, dims, lb, ub, source)
+   class(RealArray_t), intent(inout) :: this                !< The array container to allocate
+   integer, intent(in),optional :: dims(:)                  !< Dimensions (1-indexed)
+   integer, intent(in),optional :: lb(:)                    !< Lower bounds
+   integer, intent(in),optional :: ub(:)                    !< Upper bounds
+   real(kind=real64), intent(in) :: source(:,:,:,:) !< Assignment array
+
+   ! allocate the memory
+   call this%allocReal(dims=dims, lb=lb, ub=ub)
+
+   call this%copy2AReal4D(source)
+
+end subroutine allocReal4D
+
+subroutine allocViewReal4D(this, a, dims, lb, ub, source)
    class(RealArray_t), intent(inout) :: this               !< The array container to allocate
    real(kind=real64), intent(inout), pointer :: a(:,:,:,:) !< The Fortran pointer array
    integer, intent(in),optional :: dims(:)                 !< Dimensions (1-indexed)
@@ -865,7 +670,7 @@ subroutine allocReal4D(this, a, dims, lb, ub, source)
    a(this%lb(1):this%ub(1), this%lb(2):this%ub(2), &
      this%lb(3):this%ub(3), this%lb(4):this%ub(4)) => this%data
 
-end subroutine allocReal4D
+end subroutine allocViewReal4D
 
 subroutine viewReal4D(this,a)
    class(RealArray_t), intent(in) :: this                  !< The array container to allocate
@@ -880,7 +685,21 @@ subroutine viewReal4D(this,a)
 
 end subroutine viewReal4D
 
-subroutine allocInt1D(this, a, dims, lb, ub, source)
+subroutine allocInt1D(this, dims, lb, ub, source)
+   class(IntArray_t), intent(inout) :: this    !< The array container to allocate
+   integer, intent(in),optional :: dims(:)     !< Dimensions (1-indexed)
+   integer, intent(in),optional :: lb(:)       !< Lower bounds
+   integer, intent(in),optional :: ub(:)       !< Upper bounds
+   integer, intent(in)          :: source(:)   !< Assignment array
+
+   ! allocate the memory
+   call this%allocInt(dims=dims, lb=lb, ub=ub)
+
+   call this%copy2AInt1D(source)
+
+end subroutine allocInt1D
+
+subroutine allocViewInt1D(this, a, dims, lb, ub, source)
    class(intArray_t), intent(inout) :: this !< The array container to allocate
    integer, intent(inout), pointer :: a(:)  !< The Fortran pointer array
    integer, intent(in), optional :: dims(:) !< Dimensions (1-indexed)
@@ -894,7 +713,7 @@ subroutine allocInt1D(this, a, dims, lb, ub, source)
    ! Zero copy no allocation
    a(this%lb(1):this%ub(1)) => this%data
 
-end subroutine allocInt1D
+end subroutine allocViewInt1D
 
 subroutine viewInt1D(this, a)
    class(intArray_t), intent(in) :: this   !< The array container to allocate
@@ -908,7 +727,21 @@ subroutine viewInt1D(this, a)
 
 end subroutine viewInt1D
 
-subroutine allocInt2D(this, a, dims, lb, ub, source)
+subroutine allocInt2D(this, dims, lb, ub, source)
+   class(IntArray_t), intent(inout) :: this                !< The array container to allocate
+   integer, intent(in),optional :: dims(:)                  !< Dimensions (1-indexed)
+   integer, intent(in),optional :: lb(:)                    !< Lower bounds
+   integer, intent(in),optional :: ub(:)                    !< Upper bounds
+   integer, intent(in)          :: source(:,:) !< Assignment array
+
+   ! allocate the memory
+   call this%allocInt(dims=dims, lb=lb, ub=ub)
+
+   call this%copy2Array(source)
+
+end subroutine allocInt2D
+
+subroutine allocViewInt2D(this, a, dims, lb, ub, source)
    class(intArray_t), intent(inout) :: this  !< The array container to allocate
    integer, intent(inout), pointer :: a(:,:) !< The Fortran pointer array
    integer, intent(in), optional :: dims(:)  !< Dimensions (1-indexed)
@@ -922,7 +755,7 @@ subroutine allocInt2D(this, a, dims, lb, ub, source)
    ! Zero copy no allocation
    a(this%lb(1):this%ub(1), this%lb(2):this%ub(2)) => this%data
 
-end subroutine allocInt2D
+end subroutine allocViewInt2D
 
 subroutine viewInt2D(this,a)
    class(intArray_t), intent(in) :: this     !< The array container to allocate
@@ -936,7 +769,21 @@ subroutine viewInt2D(this,a)
 
 end subroutine viewInt2D
 
-subroutine allocInt3D(this, a, dims, lb, ub, source)
+subroutine allocInt3D(this, dims, lb, ub, source)
+   class(IntArray_t), intent(inout) :: this                !< The array container to allocate
+   integer, intent(in),optional :: dims(:)                  !< Dimensions (1-indexed)
+   integer, intent(in),optional :: lb(:)                    !< Lower bounds
+   integer, intent(in),optional :: ub(:)                    !< Upper bounds
+   integer, intent(in) :: source(:,:,:) !< Assignment array
+
+   ! allocate the memory
+   call this%allocInt(dims=dims, lb=lb, ub=ub)
+
+   call this%copy2Array(source)
+
+end subroutine allocInt3D
+
+subroutine allocViewInt3D(this, a, dims, lb, ub, source)
    class(intArray_t), intent(inout) :: this    !< The array container to allocate
    integer, intent(inout), pointer :: a(:,:,:) !< The Fortran pointer array
    integer, intent(in), optional :: dims(:)    !< Dimensions (1-indexed)
@@ -951,7 +798,7 @@ subroutine allocInt3D(this, a, dims, lb, ub, source)
    a(this%lb(1):this%ub(1), this%lb(2):this%ub(2), &
      this%lb(3):this%ub(3)) => this%data
 
-end subroutine allocInt3D
+end subroutine allocViewInt3D
 
 subroutine viewInt3D(this,a)
    class(intArray_t), intent(in) :: this       !< The array container to allocate
@@ -966,7 +813,22 @@ subroutine viewInt3D(this,a)
 
 end subroutine viewInt3D
 
-subroutine allocInt4D(this, a, dims, lb, ub, source)
+subroutine allocInt4D(this, dims, lb, ub, source)
+   class(IntArray_t), intent(inout) :: this                !< The array container to allocate
+   integer, intent(in),optional :: dims(:)                  !< Dimensions (1-indexed)
+   integer, intent(in),optional :: lb(:)                    !< Lower bounds
+   integer, intent(in),optional :: ub(:)                    !< Upper bounds
+   integer, intent(in) :: source(:,:,:,:) !< Assignment array
+
+   ! allocate the memory
+   call this%allocInt(dims=dims, lb=lb, ub=ub)
+
+   ! assign the values in the array container
+   call this%copy2Array(source)
+
+end subroutine allocInt4D
+
+subroutine allocViewInt4D(this, a, dims, lb, ub, source)
    class(intArray_t), intent(inout) :: this      !< The array container to allocate
    integer, intent(inout), pointer :: a(:,:,:,:) !< The Fortran pointer array
    integer, intent(in), optional :: dims(:)      !< Dimensions (1-indexed)
@@ -981,7 +843,7 @@ subroutine allocInt4D(this, a, dims, lb, ub, source)
    a(this%lb(1):this%ub(1), this%lb(2):this%ub(2), &
      this%lb(3):this%ub(3), this%lb(4):this%ub(4)) => this%data
 
-end subroutine allocInt4D
+end subroutine allocViewInt4D
 
 subroutine viewInt4D(this,a)
    class(intArray_t), intent(in) :: this         !< The array container to allocate
@@ -995,5 +857,169 @@ subroutine viewInt4D(this,a)
      this%lb(3):this%ub(3), this%lb(4):this%ub(4)) => this%data
 
 end subroutine viewInt4D
+
+subroutine copy2AInt0D(this,var)
+  class(IntArray_t), intent(inout) :: this  !< The destination array container
+  integer, intent(in) :: var  !< The source Fortran array
+
+  ! Local variables
+  integer :: i, n
+
+  n  = product(this%shape)
+
+  ! do concurrent so the copy runs on the device under offload
+  do concurrent (i=1:n)
+     this%data(i) = var
+  enddo
+
+end subroutine copy2AInt0D
+
+!< Copy from 1D Fortran array to IntArray_t
+subroutine copy2AInt1D(this,var)
+  class(IntArray_t), intent(inout) :: this  !< The destination array container
+  integer, dimension(:), intent(in) :: var      !< The source Fortran array
+
+  ! Local variables
+  integer :: i, n1
+
+  n1 = this%shape(1)
+
+  ! do concurrent so the copy runs on the device under offload
+  do concurrent (i=1:n1)
+     this%data(i) = var(i)
+  enddo
+
+end subroutine copy2AInt1D
+
+!< Copy from 2D Fortran array to IntArray_t
+subroutine copy2AInt2D(this,var)
+  class(IntArray_t), intent(inout) :: this  !< The destination array container
+  integer, dimension(:,:), intent(in) :: var    !< The source Fortran array
+
+  ! Local variables
+  integer :: i, j, n1, n2
+
+  n1 = this%shape(1)
+  n2 = this%shape(2)
+
+  ! do concurrent so the copy runs on the device under offload
+  do concurrent (j=1:n2,i=1:n1)
+     this%data(i + n1*(j-1)) = var(i,j)
+  enddo
+
+end subroutine copy2AInt2D
+
+!< Copy from 3D Fortran array to IntArray_t
+subroutine copy2AInt3D(this,var)
+  class(IntArray_t), intent(inout) :: this  !< The destination array container
+  integer, dimension(:,:,:), intent(in) :: var  !< The source Fortran array
+
+  ! Local variables
+  integer :: i, j, k, n1, n2, n3
+
+  n1 = this%shape(1)
+  n2 = this%shape(2)
+  n3 = this%shape(3)
+
+  ! do concurrent so the copy runs on the device under offload
+  do concurrent (k=1:n3, j=1:n2, i=1:n1)
+     this%data(i + n1*(j-1) + n1*n2*(k-1)) = var(i,j,k)
+  enddo
+
+end subroutine copy2AInt3D
+
+!< Copy from 4D Fortran array to IntArray_t
+subroutine copy2AInt4D(this,var)
+  class(IntArray_t), intent(inout) :: this   !< The destination array container
+  integer, dimension(:,:,:,:), intent(in) :: var !< The source Fortran array
+
+  ! Local variables
+  integer :: i, j, k, m, n1, n2, n3, n4
+
+  n1 = this%shape(1)
+  n2 = this%shape(2)
+  n3 = this%shape(3)
+  n4 = this%shape(4)
+
+  ! do concurrent so the copy runs on the device under offload
+  do concurrent (m=1:n4, k=1:n3, j=1:n2, i=1:n1)
+     this%data(i + n1*(j-1) + n1*n2*(k-1) + n1*n2*n3*(m-1)) = var(i,j,k,m)
+  enddo
+
+end subroutine copy2AInt4D
+
+! Copy from 1D IntArray_t to Fortran
+subroutine copy2FInt1D(this,var)
+  class(IntArray_t), intent(in) :: this    !< The source array container
+  integer, dimension(:), intent(inout) :: var  !< The destination Fortran array
+
+  ! Local variables
+  integer :: i, n1
+
+  n1 = this%shape(1)
+
+  ! do concurrent so the copy runs on the device under offload
+  do concurrent (i=1:n1)
+     var(i) = this%data(i)
+  enddo
+
+end subroutine copy2FInt1D
+
+! Copy from 2D IntArray_t to Fortran
+subroutine copy2FInt2D(this,var)
+  class(IntArray_t), intent(in) :: this     !< The source array container
+  integer, dimension(:,:), intent(inout) :: var !< The destination Fortran array
+
+  ! Local variables
+  integer :: i, j, n1, n2
+
+  n1 = this%shape(1)
+  n2 = this%shape(2)
+
+  ! do concurrent so the copy runs on the device under offload
+  do concurrent (j=1:n2, i=1:n1)
+     var(i,j) = this%data(i + n1*(j-1))
+  enddo
+
+end subroutine copy2FInt2D
+
+! Copy from 3D IntArray_t to Fortran
+subroutine copy2FInt3D(this,var)
+  class(IntArray_t), intent(in) :: this       !< The source array container
+  integer, dimension(:,:,:), intent(inout) :: var !< The destination Fortran array
+
+  ! Local variables
+  integer :: i, j, k, n1, n2, n3
+
+  n1 = this%shape(1)
+  n2 = this%shape(2)
+  n3 = this%shape(3)
+
+  ! do concurrent so the copy runs on the device under offload
+  do concurrent (k=1:n3, j=1:n2, i=1:n1)
+     var(i,j,k) = this%data(i + n1*(j-1) + n1*n2*(k-1))
+  enddo
+
+end subroutine copy2FInt3D
+
+! Copy from 4D IntArray_t to Fortran
+subroutine copy2FInt4D(this,var)
+  class(IntArray_t), intent(in) :: this          !< The source array container
+  integer, dimension(:,:,:,:), intent(inout) :: var  !< The destination Fortran array
+
+  ! Local variables
+  integer :: i, j, k, m, n1, n2, n3, n4
+
+  n1 = this%shape(1)
+  n2 = this%shape(2)
+  n3 = this%shape(3)
+  n4 = this%shape(4)
+
+  ! do concurrent so the copy runs on the device under offload
+  do concurrent (m=1:n4, k=1:n3, j=1:n2, i=1:n1)
+     var(i,j,k,m) = this%data(i + n1*(j-1) + n1*n2*(k-1) + n1*n2*n3*(m-1))
+  enddo
+
+end subroutine copy2FInt4D
 
 end module array_mod
