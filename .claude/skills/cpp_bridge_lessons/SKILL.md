@@ -231,8 +231,18 @@ be retired once full ports are validated.
 
 ## 4. Caller-side wrapping pattern
 
-Existing call sites that previously invoked the bare Fortran subroutine on
-raw arrays now wrap arrays into `RealArray_t` containers. The recipe:
+> **Scope note.** Converting raw arrays to `RealArray_t` containers —
+> both at a call site and in a callee's dummy declarations — is the job
+> of the **`convert_array_containers`** skill, not this one. Run that
+> skill first; `generate_cpp_bridge` then operates on a routine whose
+> data structures are already containers. This section is retained as
+> background so the bridge work is intelligible, and because a routine
+> may still have unconverted call sites when it is bridged. For the
+> authoritative container API and conversion procedure, see the
+> `array_container_lessons` skill.
+
+Call sites that invoke a container-based routine on raw arrays wrap those
+arrays into `RealArray_t` containers. The recipe:
 
 ```fortran
 type(RealArray_t) :: h_in_a, h_W_a, h_E_a
@@ -241,10 +251,12 @@ type(Box_t)       :: bx
 call bx%safe_alloc(ndims=3)
 call bx%set(idxS=[ish,jsh,1], idxE=[ieh,jeh,nz])
 
-! Duplicate shape/bounds and copy data in
-call h_in_a%dup(h_in)        ;  call h_in_a%copy2Array(h_in)
-call h_W_a%dup(h_W)          ;  call h_W_a%copy2Array(h_W)
-call h_E_a%dup(h_E)          ;  call h_E_a%copy2Array(h_E)
+! Allocate to the array's bounds and copy the data in, in one call.
+call h_in_a%alloc(lb=LBOUND(h_in), ub=UBOUND(h_in), source=h_in)
+! Pure outputs: allocate only -- omit `source` rather than reading
+! undefined memory.
+call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W))
+call h_E_a%alloc(lb=LBOUND(h_E), ub=UBOUND(h_E))
 
 if (monotonic) then
   call PPM_limit_cw84(bx, h_in_a, h_W_a, h_E_a)
@@ -261,17 +273,28 @@ call h_in_a%free() ; call h_W_a%free() ; call h_E_a%free()
 call bx%free()
 ```
 
-The five-step pattern is: **alloc box → dup containers → copy2Array →
-shim call → copy2F → free**. `dup` clones shape/bounds (no payload); the
-explicit `copy2Array` separates allocation from data injection so the same
-container can be reused across calls.
+The pattern is: **alloc box → alloc containers → shim call → copy2F →
+free**.
+
+`%dup` no longer exists. It was restructured into `%alloc`: what was once
+`call a%dup(x) ; call a%copy2Array(x)` is now the single call
+`call a%alloc(lb=LBOUND(x), ub=UBOUND(x), source=x)`. Code emitted
+against the old two-call recipe will not compile. `%copy2Array` still
+exists and is the right tool for *re-filling* an already-allocated
+container, but it does not allocate.
 
 ---
 
 ## 5. Iteration domain as a first-class object (`Box_t`)
 
-The Fortran kernels were rewritten to take a `Box_t` rather than packing
-loop bounds into many integer args. Inside the kernel, loops become:
+> **Scope note.** Introducing a `Box_t` and rewriting loop nests over it
+> is `convert_array_containers`' job, and the authoritative `Box_t` API
+> reference is `array_container_lessons` §5. By the time this skill runs,
+> the kernel already takes a `Box_t`. This section is background plus the
+> C-side mirror, which *is* bridge-specific.
+
+Kernels take a `Box_t` rather than packing loop bounds into many integer
+args, so loops inside them read:
 
 ```fortran
 do concurrent (k=bx%idxS(3):bx%idxE(3), &
@@ -403,11 +426,16 @@ The PR's commit history (~70 commits) reveals the friction worth flagging:
 
 ## 12. Renaming the original to `*_fortran`
 
-The original implementation is renamed `FOO` → `FOO_fortran`. The body is
-otherwise unchanged *except* that array dummies become `type(RealArray_t)` /
-`type(IntArray_t)`, and inside the body you fetch a Fortran pointer with
-`call h_in_a%view(h_in)` to keep loop bodies readable. Loop bounds come
-from `bx%idxS` / `bx%idxE`.
+The original implementation is renamed `FOO` → `FOO_fortran`. **The rename
+is the only edit.** Everything else below — container dummies, the
+`%view` pointers, the `do concurrent` over `bx%idxS`/`bx%idxE` — is
+already present, because `convert_array_containers` put it there before
+this skill ran. The listing is here so you can recognise a correctly
+converted subroutine, not as a transformation to perform.
+
+If the subroutine does *not* already look like this, it has not been
+converted: stop and run `convert_array_containers` on it first, rather
+than converting it inline (see `array_container_lessons` §2).
 
 ```fortran
 subroutine FOO_fortran(bx, h_in_a, h_L_a, h_R_a, h_min)
