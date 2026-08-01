@@ -2,16 +2,17 @@
 name: generate_cpp_bridge
 description: Wrap an existing MOM6 Fortran subroutine in a runtime-dispatched shim that selects between (a) the original Fortran code, (b) a binary capture mode that records inputs+outputs to disk for offline validation, and (c) a C++/AMReX bridge invoked through bind(C). Use when porting any MOM6 kernel to AMReX while keeping the Fortran caller unchanged and the Fortran truth available as a numerical reference. Mirrors the pattern established in TURBO-ESM/MOM6 PR #15.
 user-invocable: true
-argument-hint: <work-directory> <function-name> [--enable_src_validate] [--enable_git_commit] [--change-shim-interface]
+argument-hint: <work-directory> <function-name> [--enable_src_validate] [--enable_git_commit] [--disable_git_commit] [--change-shim-interface]
 ---
 
 # Generate C++ bridge for a MOM6 Fortran subroutine
 
 This skill is the **execution checklist**. All templates, rationale,
-type-mapping tables, and pitfalls live in [lessons.md](lessons.md) — read
-that file once at the start of every run (Step 0 enforces this) and refer
-back to its numbered sections from each step below. Do not reproduce
-templates here.
+type-mapping tables, and pitfalls live in the `cpp_bridge_lessons` skill
+(same numbered sections, §1–§17) — invoke `cpp_bridge_lessons` once near
+the start of a session, before running this skill, and refer back to its
+numbered sections from each step below (Step 0 checks that it has been
+loaded). Do not reproduce templates here.
 
 ## Help message
 
@@ -20,7 +21,7 @@ If `$ARGUMENTS` is empty, or equals `help`, or equals `--help`, or equals
 and stop:
 
 ```
-Usage: /generate_cpp_bridge <work-directory> <function-name> [--enable_src_validate] [--enable_git_commit] [--change-shim-interface]
+Usage: /generate_cpp_bridge <work-directory> <function-name> [--enable_src_validate] [--enable_git_commit] [--disable_git_commit] [--change-shim-interface]
 
 Wrap a MOM6 Fortran subroutine in a runtime-dispatched shim that selects
 between the original Fortran code, a capture mode for offline validation,
@@ -35,9 +36,14 @@ Arguments:
   --enable_src_validate  (optional) Run Step 1: verify the work directory is a
                          TURBO-ESM/MOM6 checkout on dev/turbo-debug and that
                          the subroutine exists. Off by default.
-  --enable_git_commit    (optional) Run Step 10: create branch
-                         claude_<function-name>_bridge, commit all changes, and
-                         push to origin. Off by default.
+  --enable_git_commit    (optional) Force Step 10 to run this invocation
+                         only, overriding the global git_commit_and_push
+                         preference in ~/.claude/preferences.json.
+                         Mutually exclusive with --disable_git_commit.
+  --disable_git_commit   (optional) Force Step 10 to be skipped this
+                         invocation only, overriding the global
+                         preference. Mutually exclusive with
+                         --enable_git_commit.
   --change-shim-interface  (optional) Allow the shim subroutine's dummy argument
                            list to change: array dummies become RealArray_t /
                            IntArray_t containers in the public interface.
@@ -46,6 +52,11 @@ Arguments:
                            the shim preserves the original argument list and
                            performs the array↔container conversion internally,
                            leaving call sites unchanged.
+
+When neither --enable_git_commit nor --disable_git_commit is passed, Step 10
+follows ~/.claude/preferences.json's "git_commit_and_push" key ("auto" or
+"manual"; treated as "manual" when the file is missing, the key is absent,
+or the JSON fails to parse).
 
 Example:
   /generate_cpp_bridge /glade/derecho/scratch/sunjian/MOM6 PPM_limit_pos
@@ -66,13 +77,26 @@ error. Do not retry, do not assume defaults, do not create anything.
    cloning is not performed by this skill. Step 1 verifies the checkout
    identity and branch state.
 3. **Parse optional flags.** Scan remaining arguments for `--enable_src_validate`,
-   `--enable_git_commit`, and `--change-shim-interface`. Store as boolean flags
-   (default: off). Any unrecognised argument that starts with `--` → stop:
+   `--enable_git_commit`, `--disable_git_commit`, and `--change-shim-interface`.
+   Store as boolean flags (default: off). If both `--enable_git_commit` and
+   `--disable_git_commit` are passed → stop: `Error: --enable_git_commit and
+   --disable_git_commit are mutually exclusive.` Any unrecognised argument
+   that starts with `--` → stop:
    `Error: unknown option "<value>". Run "/generate_cpp_bridge --help" for usage.`
+4. **Reference material primed.** This skill assumes the `cpp_bridge_lessons`
+   skill has already been invoked earlier in this session. If you have no
+   memory of its numbered sections (§3.1, §3.2, §5, §12, §13, §14, §15,
+   §16, §17 are referenced throughout this procedure), invoke the
+   `cpp_bridge_lessons` skill now, before proceeding to Step 1 or any step
+   below. Do not guess at template content from memory of a similar prior
+   task — invoke it and read its content first.
 
-Step 1 runs only when `--enable_src_validate` is set; Step 10 runs only when
-`--enable_git_commit` is set. No other wrapping work executes until Step 0
-validation passes.
+Step 1 runs only when `--enable_src_validate` is set. Item 4 (reference-
+material priming) always runs, regardless of flags — this is what replaces
+the old flag-gated read of lessons.md. Step 10's behavior is decided by
+`--enable_git_commit` / `--disable_git_commit` if passed, or otherwise by
+the global preference described in Step 10. No other wrapping work executes
+until Step 0 validation passes.
 
 ## Settle these decisions (ask if not obvious from the tree)
 
@@ -125,10 +149,6 @@ holds the template or rationale.
      - >1 match → list candidates and ask the user which file to wrap.
    - **`lessons.md` present.** If `$0/.claude/skills/generate_cpp_bridge/lessons.md` is missing → stop:
      `Error: lessons.md not found at <work-directory>/.claude/skills/generate_cpp_bridge/lessons.md.`
-   - **Read `lessons.md` in full.** Treat it as authoritative for naming,
-     type mappings, and the dispatcher pattern. If any later step appears
-     to conflict with lessons.md, prefer lessons.md and report the
-     discrepancy before proceeding.
    - **Confirm the plan.** Print one paragraph naming: the resolved
      subroutine file path, the proposed env-var (`<UPPERCASE_$1>_MODE`),
      the proposed bridge symbol (`<prefix>_$1_bridge`; pick `<prefix>` by
@@ -199,9 +219,22 @@ holds the template or rationale.
    and report that the C++ side of `<prefix>_$1_bridge` is the next
    deliverable.
 
-### 10. Commit and push to `claude_<function-name>_bridge` *(runs only when `--enable_git_commit` is passed; skip otherwise)*
-   If `--enable_git_commit` was not supplied, skip this entire step and report the
-   files that were modified so the user can commit manually.
+### 10. Commit and push to `claude_<function-name>_bridge` *(gated by the global git-commit preference, overridable per run — see below)*
+   **Decide whether to run this step:**
+   1. If `--disable_git_commit` was passed, skip this entire step and
+      report the files that were modified so the user can commit
+      manually — this run's explicit override wins.
+   2. Else if `--enable_git_commit` was passed, run this step — this
+      run's explicit override wins.
+   3. Else, read the global preference: run
+      `cat ~/.claude/preferences.json 2>/dev/null` and inspect the
+      `git_commit_and_push` key.
+      - If it is `"auto"`, run this step.
+      - If it is `"manual"`, or the file does not exist, or the key is
+        absent, or the JSON fails to parse — skip this entire step and
+        report the files that were modified so the user can commit
+        manually. Absent or unreadable configuration means "manual";
+        never push on an unconfigured machine.
 
    From the work directory, create (or check out, if it already exists)
    the branch `claude_$1_bridge` (use the lowercased function name so

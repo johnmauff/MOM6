@@ -1,9 +1,17 @@
-<!-- Mirrored into the cpp_bridge_lessons skill (../cpp_bridge_lessons/SKILL.md)
-     -- keep both in sync when editing. This file is kept only because
-     generate_cpp_bridge/SKILL.md Step 1 checks for its existence in the
-     target work-directory ($0) when validating a checkout; the skill
-     itself now reads via the cpp_bridge_lessons skill instead. -->
+---
+name: cpp_bridge_lessons
+description: Reference material for wrapping a MOM6 Fortran subroutine in a runtime-dispatched C++/AMReX bridge -- type-mapping tables, code templates, naming conventions, and recurring pitfalls, organized in numbered sections §1-§17. Companion to the generate_cpp_bridge skill, which cites these sections by number (e.g. "lessons.md §12") throughout its procedure. Invoke once near the start of a session that will run generate_cpp_bridge one or more times; not needed again per-subroutine within that session.
+user-invocable: true
+---
+
 # Lessons from PR #15: AMReX/C++ Bridge for PPM Subroutines
+
+> Invoke this skill once, near the start of a session, before running
+> `generate_cpp_bridge` (or, in a later phase, `generate_amrex_code`).
+> Its content then stays available for the rest of the session — you do
+> not need to invoke it again before each subroutine. Sections are
+> numbered §1–§17 and are referenced by that numbering from the calling
+> skill(s); do not renumber them.
 
 Source: [TURBO-ESM/MOM6 PR #15](https://github.com/TURBO-ESM/MOM6/pull/15) — merged commit `daf6abefb`.
 
