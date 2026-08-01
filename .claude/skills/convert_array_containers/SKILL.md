@@ -205,9 +205,48 @@ section that holds the template or rationale.
 
 ### 4. Rewrite the dummy declarations
    Apply the classification from Step 2 to the subroutine's declaration
-   block. Preserve every `!<` doc comment verbatim, including unit
-   annotations (lessons §7). Written containers take `intent(inout)`,
-   never `intent(out)` (lessons §9 #6).
+   block. Written containers take `intent(inout)`, never `intent(out)`
+   (lessons §9 #6).
+
+   **Every `!<` doc comment must survive verbatim.** This is the single
+   most commonly broken part of a conversion, because the original
+   declarations are usually *two* lines with the comment on the
+   continuation line, while the converted declaration is one line — so
+   collapsing the two silently drops the comment:
+
+   ```fortran
+   ! BEFORE -- comment lives on the continuation line
+     real,  dimension(SZI_(G),SZJ_(G),SZK_(GV)), &
+                              intent(in)    :: h_in !< Tracer cell layer thickness [H ~> m or kg m-2].
+
+   ! AFTER -- WRONG, comment dropped during the collapse
+     type(RealArray_t),    intent(in)    :: h_in_a
+
+   ! AFTER -- CORRECT, comment carried onto the new single line
+     type(RealArray_t),    intent(in)    :: h_in_a     !< Tracer cell layer thickness [H ~> m or kg m-2]
+   ```
+
+   Procedure to guarantee this:
+   1. Before editing, record each array dummy's doc comment text
+      verbatim, including unit annotations like `[H ~> m or kg m-2]` and
+      `[nondim]`. Scan the **whole** declaration — the comment may be on
+      the `real, dimension(...)` line or on any continuation line.
+   2. Write the new declaration and re-attach the recorded comment to it.
+      Keep the wording exactly as it was; do not reword, re-wrap,
+      abbreviate, or "improve" it. A trailing period stays or goes
+      exactly as it was.
+   3. For a **new** dummy that had no prior comment (a grid-derived
+      container such as `mask2dT_a`, or a scalar lifted out of `CS`),
+      write a fresh `!<` comment in the same house style — every dummy in
+      this codebase carries one, and Doxygen builds warn on any that
+      does not.
+   4. Align the `!<` column with its neighbours for readability, but
+      never at the cost of the text.
+
+   Comments that are **not** on a dummy declaration — the `!>` Doxygen
+   header above the subroutine, comment blocks between declarations, and
+   anything inside the body — must be left exactly where they are and
+   exactly as they read.
 
    Do **not** rename the subroutine (lessons §9 #1).
 
@@ -288,6 +327,16 @@ section that holds the template or rationale.
 
 ### 9. Verify
    Run the checks in lessons §10:
+   - **Doc comments intact.** Count `!<` occurrences in each edited
+     subroutine before and after; the count must not drop. Any dummy
+     whose comment went missing is a defect — restore it from the
+     original before continuing. A quick mechanical check:
+     `git -C $0 diff -U0 -- <file> | grep '^-' | grep -c '!<'` versus
+     `git -C $0 diff -U0 -- <file> | grep '^+' | grep -c '!<'`; the added
+     count must be greater than or equal to the removed count (greater
+     when new dummies were introduced in Step 4). Then read the removed
+     lines and confirm each comment text reappears somewhere in the
+     added lines.
    - Diff review: no edits inside any loop body; the subroutine name is
      unchanged; only declarations, `%view` calls, and call-site blocks
      changed.
@@ -353,6 +402,11 @@ section that holds the template or rationale.
   or a wrapper pair. That is `generate_cpp_bridge`'s job.
 - Do not add a dispatcher, `select case (mode)`, `getenv_mode`, capture
   mode, `io_recorder`, `#ifdef _TIM`, `%to_c`, or a `bind(C)` interface.
+- Do not drop a `!<` doc comment. Every dummy that had one keeps it,
+  word for word, when its declaration is rewritten — including when a
+  two-line declaration collapses to one line, which is where they are
+  usually lost (Step 4). Every dummy added by the conversion gets a new
+  one.
 - Do not edit anything inside a loop body. A conversion changes
   declarations and adds `%view` calls; the math is untouched.
 - Do not change the numerical result. A conversion is inert by

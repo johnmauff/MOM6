@@ -428,8 +428,36 @@ Giving the `%view` pointer the original name is what lets the loop body
 stay edit-free. A clean conversion diff touches declarations and adds
 `%view` calls — nothing inside the math.
 
-Doc comments (`!<`) move with their dummy and are preserved verbatim,
-including unit annotations like `[H ~> m or kg m-2]`.
+### Doc comments
+
+Every dummy in this codebase carries a `!<` Doxygen comment, and **every
+one of them must survive a conversion verbatim** — same wording, same
+unit annotation (`[H ~> m or kg m-2]`, `[nondim]`), same trailing
+punctuation.
+
+The common way this breaks: in the original, a grid-shaped array
+declaration usually spans two lines with the comment on the
+*continuation* line, whereas the converted declaration fits on one. The
+comment is easy to lose in that collapse.
+
+```fortran
+! BEFORE -- two lines, comment on the continuation
+  real,  dimension(SZI_(G),SZJ_(G),SZK_(GV)), &
+                           intent(in)    :: h_in !< Tracer cell layer thickness [H ~> m or kg m-2].
+
+! AFTER -- one line, comment carried across
+  type(RealArray_t),    intent(in)    :: h_in_a     !< Tracer cell layer thickness [H ~> m or kg m-2]
+```
+
+Record each comment before rewriting the declaration, then re-attach it.
+Dummies **added** by the conversion — grid-derived containers like
+`mask2dT_a`, scalars lifted out of `CS` or `GV` — need a new `!<`
+comment in the same house style; a missing one is a Doxygen build
+warning, and the repo's CI treats doc coverage as part of the build.
+
+Comments that are not attached to a dummy — the `!>` header above the
+subroutine, blocks between declarations, anything in the body — stay
+exactly where and as they are.
 
 ---
 
