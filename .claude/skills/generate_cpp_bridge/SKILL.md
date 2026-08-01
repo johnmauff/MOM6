@@ -181,6 +181,12 @@ holds the template or rationale.
      - >1 match → list candidates and ask the user which file to wrap.
    - **`lessons.md` present.** If `$0/.claude/skills/generate_cpp_bridge/lessons.md` is missing → stop:
      `Error: lessons.md not found at <work-directory>/.claude/skills/generate_cpp_bridge/lessons.md.`
+     This is an **existence check only** — a cheap proxy for "this
+     checkout has the skill installed." Do not read the file for
+     guidance: its content moved to the `cpp_bridge_lessons` skill, and
+     the copy in an older checkout may be stale (in particular it may
+     still show the removed `%dup` API). Always take templates and API
+     detail from `cpp_bridge_lessons`, never from this file.
    - **Confirm the plan.** Print one paragraph naming: the resolved
      subroutine file path, the proposed env-var (`<UPPERCASE_$1>_MODE`),
      the proposed bridge symbol (`<prefix>_$1_bridge`; pick `<prefix>` by
