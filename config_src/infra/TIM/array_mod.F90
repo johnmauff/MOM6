@@ -1,6 +1,6 @@
 module array_mod
   use, intrinsic :: iso_fortran_env, only : real64
-  use iso_c_binding, only : c_double, c_int, c_ptr, c_loc
+  use iso_c_binding, only : c_double, c_int, c_ptr, c_loc, c_null_ptr
   use MOM_error_infra, only : MOM_err, FATAL
   use amrex_mempool_module, only : amrex_allocate, amrex_deallocate
   implicit none
@@ -210,28 +210,50 @@ subroutine read_binary(this, unit)
 
 end subroutine read_binary
 
-!< Function to convert a Fortran structure to a C structure
+!< Function to convert a Fortran structure to a C structure. Null-safe:
+!! an unallocated container (e.g. an absent optional) converts to a
+!! cdesc with every pointer null and rank=0, rather than dereferencing
+!! this%data(1) on a null pointer -- mirrors Box_t%to_c in box_mod.F90.
 function to_c_Real(this) result(cdesc)
   class(RealArray_t), intent(in) :: this  !< RealArray_t structure to convert to C
   type(RealArray_C) :: cdesc              !< Resulting C structure
 
-  cdesc%data  = c_loc(this%data(1))
-  cdesc%shape = c_loc(this%shape(1))
-  cdesc%lb    = c_loc(this%lb(1))
-  cdesc%ub    = c_loc(this%ub(1))
-  cdesc%rank  = this%rank
+  cdesc%data  = c_null_ptr
+  cdesc%shape = c_null_ptr
+  cdesc%lb    = c_null_ptr
+  cdesc%ub    = c_null_ptr
+  cdesc%rank  = 0
+
+  if (associated(this%data)) then
+    cdesc%data  = c_loc(this%data(1))
+    cdesc%shape = c_loc(this%shape(1))
+    cdesc%lb    = c_loc(this%lb(1))
+    cdesc%ub    = c_loc(this%ub(1))
+    cdesc%rank  = this%rank
+  endif
 end function to_c_Real
 
-!< Function to convert a Fortran structure to a C structure
+!< Function to convert a Fortran structure to a C structure. Null-safe:
+!! an unallocated container (e.g. an absent optional) converts to a
+!! cdesc with every pointer null and rank=0, rather than dereferencing
+!! this%data(1) on a null pointer -- mirrors Box_t%to_c in box_mod.F90.
 function to_c_Int(this) result(cdesc)
   class(IntArray_t), intent(in) :: this    !< IntArray_t structure to convert to C
   type(IntArray_C) :: cdesc                !< Resulting C structure
 
-  cdesc%data  = c_loc(this%data(1))
-  cdesc%shape = c_loc(this%shape(1))
-  cdesc%lb    = c_loc(this%lb(1))
-  cdesc%ub    = c_loc(this%ub(1))
-  cdesc%rank  = this%rank
+  cdesc%data  = c_null_ptr
+  cdesc%shape = c_null_ptr
+  cdesc%lb    = c_null_ptr
+  cdesc%ub    = c_null_ptr
+  cdesc%rank  = 0
+
+  if (associated(this%data)) then
+    cdesc%data  = c_loc(this%data(1))
+    cdesc%shape = c_loc(this%shape(1))
+    cdesc%lb    = c_loc(this%lb(1))
+    cdesc%ub    = c_loc(this%ub(1))
+    cdesc%rank  = this%rank
+  endif
 end function to_c_Int
 
 !< Allocate memory for a RealArray_t container
