@@ -334,7 +334,7 @@ section that holds the template or rationale.
    always present as an actual argument, so an unallocated one would make
    `present()` true in the callee with garbage behind it. Allocate
    conditionally and branch the call (lessons §6, §9 #8b). With more than
-   two optional arrays at one site the branches multiply — stop and ask
+   two optional arguments at one site the branches multiply — stop and ask
    the user rather than nesting conditionals.
 
    *Loop-invariant sources:* if a container's source never changes —
