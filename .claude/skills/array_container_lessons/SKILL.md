@@ -170,9 +170,10 @@ block. Strip the dispatch machinery out of `zonal_edge_thickness`
   ! Inputs: allocate AND copy in.
   call h_in_a%alloc(lb=LBOUND(h_in), ub=UBOUND(h_in), source=h_in)
   call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
-  ! Pure outputs: allocate ONLY -- do not read undefined memory (§6).
-  call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W))
-  call h_E_a%alloc(lb=LBOUND(h_E), ub=UBOUND(h_E))
+  ! Pure outputs: copy in too -- the write below only covers the Box_t's
+  ! range, not h_W/h_E's full halo-inclusive extent (§6).
+  call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W), source=h_W)
+  call h_E_a%alloc(lb=LBOUND(h_E), ub=UBOUND(h_E), source=h_E)
 
   call zonal_edge_thickness(bxC, h_in_a, h_W_a, h_E_a, mask2dT_a, &
                             h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
@@ -211,9 +212,10 @@ itself queued for conversion, at which point the block is deleted and the
 call becomes the pass-through form). Converting top-down avoids ever
 writing the temporary kind — see §1, "Direction of travel".
 
-> The in-tree exemplar calls `alloc(..., source=h_W)` on its
-> `intent(out)` arrays. That reads undefined memory. Prefer the
-> allocate-only form above for pure outputs — see §6 and §9 #2.
+> `h_W`/`h_E` are `intent(out)` in the original signature, yet the
+> template above still copies them in with `source=`. That's deliberate,
+> not an oversight — see §6 and §9 #2 for why "pure output" doesn't mean
+> "safe to skip `source=`" in this codebase.
 
 ---
 
@@ -393,24 +395,111 @@ What a dummy's original `intent` implies for the call-site block (§3):
 | Original intent | Allocate | Copy in | Copy back (`copy2F`) | Container dummy intent |
 |---|---|---|---|---|
 | `intent(in)` | yes | **yes** — `source=x` | no | `intent(in)` |
-| `intent(out)` | yes | **no** — omit `source` | **yes** | `intent(inout)` |
+| `intent(out)` | yes | **default yes** — `source=x` (see below) | **yes** | `intent(inout)` |
 | `intent(inout)` | yes | **yes** — `source=x` | **yes** | `intent(inout)` |
 
-The `intent(out)` row is the one the in-tree exemplars get wrong. An
-`intent(out)` dummy is undefined on entry, so `source=x` copies garbage.
-It is numerically harmless *when the callee fully overwrites the array*,
-but it is wasted work on every call. Two correct spellings:
+**`intent(out)` does not mean "the callee writes every element."** It
+only means Fortran treats the array as having no meaningful value on
+entry — it says nothing about how much of the array actually gets
+written, and for a plain (non-allocatable, non-pointer) array, `intent(out)`
+does **not** clear memory. Before conversion, the raw array was the
+caller's actual memory, passed by reference: whatever the callee didn't
+write, the caller kept from before (a previous halo exchange, a prior
+timestep, whatever was already there).
+
+**This matters concretely in this codebase because almost every array is
+allocated wider than any single call writes it.** Arrays shaped by
+`SZI_`/`SZIB_`/`SZJ_`/`SZK_` are sized over the full halo-inclusive data
+domain (`G%isd:G%ied`, `G%IsdB:G%IedB`, ...), while a write scoped to a
+`Box_t` built from `set_continuity_box` only covers the narrower
+*computational* domain (`G%isc:G%iec`, optionally stencil-widened) —
+that gap between compute domain and data domain is the halo, and it
+exists precisely so most calls *don't* touch it. So a container
+allocated without `source=` for a `Box_t`-scoped write starts as
+uninitialized memory over the *entire* declared extent, gets real values
+written only inside the box, and then `copy2F` copies the whole thing —
+including that never-written, garbage-filled halo — back over the
+caller's array, silently destroying whatever meaningful halo content was
+there before. This is not hypothetical: it is the root cause of a real
+CI-breaking numerical failure in an already-converted, already-merged
+routine (`zonal_mass_flux`'s `uh`) that took several sessions to trace,
+specifically *because* it doesn't crash — the corrupted halo cells sit
+quietly wrong until something downstream reads them, often much later.
+
+**The corrected default: copy in with `source=x`, even for `intent(out)`,
+unless you can positively confirm the callee writes the array's entire
+declared extent** (not just the `Box_t`'s range — the actual `LBOUND`/
+`UBOUND`). For any write scoped by a `Box_t`, that confirmation essentially
+never holds in this codebase, so treat `intent(out)` the same as
+`intent(inout)` for copy-in purposes by default. The allocate-only forms
+below are real, but they are the exception, not the default — use them
+only when you have checked, specifically, that the write loop's bounds
+equal the array's full `LBOUND`/`UBOUND` in every dimension:
 
 ```fortran
-call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W))                  ! allocate only
-call h_W_a%allocView(h_W_p, lb=LBOUND(h_W), ub=UBOUND(h_W))       ! allocate + get pointer
+call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W))                  ! only if h_W is written in full
+call h_W_a%allocView(h_W_p, lb=LBOUND(h_W), ub=UBOUND(h_W))       ! same caveat -- no copy-in either
 ```
 
-**Caution:** only omit the copy-in when the callee genuinely writes every
-element the caller will later read. If the callee writes an interior
-region and the caller reads the halo, the array is *effectively*
-`intent(inout)` regardless of how it is declared — copy it in, and
-consider whether the declared intent is itself wrong.
+If in doubt, copy in. The wasted copy of a few halo cells is cheap; a
+silently corrupted halo is not.
+
+### Optional dummies
+
+An `optional` array dummy keeps its `optional` attribute when it becomes
+a container, and the `present()` machinery around it has to move with it.
+
+**In the callee**, three things change together:
+
+```fortran
+  type(RealArray_t), optional, intent(in) :: hin_a  !< Initial layer thickness [H ~> m or kg m-2].
+                                                    !! If hin is absent, h is also the initial thickness.
+  real, dimension(:,:,:), contiguous, pointer :: hin
+
+  if (present(hin_a)) call hin_a%view(hin)      ! guard the view
+  ...
+  if (present(hin_a)) then                      ! existing logic now tests the _a name
+```
+
+1. Keep `optional` on the container declaration.
+2. **Guard the `%view`.** Calling `%view` on an absent dummy is illegal.
+3. **Rewrite every existing `present(<orig>)` test to `present(<orig>_a)`.**
+   This is the easiest thing to miss: the body's control flow already
+   references the old name, and a stale `present(hin)` will not compile
+   once `hin` is a local pointer rather than a dummy.
+
+The pointer stays unassociated when the dummy is absent, so any use of it
+must sit inside the same `present` guard.
+
+**At the call site**, it depends on whether the caller's own array is
+optional:
+
+- **Caller's array is always present** (the common case — it is one of the
+  caller's ordinary dummies or a local): allocate and pass it normally.
+  Nothing special.
+
+- **Caller's array is itself `optional`**: a container local is *always*
+  present as an actual argument, so passing an unallocated container
+  would make `present()` return `.true.` in the callee with meaningless
+  data behind it. Allocate conditionally and branch the call:
+
+  ```fortran
+  if (present(hin)) then
+    call hin_a%alloc(lb=LBOUND(hin), ub=UBOUND(hin), source=hin)
+    call continuity_zonal_convergence(bxC, h_a, uh_a, dt, IareaT_a, hin_a=hin_a)
+  else
+    call continuity_zonal_convergence(bxC, h_a, uh_a, dt, IareaT_a)
+  endif
+  call hin_a%free()      ! safe even if never allocated (§4.5)
+  ```
+
+  With one or two optional arrays this is fine. If a call site has more
+  than two, the branch count explodes combinatorially — **stop and ask
+  the user** rather than generating a thicket of nested conditionals.
+
+Optional *scalars* (`hmin`, `h_min`) are unaffected — they are not
+containerised and pass through with their `optional` attribute and
+`present()` tests unchanged.
 
 ---
 
@@ -497,9 +586,18 @@ references them.
 
 1. **Do not rename the subroutine.** No `_fortran` suffix, no wrapper
    pair. That transformation belongs to `generate_cpp_bridge` (§10).
-2. **`source=` on a pure output reads undefined memory.** Use the
-   allocate-only form (§6). Both in-tree exemplars have this issue; do
-   not propagate it just because the examples do.
+2. **Skipping `source=` on a `Box_t`-scoped "pure output" silently
+   corrupts its halo.** `intent(out)` does not mean "written in full" —
+   it only means undefined on entry. Any array shaped by `SZI_`/`SZIB_`/
+   etc. is allocated over the full halo-inclusive domain, while a write
+   scoped to a `Box_t` covers only the narrower computational range in
+   between. Allocate-without-`source=` starts the untouched halo as
+   garbage; `copy2F` then copies that garbage back over the caller's
+   real array, overwriting whatever meaningful halo content was there
+   before. Default to `source=x` even for `intent(out)` (§6); this
+   caused a real, hard-to-trace CI failure (`zonal_mass_flux`'s `uh`) —
+   only skip the copy-in when you have confirmed the write covers the
+   array's full `LBOUND`/`UBOUND`, not just the `Box_t`'s range.
 3. **`grow`/`shrink`/`growLo`/`growHi` return a NEW box that you must
    `free`.** Forgetting `call bx%free()` leaks on every call — and these
    routines run inside timestep loops.
@@ -519,6 +617,15 @@ references them.
 8. **`view` FATALs on rank mismatch at run time, not compile time.** A
    3-D container viewed through a 2-D pointer compiles fine and dies at
    run time.
+8a. **`optional` dummies: rename the `present()` tests too.** When
+   `hin` becomes `hin_a`, every `present(hin)` in the body must become
+   `present(hin_a)`, and the `%view` must be guarded by it (§6). A
+   missed rename does not compile once `hin` is a local pointer — but a
+   missed *guard* compiles and fails at run time.
+8b. **Never pass an unallocated container to an `optional` dummy.** A
+   container local is always present as an actual argument, so
+   `present()` in the callee returns `.true.` regardless. If the
+   caller's source array is optional, branch the call (§6).
 9. **Every call site must be updated in the same change.** Converting a
    subroutine's dummies without updating all its callers breaks the
    build. Find them with
@@ -578,3 +685,39 @@ rename, the dispatcher shim, `getenv_mode`, capture mode, the
 `generate_amrex_code` then writes the C++ side. Keeping the conversion
 separate keeps each diff small and reviewable, and means a routine can be
 containerised without any commitment to ever bridging it.
+
+**A `_fortran` sibling doesn't change what this skill does.** A
+subroutine with raw dummies is a conversion target regardless of its
+history — whether it has never been touched, or is a bridge shim whose
+own signature hasn't been migrated yet (a leftover from before the skill
+split, when one combined skill produced the container worker and the
+shim in the same pass). Convert it exactly like any other raw-array
+subroutine (§2–§8). The one constraint: some of its content belongs to
+`generate_cpp_bridge`, not this skill, and must be left alone —
+
+- Never edit anything between `select case (mode)` and `end select`,
+  except renaming a `CS%x`/`GV%x` reference if that derived type is
+  dropped from the signature (§8). No other change inside that region —
+  not the case structure, not `getenv_mode`, not the capture block, not
+  any `%to_c()` call, not the `#ifdef _TIM` guard.
+- Never touch a `bind(C) interface … end interface` declaration. It
+  takes `RealArray_C`/`Box_C` regardless of where the `RealArray_t` came
+  from, so a conversion never has a reason to reach it.
+
+If you find yourself rewriting either, stop — that's a sign the task has
+drifted into bridge territory rather than a data-structure conversion.
+Container-building/writeback bookkeeping *around* that content (a
+"build containers for all dispatch paths" block before it, a trailing
+`copy2F`/`free` block after it) is ordinary conversion scaffolding and
+gets replaced the same way it would at any call site (§3) — it's simply
+inside this subroutine rather than in one of its callers.
+
+`meridional_edge_thickness` (not yet migrated) and `zonal_edge_thickness`
+(migrated) are an exact real-world before/after pair in this tree, if you
+want to see it worked out in full.
+
+The reliable signal that a raw-array subroutine has bridge content to
+preserve is **not** its dummy types — a `<name>_fortran` sibling's
+existence, and dispatch machinery in the body (`select case (mode)`,
+`getenv_mode`, `TIMH_*`, `io_recorder`, `#ifdef _TIM`), which
+`convert_array_containers`'s Step 0 already checks for.

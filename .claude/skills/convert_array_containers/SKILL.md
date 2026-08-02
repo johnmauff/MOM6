@@ -95,12 +95,30 @@ error. Do not retry, do not assume defaults, do not create anything.
    Step 1 or any step below. Do not guess at template content or API
    signatures from memory of a similar prior task — invoke it and read
    its content first.
+5. **A `<function-name>_fortran` sibling doesn't mean stop.** Run
+   `grep -irn "^[[:space:]]*subroutine[[:space:]]\+<function-name>_fortran\b" $0/src $0/config_src`.
+   If it matches, `<function-name>` is a bridge shim over an
+   already-converted worker — convert it exactly like any other
+   raw-array subroutine (Steps 2–9), with one constraint (lessons §10):
+   never edit anything between `select case (mode)` and `end select`
+   except renaming a `CS%x`/`GV%x` reference when Step 2 drops that
+   derived type, and never touch a `bind(C)` interface declaration. If
+   either seems necessary, stop — that means the task has drifted into
+   `generate_cpp_bridge`'s territory.
+6. **Target is not already converted.** Locate `<function-name>`'s own
+   declaration with
+   `grep -irn "^[[:space:]]*subroutine[[:space:]]\+<function-name>\b" $0/src $0/config_src`
+   and read its dummy list. If every array dummy is already
+   `type(RealArray_t)` / `type(IntArray_t)`, stop and report that the
+   subroutine is already container-native; there is nothing to do.
 
-Step 1 runs only when `--enable_src_validate` is set. Item 4
-(reference-material priming) always runs, regardless of flags. Step 9's
-behavior is decided by `--enable_git_commit` / `--disable_git_commit` if
-passed, or otherwise by the global preference described in Step 9. No
-other conversion work executes until Step 0 validation passes.
+Items 4, 5, and 6 always run, regardless of flags — a bad target is
+worth catching before any git/branch work happens. Step 1 runs only when
+`--enable_src_validate` is set, and adds deeper checkout/branch
+validation on top of the same subroutine lookup. Step 9's behavior is
+decided by `--enable_git_commit` / `--disable_git_commit` if passed, or
+otherwise by the global preference described in Step 9. No other
+conversion work executes until Step 0 validation passes.
 
 ## Settle these decisions (ask if not obvious from the tree)
 
@@ -166,10 +184,9 @@ section that holds the template or rationale.
      `grep -irn "^[[:space:]]*subroutine[[:space:]]\+<function-name>\b" $0/src $0/config_src`.
      - 0 matches → stop: `Error: subroutine "<function-name>" not found under <work-directory>/{src,config_src}.`
      - >1 match → list candidates and ask the user which to convert.
-   - **Already converted?** If the matched declaration's dummies are
-     already `type(RealArray_t)` / `type(IntArray_t)`, stop and report
-     that the subroutine is already container-native; there is nothing
-     to do.
+     (Step 0 items 5 and 6 already ruled out an already-bridged or
+     already-converted target before this step runs; no need to
+     re-check either here.)
 
 ### 2. Classify every dummy argument
    Read the full subroutine. For each dummy record: name, declared type,
@@ -182,6 +199,13 @@ section that holds the template or rationale.
    - Grid-shaped `integer` array → `type(IntArray_t)`, renamed `<name>_a`.
    - Scalar / `logical` / `pointer` (`OBC`) → unchanged, passes through.
    - Derived type (`BT_cont_type`, …) → unchanged (lessons §9 #11).
+
+   **Flag every `optional` array dummy.** It keeps its `optional`
+   attribute, its `%view` must be guarded by `present(<name>_a)`, and
+   every existing `present(<name>)` test in the body must be renamed to
+   `present(<name>_a)` (lessons §6, §9 #8a). Note them now so Steps 4, 5
+   and 8 all handle them; a missed `present` guard compiles and fails at
+   run time.
 
    Then scan the **body** for derived-type array references
    (`G%mask2dT`, `G%areaT`, …) and scalar references (`GV%Angstrom_H`,
@@ -256,10 +280,15 @@ section that holds the template or rationale.
    (matching the rank of each array). Immediately before the first use,
    `call <name>_a%view(<name>)` for each (lessons §2, §4.3).
 
-   The loop body must then require **zero edits** — the pointers carry
-   the container's original `lb:ub` bounds. If you find yourself editing
-   an index expression or a formula, stop and re-check: something is
-   wrong.
+   For an `optional` dummy flagged in Step 2, guard the view and rename
+   its `present` tests (lessons §6):
+   `if (present(hin_a)) call hin_a%view(hin)`, and every existing
+   `present(hin)` in the body becomes `present(hin_a)`.
+
+   The loop body must then require **zero edits** *apart from those
+   `present` renames* — the pointers carry the container's original
+   `lb:ub` bounds. If you find yourself editing an index expression or a
+   formula, stop and re-check: something is wrong.
 
 ### 6. Wire up the iteration box
    If the routine already takes a `Box_t`, use it as-is. If the body
@@ -290,14 +319,31 @@ section that holds the template or rationale.
 
    **Case A — the caller still takes raw arrays.** Insert the marshalling
    block (lessons §3): declare a container per array argument, `alloc`
-   inputs with `source=`, `alloc` pure outputs **without** `source`
-   (lessons §6), call the converted routine, `copy2F` outputs and inouts
-   back, then `free` every container. Derive any new scalar dummies here
-   (`h_min = 2.0 * GV%Angstrom_H`).
+   every array **with** `source=` — including `intent(out)` ones, unless
+   you have confirmed the callee's write covers the array's full
+   `LBOUND`/`UBOUND` rather than just a `Box_t`-scoped sub-region
+   (lessons §6) — call the converted routine, `copy2F` outputs and
+   inouts back, then `free` every container. Derive any new scalar
+   dummies here (`h_min = 2.0 * GV%Angstrom_H`).
 
    This is the common case when converting bottom-up, and it is also the
    permanent end state when the caller is a routine that will never be
    converted (a module entry point such as `continuity_PPM`).
+
+   *If the caller's own source array is `optional`*, a container local is
+   always present as an actual argument, so an unallocated one would make
+   `present()` true in the callee with garbage behind it. Allocate
+   conditionally and branch the call (lessons §6, §9 #8b). With more than
+   two optional arrays at one site the branches multiply — stop and ask
+   the user rather than nesting conditionals.
+
+   *Loop-invariant sources:* if a container's source never changes —
+   grid metadata such as `G%IareaT`, `G%mask2dT`, `G%areaT` — do **not**
+   restructure the caller to hoist it out of a loop or share it across
+   call sites as part of this conversion. Emit the straightforward
+   per-site `alloc`/`free` and **report it in Step 10** as a hoisting
+   candidate instead. Hoisting is a whole-subroutine optimisation that is
+   safer to do once, with every call site visible, than incrementally.
 
    **Case B — the caller is already container-based.** Do **not** add a
    marshalling block. The caller already holds containers, so pass them
@@ -401,7 +447,12 @@ section that holds the template or rationale.
 - Do not rename the subroutine, and do not create a `*_fortran` variant
   or a wrapper pair. That is `generate_cpp_bridge`'s job.
 - Do not add a dispatcher, `select case (mode)`, `getenv_mode`, capture
-  mode, `io_recorder`, `#ifdef _TIM`, `%to_c`, or a `bind(C)` interface.
+  mode, `io_recorder`, `#ifdef _TIM`, `%to_c`, or a `bind(C)` interface
+  where none already exists — that is always `generate_cpp_bridge`'s job.
+  If a target already has this content (a `_fortran` sibling exists),
+  convert it normally (item 5) but never edit inside
+  `select case … end select` except renaming a `CS%x`/`GV%x` reference,
+  and never touch a `bind(C)` interface declaration (lessons §10).
 - Do not drop a `!<` doc comment. Every dummy that had one keeps it,
   word for word, when its declaration is rewritten — including when a
   two-line declaration collapses to one line, which is where they are
@@ -413,8 +464,10 @@ section that holds the template or rationale.
   construction; any difference is a bug.
 - Do not pass a written container as `intent(out)` — always
   `intent(inout)` (lessons §9 #6).
-- Do not use `source=` when allocating a container for a pure output
-  (lessons §6), even though the in-tree exemplars do.
+- Do not skip `source=` for an `intent(out)` array just because it's
+  "pure output" — that only reads garbage if the write covers the array
+  in full, which a `Box_t`-scoped write almost never does (lessons §6,
+  §9 #2). Default to copying in; skip it only when confirmed safe.
 - Do not leave a `grow`/`shrink` result unfreed (lessons §9 #3).
 - Do not use `%dup` — it no longer exists; its functionality is folded
   into `%alloc` (lessons §4.6).
@@ -439,7 +492,14 @@ Report:
 4. Every call site updated (file and line).
 5. Any callee still taking raw arrays, as a follow-up conversion
    candidate (Step 7).
-6. Build status — which infra layers were built, or explicitly that no
+6. **Hoisting candidates:** every container whose source is
+   loop-invariant grid metadata (`G%IareaT`, `G%mask2dT`, …), listed with
+   the call sites that now rebuild it. These are deliberately left
+   per-site (Step 8) and are worth a single cleanup pass once the
+   enclosing subroutine's conversions are complete.
+7. Any `optional` array dummy handled, and whether its call sites needed
+   conditional allocation.
+8. Build status — which infra layers were built, or explicitly that no
    build was run and why.
-7. Whether the change was committed, or the list of modified files for
+9. Whether the change was committed, or the list of modified files for
    manual commit.
