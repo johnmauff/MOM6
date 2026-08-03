@@ -287,17 +287,18 @@ subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhb
   type(RealArray_t) :: h_S_a, h_N_a ! Containers for meridional_edge_thickness
   type(RealArray_t) :: h_a, uh_a, IareaT_a, hin_a ! Containers for continuity_zonal_convergence
   type(RealArray_t) :: vh_a ! Container for continuity_meridional_convergence
+  type(RealArray_t) :: u_a, por_face_areaU_a ! Containers for zonal_mass_flux
   ! Minimum layer thickness (2*Angstrom_H) for zonal_edge_thickness / meridional_edge_thickness
   real :: edge_h_min
-  ! %view pointers for forwarding continuity_PPM's optional containers to still-raw
-  ! zonal_mass_flux/meridional_mass_flux. Must be explicitly nullified below --
-  ! a plain local pointer's association status on entry is undefined, not
-  ! disassociated, so present() would read incorrectly in the raw callee whenever
-  ! the corresponding _a container is absent unless we force it here.
-  real, dimension(:,:),   contiguous, pointer :: uhbt, vhbt, du_cor, dv_cor
-  real, dimension(:,:,:), contiguous, pointer :: visc_rem_u, visc_rem_v, u_cor, v_cor
+  ! %view pointers for forwarding continuity_PPM's optional containers to the still-raw
+  ! meridional_mass_flux. Must be explicitly nullified below -- a plain local pointer's
+  ! association status on entry is undefined, not disassociated, so present() would
+  ! read incorrectly in the raw callee whenever the corresponding _a container is
+  ! absent unless we force it here.
+  real, dimension(:,:),   contiguous, pointer :: vhbt, dv_cor
+  real, dimension(:,:,:), contiguous, pointer :: visc_rem_v, v_cor
 
-  nullify(uhbt, vhbt, du_cor, dv_cor, visc_rem_u, visc_rem_v, u_cor, v_cor)
+  nullify(vhbt, dv_cor, visc_rem_v, v_cor)
 
   h_min = GV%Angstrom_H
 
@@ -329,13 +330,23 @@ subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhb
     call h_W_a%free()
     call h_E_a%free()
     call mask2dT_a%free()
-    if (present(uhbt_a)) call uhbt_a%view(uhbt)
-    if (present(visc_rem_u_a)) call visc_rem_u_a%view(visc_rem_u)
-    if (present(u_cor_a)) call u_cor_a%view(u_cor)
-    if (present(du_cor_a)) call du_cor_a%view(du_cor)
-    call zonal_mass_flux(bxC, u, hin, h_W, h_E, uh, dt, G, GV, US, CS, OBC, pbv%por_face_areaU, &
-                         uhbt=uhbt, visc_rem_u=visc_rem_u, u_cor=u_cor, BT_cont=BT_cont, &
-                         du_cor=du_cor)
+    call u_a%alloc(lb=LBOUND(u), ub=UBOUND(u), source=u)
+    call h_in_a%alloc(lb=LBOUND(hin), ub=UBOUND(hin), source=hin)
+    call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W), source=h_W)
+    call h_E_a%alloc(lb=LBOUND(h_E), ub=UBOUND(h_E), source=h_E)
+    call uh_a%alloc(lb=LBOUND(uh), ub=UBOUND(uh), source=uh)
+    call por_face_areaU_a%alloc(lb=LBOUND(pbv%por_face_areaU), ub=UBOUND(pbv%por_face_areaU), &
+                                source=pbv%por_face_areaU)
+    call zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, G, GV, US, CS, OBC, &
+                         por_face_areaU_a, uhbt_a=uhbt_a, visc_rem_u_a=visc_rem_u_a, &
+                         u_cor_a=u_cor_a, BT_cont=BT_cont, du_cor_a=du_cor_a)
+    call uh_a%copy2F(uh)
+    call u_a%free()
+    call h_in_a%free()
+    call h_W_a%free()
+    call h_E_a%free()
+    call uh_a%free()
+    call por_face_areaU_a%free()
     call h_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
     call uh_a%alloc(lb=LBOUND(uh), ub=UBOUND(uh), source=uh)
     call IareaT_a%alloc(lb=LBOUND(G%IareaT), ub=UBOUND(G%IareaT), source=G%IareaT)
@@ -432,13 +443,23 @@ subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhb
     call h_W_a%free()
     call h_E_a%free()
     call mask2dT_a%free()
-    if (present(uhbt_a)) call uhbt_a%view(uhbt)
-    if (present(visc_rem_u_a)) call visc_rem_u_a%view(visc_rem_u)
-    if (present(u_cor_a)) call u_cor_a%view(u_cor)
-    if (present(du_cor_a)) call du_cor_a%view(du_cor)
-    call zonal_mass_flux(bxC, u, h, h_W, h_E, uh, dt, G, GV, US, CS, OBC, pbv%por_face_areaU, &
-                         uhbt=uhbt, visc_rem_u=visc_rem_u, u_cor=u_cor, BT_cont=BT_cont, &
-                         du_cor=du_cor)
+    call u_a%alloc(lb=LBOUND(u), ub=UBOUND(u), source=u)
+    call h_in_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
+    call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W), source=h_W)
+    call h_E_a%alloc(lb=LBOUND(h_E), ub=UBOUND(h_E), source=h_E)
+    call uh_a%alloc(lb=LBOUND(uh), ub=UBOUND(uh), source=uh)
+    call por_face_areaU_a%alloc(lb=LBOUND(pbv%por_face_areaU), ub=UBOUND(pbv%por_face_areaU), &
+                                source=pbv%por_face_areaU)
+    call zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, G, GV, US, CS, OBC, &
+                         por_face_areaU_a, uhbt_a=uhbt_a, visc_rem_u_a=visc_rem_u_a, &
+                         u_cor_a=u_cor_a, BT_cont=BT_cont, du_cor_a=du_cor_a)
+    call uh_a%copy2F(uh)
+    call u_a%free()
+    call h_in_a%free()
+    call h_W_a%free()
+    call h_E_a%free()
+    call uh_a%free()
+    call por_face_areaU_a%free()
     call h_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
     call uh_a%alloc(lb=LBOUND(uh), ub=UBOUND(uh), source=uh)
     call IareaT_a%alloc(lb=LBOUND(G%IareaT), ub=UBOUND(G%IareaT), source=G%IareaT)
@@ -488,6 +509,7 @@ subroutine continuity_3d_fluxes(u, v, h, uh, vh, dt, G, GV, US, CS, OBC, pbv)
   type (box_t) :: bxC                   ! Iteration box for the continuity solver
   type(RealArray_t) :: h_in_a, h_W_a, h_E_a, mask2dT_a ! Containers for zonal_edge_thickness
   type(RealArray_t) :: h_S_a, h_N_a     ! Containers for meridional_edge_thickness
+  type(RealArray_t) :: u_a, uh_a, por_face_areaU_a ! Containers for zonal_mass_flux
   real :: h_min                         ! Minimum layer thickness (2*Angstrom_H) [H ~> m or kg m-2]
 
   ! Construct the iteration box
@@ -506,7 +528,22 @@ subroutine continuity_3d_fluxes(u, v, h, uh, vh, dt, G, GV, US, CS, OBC, pbv)
   call h_W_a%free()
   call h_E_a%free()
   call mask2dT_a%free()
-  call zonal_mass_flux(bxC, u, h, h_W, h_E, uh, dt, G, GV, US, CS, OBC, pbv%por_face_areaU)
+  call u_a%alloc(lb=LBOUND(u), ub=UBOUND(u), source=u)
+  call h_in_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
+  call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W), source=h_W)
+  call h_E_a%alloc(lb=LBOUND(h_E), ub=UBOUND(h_E), source=h_E)
+  call uh_a%alloc(lb=LBOUND(uh), ub=UBOUND(uh), source=uh)
+  call por_face_areaU_a%alloc(lb=LBOUND(pbv%por_face_areaU), ub=UBOUND(pbv%por_face_areaU), &
+                              source=pbv%por_face_areaU)
+  call zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, G, GV, US, CS, OBC, &
+                       por_face_areaU_a)
+  call uh_a%copy2F(uh)
+  call u_a%free()
+  call h_in_a%free()
+  call h_W_a%free()
+  call h_E_a%free()
+  call uh_a%free()
+  call por_face_areaU_a%free()
 
   call h_in_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
   call h_S_a%alloc(lb=LBOUND(h_S), ub=UBOUND(h_S), source=h_S)
@@ -660,6 +697,8 @@ subroutine continuity_adjust_vel(u, v, h, dt, G, GV, US, CS, OBC, pbv, uhbt, vhb
   type (box_t) :: bxC                   ! Iteration box for continuity solver
   type(RealArray_t) :: h_in_a, h_W_a, h_E_a, mask2dT_a ! Containers for zonal_edge_thickness
   type(RealArray_t) :: h_S_a, h_N_a     ! Containers for meridional_edge_thickness
+  type(RealArray_t) :: u_a, uh_a, por_face_areaU_a ! Containers for zonal_mass_flux
+  type(RealArray_t) :: uhbt_a, visc_rem_u_a, u_cor_a ! Optional containers for zonal_mass_flux
   real :: h_min                         ! Minimum layer thickness (2*Angstrom_H) [H ~> m or kg m-2]
 
   ! It might not be necessary to separate the input velocity array from the adjusted velocities,
@@ -682,8 +721,35 @@ subroutine continuity_adjust_vel(u, v, h, dt, G, GV, US, CS, OBC, pbv, uhbt, vhb
   call h_W_a%free()
   call h_E_a%free()
   call mask2dT_a%free()
-  call zonal_mass_flux(bxC, u_in, h, h_W, h_E, uh, dt, G, GV, US, CS, OBC, pbv%por_face_areaU, &
-                       uhbt=uhbt, visc_rem_u=visc_rem_u, u_cor=u)
+  call u_a%alloc(lb=LBOUND(u_in), ub=UBOUND(u_in), source=u_in)
+  call h_in_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
+  call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W), source=h_W)
+  call h_E_a%alloc(lb=LBOUND(h_E), ub=UBOUND(h_E), source=h_E)
+  call uh_a%alloc(lb=LBOUND(uh), ub=UBOUND(uh), source=uh)
+  call por_face_areaU_a%alloc(lb=LBOUND(pbv%por_face_areaU), ub=UBOUND(pbv%por_face_areaU), &
+                              source=pbv%por_face_areaU)
+  call uhbt_a%alloc(lb=LBOUND(uhbt), ub=UBOUND(uhbt), source=uhbt)
+  call u_cor_a%alloc(lb=LBOUND(u), ub=UBOUND(u), source=u)
+  if (present(visc_rem_u)) then
+    call visc_rem_u_a%alloc(lb=LBOUND(visc_rem_u), ub=UBOUND(visc_rem_u), source=visc_rem_u)
+    call zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, G, GV, US, CS, OBC, &
+                         por_face_areaU_a, uhbt_a=uhbt_a, visc_rem_u_a=visc_rem_u_a, &
+                         u_cor_a=u_cor_a)
+    call visc_rem_u_a%free()
+  else
+    call zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, G, GV, US, CS, OBC, &
+                         por_face_areaU_a, uhbt_a=uhbt_a, u_cor_a=u_cor_a)
+  endif
+  call u_cor_a%copy2F(u)
+  call uh_a%copy2F(uh)
+  call u_a%free()
+  call h_in_a%free()
+  call h_W_a%free()
+  call h_E_a%free()
+  call uh_a%free()
+  call por_face_areaU_a%free()
+  call uhbt_a%free()
+  call u_cor_a%free()
 
   call h_in_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
   call h_S_a%alloc(lb=LBOUND(h_S), ub=UBOUND(h_S), source=h_S)
@@ -1059,46 +1125,40 @@ end subroutine meridional_edge_thickness
 
 
 !> Calculates the mass or volume fluxes through the zonal faces, and other related quantities.
-subroutine zonal_mass_flux(bxC, u, h_in, h_W, h_E, uh, dt, G, GV, US, CS, OBC, por_face_areaU, &
-                           uhbt, visc_rem_u, u_cor, BT_cont, du_cor)
+subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, G, GV, US, CS, OBC, &
+                           por_face_areaU_a, uhbt_a, visc_rem_u_a, u_cor_a, BT_cont, du_cor_a)
   type(Box_t),             intent(in)    :: bxC  !< Iteration box for continuity solver
   type(ocean_grid_type),   intent(in)    :: G    !< Ocean's grid structure.
   type(verticalGrid_type), intent(in)    :: GV   !< Ocean's vertical grid structure.
-  real, dimension(SZIB_(G),SZJ_(G),SZK_(GV)), &
-                           intent(in)    :: u    !< Zonal velocity [L T-1 ~> m s-1].
-  real,  dimension(SZI_(G),SZJ_(G),SZK_(GV)), &
-                           intent(in)    :: h_in !< Layer thickness used to calculate fluxes [H ~> m or kg m-2].
-  real, dimension(SZI_(G),SZJ_(G),SZK_(GV)), &
-                           intent(in)    :: h_W !< Western edge thicknesses [H ~> m or kg m-2].
-  real, dimension(SZI_(G),SZJ_(G),SZK_(GV)), &
-                           intent(in)    :: h_E !< Eastern edge thicknesses [H ~> m or kg m-2].
-  real, dimension(SZIB_(G),SZJ_(G),SZK_(GV)), &
-                           intent(out)   :: uh   !< Volume flux through zonal faces = u*h*dy
+  type(RealArray_t),       intent(in)    :: u_a    !< Zonal velocity [L T-1 ~> m s-1].
+  type(RealArray_t),       intent(in)    :: h_in_a !< Layer thickness used to calculate fluxes
+                                                   !! [H ~> m or kg m-2].
+  type(RealArray_t),       intent(in)    :: h_W_a !< Western edge thicknesses [H ~> m or kg m-2].
+  type(RealArray_t),       intent(in)    :: h_E_a !< Eastern edge thicknesses [H ~> m or kg m-2].
+  type(RealArray_t),       intent(inout) :: uh_a   !< Volume flux through zonal faces = u*h*dy
                                                  !! [H L2 T-1 ~> m3 s-1 or kg s-1].
   real,                    intent(in)    :: dt   !< Time increment [T ~> s].
   type(unit_scale_type),   intent(in)    :: US   !< A dimensional unit scaling type
   type(continuity_PPM_CS), intent(in)    :: CS   !< This module's control structure.
   type(ocean_OBC_type),    pointer       :: OBC  !< Open boundaries control structure.
-  real, dimension(SZIB_(G), SZJ_(G), SZK_(G)), &
-                           intent(in)    :: por_face_areaU !< fractional open area of U-faces [nondim]
-  real, dimension(SZIB_(G),SZJ_(G)), &
-                 optional, intent(in)    :: uhbt !< The summed volume flux through zonal faces
+  type(RealArray_t),       intent(in)    :: por_face_areaU_a !< fractional open area of U-faces
+                                                             !! [nondim]
+  type(RealArray_t), optional, intent(in) :: uhbt_a !< The summed volume flux through zonal faces
                                                  !! [H L2 T-1 ~> m3 s-1 or kg s-1].
-  real, dimension(SZIB_(G),SZJ_(G),SZK_(GV)), &
-                 optional, intent(in)    :: visc_rem_u
+  type(RealArray_t), optional, intent(in) :: visc_rem_u_a
                      !< The fraction of zonal momentum originally in a layer that remains after a
-                     !! time-step of viscosity, and the fraction of a time-step's worth of a barotropic
-                     !! acceleration that a layer experiences after viscosity is applied [nondim].
-                     !! Visc_rem_u is between 0 (at the bottom) and 1 (far above the bottom).
-  real, dimension(SZIB_(G),SZJ_(G),SZK_(GV)), &
-                 optional, intent(out)   :: u_cor
+                     !! time-step of viscosity, and the fraction of a time-step's worth of a
+                     !! barotropic acceleration that a layer experiences after viscosity is applied
+                     !! [nondim]. Visc_rem_u is between 0 (at the bottom) and 1 (far above the
+                     !! bottom).
+  type(RealArray_t), optional, intent(inout) :: u_cor_a
                      !< The zonal velocities (u with a barotropic correction)
                      !! that give uhbt as the depth-integrated transport [L T-1 ~> m s-1]
   type(BT_cont_type), optional, pointer  :: BT_cont !< A structure with elements that describe the
                      !! effective open face areas as a function of barotropic flow.
-  real, dimension(SZIB_(G),SZJ_(G)), &
-                 optional, intent(out)   :: du_cor !< The zonal velocity increments from u that give uhbt
-                                                 !! as the depth-integrated transports [L T-1 ~> m s-1].
+  type(RealArray_t), optional, intent(inout) :: du_cor_a
+                                     !< The zonal velocity increments from u that give uhbt
+                                     !! as the depth-integrated transports [L T-1 ~> m s-1].
 
   ! Local variables
   real, dimension(SZIB_(G),SZJ_(G),SZK_(GV)) :: duhdu ! Partial derivative of uh with u [H L ~> m2 or kg m-1].
@@ -1123,10 +1183,31 @@ subroutine zonal_mass_flux(bxC, u, h_in, h_W, h_E, uh, dt, G, GV, US, CS, OBC, p
   integer :: l_seg ! The OBC segment number
   logical :: use_visc_rem, set_BT_cont
   logical :: local_specified_BC, local_open_BC, any_simple_OBC  ! OBC-related logicals
+  real, dimension(:,:,:), contiguous, pointer :: u, h_in, h_W, h_E, uh, por_face_areaU
+  ! %view pointers for forwarding this routine's optional containers to the still-raw
+  ! present_uhbt_or_set_BT_cont. Must be nullified below -- a plain local pointer's
+  ! association status on entry is undefined, not disassociated, so present() would
+  ! read incorrectly downstream whenever the corresponding _a container is absent
+  ! unless we force it here.
+  real, dimension(:,:,:), contiguous, pointer :: visc_rem_u, u_cor
+  real, dimension(:,:),   contiguous, pointer :: uhbt, du_cor
+
+  nullify(uhbt, visc_rem_u, u_cor, du_cor)
 
   call cpu_clock_begin(id_clock_correct)
 
-  use_visc_rem = present(visc_rem_u)
+  call u_a%view(u)
+  call h_in_a%view(h_in)
+  call h_W_a%view(h_W)
+  call h_E_a%view(h_E)
+  call uh_a%view(uh)
+  call por_face_areaU_a%view(por_face_areaU)
+  if (present(uhbt_a)) call uhbt_a%view(uhbt)
+  if (present(visc_rem_u_a)) call visc_rem_u_a%view(visc_rem_u)
+  if (present(u_cor_a)) call u_cor_a%view(u_cor)
+  if (present(du_cor_a)) call du_cor_a%view(du_cor)
+
+  use_visc_rem = present(visc_rem_u_a)
 
   set_BT_cont = .false. ; if (present(BT_cont)) set_BT_cont = (associated(BT_cont))
 
@@ -1148,7 +1229,7 @@ subroutine zonal_mass_flux(bxC, u, h_in, h_W, h_E, uh, dt, G, GV, US, CS, OBC, p
 
   do concurrent (j=jsh:jeh)
 
-    if (present(du_cor)) then
+    if (present(du_cor_a)) then
       do concurrent (i=ish-1:ieh)
         du_cor(i,j) = 0.0
       enddo
@@ -1188,7 +1269,7 @@ subroutine zonal_mass_flux(bxC, u, h_in, h_W, h_E, uh, dt, G, GV, US, CS, OBC, p
       enddo
     endif
 
-    if (present(uhbt) .or. set_BT_cont) then
+    if (present(uhbt_a) .or. set_BT_cont) then
       if (use_visc_rem.and.CS%use_visc_rem_max) then
         ! poor performance for nvfortran + do concurrent if k is inside loop
         do concurrent (I=ish-1:ieh)
@@ -1281,12 +1362,13 @@ subroutine zonal_mass_flux(bxC, u, h_in, h_W, h_E, uh, dt, G, GV, US, CS, OBC, p
         du_max_CFL(I,j) = max(du_max_CFL(I,j),0.0)
         du_min_CFL(I,j) = min(du_min_CFL(I,j),0.0)
       enddo
-    endif ! present(uhbt) .or. set_BT_cont
+    endif ! present(uhbt_a) .or. set_BT_cont
   enddo
 
   call present_uhbt_or_set_BT_cont(bxC, u, h_in, h_W, h_E, uh_tot_0, duhdu_tot_0, du, du_max_CFL, &
-                                   du_min_CFL, visc_rem_u_tmp, visc_rem_max, por_face_areaU, uhbt, &
-                                   uh, u_cor, du_cor, BT_cont, dt, G, GV, US, CS, OBC)
+                                   du_min_CFL, visc_rem_u_tmp, visc_rem_max, por_face_areaU, &
+                                   uhbt=uhbt, uh=uh, u_cor=u_cor, du_cor=du_cor, BT_cont=BT_cont, &
+                                   dt=dt, G=G, GV=GV, US=US, CS=CS, OBC=OBC)
 
   !$omp target exit data &
   !$omp   map(release: visc_rem_u_tmp, duhdu, du, du_min_CFL, du_max_CFL, duhdu_tot_0, uh_tot_0, &
