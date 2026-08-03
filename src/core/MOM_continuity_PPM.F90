@@ -439,63 +439,49 @@ subroutine continuity_3d_fluxes(u, v, h, uh, vh, dt, G, GV, US, CS, OBC, pbv)
   ! Construct the iteration box
   bxC = set_continuity_box(G,GV, CS)
 
-  call h_in_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
-  call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W), source=h_W)
-  call h_E_a%alloc(lb=LBOUND(h_E), ub=UBOUND(h_E), source=h_E)
-  call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
   h_min = 2.0 * GV%Angstrom_H
-  call zonal_edge_thickness(bxC, h_in_a, h_W_a, h_E_a, mask2dT_a, &
-                            h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
-  call h_W_a%copy2F(h_W)
-  call h_E_a%copy2F(h_E)
-  call h_in_a%free()
-  call h_W_a%free()
-  call h_E_a%free()
-  call mask2dT_a%free()
-  call u_a%alloc(lb=LBOUND(u), ub=UBOUND(u), source=u)
+
   call h_in_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
   call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W), source=h_W)
   call h_E_a%alloc(lb=LBOUND(h_E), ub=UBOUND(h_E), source=h_E)
+  call h_S_a%alloc(lb=LBOUND(h_S), ub=UBOUND(h_S), source=h_S)
+  call h_N_a%alloc(lb=LBOUND(h_N), ub=UBOUND(h_N), source=h_N)
+  call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
+  call u_a%alloc(lb=LBOUND(u), ub=UBOUND(u), source=u)
   call uh_a%alloc(lb=LBOUND(uh), ub=UBOUND(uh), source=uh)
   call por_face_areaU_a%alloc(lb=LBOUND(pbv%por_face_areaU), ub=UBOUND(pbv%por_face_areaU), &
                               source=pbv%por_face_areaU)
-  call zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, G, GV, US, CS, OBC, &
-                       por_face_areaU_a)
-  call uh_a%copy2F(uh)
-  call u_a%free()
-  call h_in_a%free()
-  call h_W_a%free()
-  call h_E_a%free()
-  call uh_a%free()
-  call por_face_areaU_a%free()
-
-  call h_in_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
-  call h_S_a%alloc(lb=LBOUND(h_S), ub=UBOUND(h_S), source=h_S)
-  call h_N_a%alloc(lb=LBOUND(h_N), ub=UBOUND(h_N), source=h_N)
-  call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
-  h_min = 2.0 * GV%Angstrom_H
-  call meridional_edge_thickness(bxC, h_in_a, h_S_a, h_N_a, mask2dT_a, &
-                                 h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
-  call h_S_a%copy2F(h_S)
-  call h_N_a%copy2F(h_N)
-  call h_in_a%free()
-  call h_S_a%free()
-  call h_N_a%free()
-  call mask2dT_a%free()
   call v_a%alloc(lb=LBOUND(v), ub=UBOUND(v), source=v)
-  call h_in_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
-  call h_S_a%alloc(lb=LBOUND(h_S), ub=UBOUND(h_S), source=h_S)
-  call h_N_a%alloc(lb=LBOUND(h_N), ub=UBOUND(h_N), source=h_N)
   call vh_a%alloc(lb=LBOUND(vh), ub=UBOUND(vh), source=vh)
   call por_face_areaV_a%alloc(lb=LBOUND(pbv%por_face_areaV), ub=UBOUND(pbv%por_face_areaV), &
                               source=pbv%por_face_areaV)
+
+  call zonal_edge_thickness(bxC, h_in_a, h_W_a, h_E_a, mask2dT_a, &
+                            h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
+  call zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, G, GV, US, CS, OBC, &
+                       por_face_areaU_a)
+  call meridional_edge_thickness(bxC, h_in_a, h_S_a, h_N_a, mask2dT_a, &
+                                 h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
   call meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, G, GV, US, CS, OBC, &
                             por_face_areaV_a)
+
+  call h_W_a%copy2F(h_W)
+  call h_E_a%copy2F(h_E)
+  call h_S_a%copy2F(h_S)
+  call h_N_a%copy2F(h_N)
+  call uh_a%copy2F(uh)
   call vh_a%copy2F(vh)
-  call v_a%free()
+
   call h_in_a%free()
+  call h_W_a%free()
+  call h_E_a%free()
   call h_S_a%free()
   call h_N_a%free()
+  call mask2dT_a%free()
+  call u_a%free()
+  call uh_a%free()
+  call por_face_areaU_a%free()
+  call v_a%free()
   call vh_a%free()
   call por_face_areaV_a%free()
 
