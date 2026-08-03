@@ -302,184 +302,96 @@ subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhb
       "MOM_continuity_PPM: Either both visc_rem_u_a and visc_rem_v_a or neither "// &
       "one must be present in call to continuity_PPM.")
 
+  edge_h_min = 2.0 * GV%Angstrom_H
+
   !$omp target enter data map(alloc: h_W, h_E, h_S, h_N)
+
+  call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W), source=h_W)
+  call h_E_a%alloc(lb=LBOUND(h_E), ub=UBOUND(h_E), source=h_E)
+  call h_S_a%alloc(lb=LBOUND(h_S), ub=UBOUND(h_S), source=h_S)
+  call h_N_a%alloc(lb=LBOUND(h_N), ub=UBOUND(h_N), source=h_N)
+  call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
+  call IareaT_a%alloc(lb=LBOUND(G%IareaT), ub=UBOUND(G%IareaT), source=G%IareaT)
+  call hin_a%alloc(lb=LBOUND(hin), ub=UBOUND(hin), source=hin)
+  call h_in_a%alloc(lb=LBOUND(hin), ub=UBOUND(hin), source=hin)
+  call h_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
+  call u_a%alloc(lb=LBOUND(u), ub=UBOUND(u), source=u)
+  call uh_a%alloc(lb=LBOUND(uh), ub=UBOUND(uh), source=uh)
+  call por_face_areaU_a%alloc(lb=LBOUND(pbv%por_face_areaU), ub=UBOUND(pbv%por_face_areaU), &
+                              source=pbv%por_face_areaU)
+  call v_a%alloc(lb=LBOUND(v), ub=UBOUND(v), source=v)
+  call vh_a%alloc(lb=LBOUND(vh), ub=UBOUND(vh), source=vh)
+  call por_face_areaV_a%alloc(lb=LBOUND(pbv%por_face_areaV), ub=UBOUND(pbv%por_face_areaV), &
+                              source=pbv%por_face_areaV)
 
   if (x_first) then
     !  First advect zonally, with loop bounds that accomodate the subsequent meridional advection.
     !LB  = set_continuity_loop_bounds(G, CS, i_stencil=.false., j_stencil=.true.)
     bxC = set_continuity_box(G,GV, CS, i_stencil=.false., j_stencil=.true.)
-    call h_in_a%alloc(lb=LBOUND(hin), ub=UBOUND(hin), source=hin)
-    call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W), source=h_W)
-    call h_E_a%alloc(lb=LBOUND(h_E), ub=UBOUND(h_E), source=h_E)
-    call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
-    edge_h_min = 2.0 * GV%Angstrom_H
     call zonal_edge_thickness(bxC, h_in_a, h_W_a, h_E_a, mask2dT_a, &
                               edge_h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
-    call h_W_a%copy2F(h_W)
-    call h_E_a%copy2F(h_E)
-    call h_in_a%free()
-    call h_W_a%free()
-    call h_E_a%free()
-    call mask2dT_a%free()
-    call u_a%alloc(lb=LBOUND(u), ub=UBOUND(u), source=u)
-    call h_in_a%alloc(lb=LBOUND(hin), ub=UBOUND(hin), source=hin)
-    call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W), source=h_W)
-    call h_E_a%alloc(lb=LBOUND(h_E), ub=UBOUND(h_E), source=h_E)
-    call uh_a%alloc(lb=LBOUND(uh), ub=UBOUND(uh), source=uh)
-    call por_face_areaU_a%alloc(lb=LBOUND(pbv%por_face_areaU), ub=UBOUND(pbv%por_face_areaU), &
-                                source=pbv%por_face_areaU)
     call zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, G, GV, US, CS, OBC, &
                          por_face_areaU_a, uhbt_a=uhbt_a, visc_rem_u_a=visc_rem_u_a, &
                          u_cor_a=u_cor_a, BT_cont=BT_cont, du_cor_a=du_cor_a)
-    call uh_a%copy2F(uh)
-    call u_a%free()
-    call h_in_a%free()
-    call h_W_a%free()
-    call h_E_a%free()
-    call uh_a%free()
-    call por_face_areaU_a%free()
-    call h_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
-    call uh_a%alloc(lb=LBOUND(uh), ub=UBOUND(uh), source=uh)
-    call IareaT_a%alloc(lb=LBOUND(G%IareaT), ub=UBOUND(G%IareaT), source=G%IareaT)
-    call hin_a%alloc(lb=LBOUND(hin), ub=UBOUND(hin), source=hin)
     call continuity_zonal_convergence(bxC, h_a, uh_a, dt, IareaT_a, hin_a=hin_a)
-    call h_a%copy2F(h)
-    call h_a%free()
-    call uh_a%free()
-    call IareaT_a%free()
-    call hin_a%free()
 
     ! update host h from continuity_zonal_convergence
 
     !  Now advect meridionally, using the updated thicknesses to determine the fluxes.
     !LB  = set_continuity_loop_bounds(G, CS, i_stencil=.false., j_stencil=.false.)
     bxC = set_continuity_box(G, GV, CS, i_stencil=.false., j_stencil=.false.)
-    call h_in_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
-    call h_S_a%alloc(lb=LBOUND(h_S), ub=UBOUND(h_S), source=h_S)
-    call h_N_a%alloc(lb=LBOUND(h_N), ub=UBOUND(h_N), source=h_N)
-    call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
-    edge_h_min = 2.0 * GV%Angstrom_H
-    call meridional_edge_thickness(bxC, h_in_a, h_S_a, h_N_a, mask2dT_a, &
+    call meridional_edge_thickness(bxC, h_a, h_S_a, h_N_a, mask2dT_a, &
                                    edge_h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
-    call h_S_a%copy2F(h_S)
-    call h_N_a%copy2F(h_N)
-    call h_in_a%free()
-    call h_S_a%free()
-    call h_N_a%free()
-    call mask2dT_a%free()
-    call v_a%alloc(lb=LBOUND(v), ub=UBOUND(v), source=v)
-    call h_in_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
-    call h_S_a%alloc(lb=LBOUND(h_S), ub=UBOUND(h_S), source=h_S)
-    call h_N_a%alloc(lb=LBOUND(h_N), ub=UBOUND(h_N), source=h_N)
-    call vh_a%alloc(lb=LBOUND(vh), ub=UBOUND(vh), source=vh)
-    call por_face_areaV_a%alloc(lb=LBOUND(pbv%por_face_areaV), ub=UBOUND(pbv%por_face_areaV), &
-                                source=pbv%por_face_areaV)
-    call meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, G, GV, US, CS, OBC, &
+    call meridional_mass_flux(bxC, v_a, h_a, h_S_a, h_N_a, vh_a, dt, G, GV, US, CS, OBC, &
                               por_face_areaV_a, vhbt_a=vhbt_a, visc_rem_v_a=visc_rem_v_a, &
                               v_cor_a=v_cor_a, BT_cont=BT_cont, dv_cor_a=dv_cor_a)
-    call vh_a%copy2F(vh)
-    call v_a%free()
-    call h_in_a%free()
-    call h_S_a%free()
-    call h_N_a%free()
-    call vh_a%free()
-    call por_face_areaV_a%free()
-    call h_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
-    call vh_a%alloc(lb=LBOUND(vh), ub=UBOUND(vh), source=vh)
-    call IareaT_a%alloc(lb=LBOUND(G%IareaT), ub=UBOUND(G%IareaT), source=G%IareaT)
     call continuity_meridional_convergence(bxC, h_a, vh_a, dt, IareaT_a, hmin=h_min)
-    call h_a%copy2F(h)
-    call h_a%free()
-    call vh_a%free()
-    call IareaT_a%free()
 
   else  ! .not. x_first
     !  First advect meridionally, with loop bounds that accomodate the subsequent zonal advection.
     !LB  = set_continuity_loop_bounds(G, CS, i_stencil=.true., j_stencil=.false.)
     bxC = set_continuity_box(G, GV, CS, i_stencil=.true., j_stencil=.false.)
-    call h_in_a%alloc(lb=LBOUND(hin), ub=UBOUND(hin), source=hin)
-    call h_S_a%alloc(lb=LBOUND(h_S), ub=UBOUND(h_S), source=h_S)
-    call h_N_a%alloc(lb=LBOUND(h_N), ub=UBOUND(h_N), source=h_N)
-    call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
-    edge_h_min = 2.0 * GV%Angstrom_H
     call meridional_edge_thickness(bxC, h_in_a, h_S_a, h_N_a, mask2dT_a, &
                                    edge_h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
-    call h_S_a%copy2F(h_S)
-    call h_N_a%copy2F(h_N)
-    call h_in_a%free()
-    call h_S_a%free()
-    call h_N_a%free()
-    call mask2dT_a%free()
-    call v_a%alloc(lb=LBOUND(v), ub=UBOUND(v), source=v)
-    call h_in_a%alloc(lb=LBOUND(hin), ub=UBOUND(hin), source=hin)
-    call h_S_a%alloc(lb=LBOUND(h_S), ub=UBOUND(h_S), source=h_S)
-    call h_N_a%alloc(lb=LBOUND(h_N), ub=UBOUND(h_N), source=h_N)
-    call vh_a%alloc(lb=LBOUND(vh), ub=UBOUND(vh), source=vh)
-    call por_face_areaV_a%alloc(lb=LBOUND(pbv%por_face_areaV), ub=UBOUND(pbv%por_face_areaV), &
-                                source=pbv%por_face_areaV)
     call meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, G, GV, US, CS, OBC, &
                               por_face_areaV_a, vhbt_a=vhbt_a, visc_rem_v_a=visc_rem_v_a, &
                               v_cor_a=v_cor_a, BT_cont=BT_cont, dv_cor_a=dv_cor_a)
-    call vh_a%copy2F(vh)
-    call v_a%free()
-    call h_in_a%free()
-    call h_S_a%free()
-    call h_N_a%free()
-    call vh_a%free()
-    call por_face_areaV_a%free()
-    call h_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
-    call vh_a%alloc(lb=LBOUND(vh), ub=UBOUND(vh), source=vh)
-    call IareaT_a%alloc(lb=LBOUND(G%IareaT), ub=UBOUND(G%IareaT), source=G%IareaT)
-    call hin_a%alloc(lb=LBOUND(hin), ub=UBOUND(hin), source=hin)
     call continuity_meridional_convergence(bxC, h_a, vh_a, dt, IareaT_a, hin_a=hin_a)
-    call h_a%copy2F(h)
-    call h_a%free()
-    call vh_a%free()
-    call IareaT_a%free()
-    call hin_a%free()
 
     !  Now advect zonally, using the updated thicknesses to determine the fluxes.
     !LB  = set_continuity_loop_bounds(G, CS, i_stencil=.false., j_stencil=.false.)
     bxC = set_continuity_box(G, GV, CS, i_stencil=.false., j_stencil=.false.)
-    call h_in_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
-    call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W), source=h_W)
-    call h_E_a%alloc(lb=LBOUND(h_E), ub=UBOUND(h_E), source=h_E)
-    call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
-    edge_h_min = 2.0 * GV%Angstrom_H
-    call zonal_edge_thickness(bxC, h_in_a, h_W_a, h_E_a, mask2dT_a, &
+    call zonal_edge_thickness(bxC, h_a, h_W_a, h_E_a, mask2dT_a, &
                               edge_h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
-    call h_W_a%copy2F(h_W)
-    call h_E_a%copy2F(h_E)
-    call h_in_a%free()
-    call h_W_a%free()
-    call h_E_a%free()
-    call mask2dT_a%free()
-    call u_a%alloc(lb=LBOUND(u), ub=UBOUND(u), source=u)
-    call h_in_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
-    call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W), source=h_W)
-    call h_E_a%alloc(lb=LBOUND(h_E), ub=UBOUND(h_E), source=h_E)
-    call uh_a%alloc(lb=LBOUND(uh), ub=UBOUND(uh), source=uh)
-    call por_face_areaU_a%alloc(lb=LBOUND(pbv%por_face_areaU), ub=UBOUND(pbv%por_face_areaU), &
-                                source=pbv%por_face_areaU)
-    call zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, G, GV, US, CS, OBC, &
+    call zonal_mass_flux(bxC, u_a, h_a, h_W_a, h_E_a, uh_a, dt, G, GV, US, CS, OBC, &
                          por_face_areaU_a, uhbt_a=uhbt_a, visc_rem_u_a=visc_rem_u_a, &
                          u_cor_a=u_cor_a, BT_cont=BT_cont, du_cor_a=du_cor_a)
-    call uh_a%copy2F(uh)
-    call u_a%free()
-    call h_in_a%free()
-    call h_W_a%free()
-    call h_E_a%free()
-    call uh_a%free()
-    call por_face_areaU_a%free()
-    call h_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
-    call uh_a%alloc(lb=LBOUND(uh), ub=UBOUND(uh), source=uh)
-    call IareaT_a%alloc(lb=LBOUND(G%IareaT), ub=UBOUND(G%IareaT), source=G%IareaT)
     call continuity_zonal_convergence(bxC, h_a, uh_a, dt, IareaT_a, hmin=h_min)
-    call h_a%copy2F(h)
-    call h_a%free()
-    call uh_a%free()
-    call IareaT_a%free()
   endif
+
+  call h_W_a%copy2F(h_W)
+  call h_E_a%copy2F(h_E)
+  call h_S_a%copy2F(h_S)
+  call h_N_a%copy2F(h_N)
+  call uh_a%copy2F(uh)
+  call vh_a%copy2F(vh)
+  call h_a%copy2F(h)
+
+  call h_W_a%free()
+  call h_E_a%free()
+  call h_S_a%free()
+  call h_N_a%free()
+  call mask2dT_a%free()
+  call IareaT_a%free()
+  call hin_a%free()
+  call h_in_a%free()
+  call h_a%free()
+  call u_a%free()
+  call uh_a%free()
+  call por_face_areaU_a%free()
+  call v_a%free()
+  call vh_a%free()
+  call por_face_areaV_a%free()
 
   ! Free the continuity solver iteration box
   call bxC%free()
