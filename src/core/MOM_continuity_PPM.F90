@@ -565,7 +565,8 @@ end subroutine continuity_2d_fluxes
 
 !> Correct the velocities to give the specified depth-integrated transports by applying a
 !! barotropic acceleration (subject to viscous drag) to the velocities.
-subroutine continuity_adjust_vel(u, v, h, dt, G, GV, US, CS, OBC, pbv, uhbt, vhbt, visc_rem_u, visc_rem_v)
+subroutine continuity_adjust_vel(u, v, h, dt, G, GV, US, CS, OBC, pbv, uhbt, vhbt, &
+                                 visc_rem_u_a, visc_rem_v_a)
   type(ocean_grid_type),   intent(inout) :: G   !< Ocean grid structure.
   type(verticalGrid_type), intent(in)    :: GV  !< Vertical grid structure.
   real, dimension(SZIB_(G),SZJ_(G),SZK_(GV)), &
@@ -589,8 +590,7 @@ subroutine continuity_adjust_vel(u, v, h, dt, G, GV, US, CS, OBC, pbv, uhbt, vhb
   real, dimension(SZI_(G),SZJB_(G)), &
                            intent(in)    :: vhbt !< The vertically summed thickness flux through
                                                 !! meridional faces [H L2 T-1 ~> m3 s-1 or kg s-1].
-  real, dimension(SZIB_(G),SZJ_(G),SZK_(GV)), &
-                 optional, intent(in)    :: visc_rem_u !< Both the fraction of the zonal momentum
+  type(RealArray_t), optional, intent(in) :: visc_rem_u_a !< Both the fraction of the zonal momentum
                                                 !! that remains after a time-step of viscosity, and
                                                 !! the fraction of a time-step's worth of a barotropic
                                                 !! acceleration that a layer experiences after viscosity
@@ -598,15 +598,15 @@ subroutine continuity_adjust_vel(u, v, h, dt, G, GV, US, CS, OBC, pbv, uhbt, vhb
                                                 !! bottom) and 1 (far above the bottom).  When this
                                                 !! column is under an ice shelf, this also goes to 0
                                                 !! at the top due to the no-slip boundary condition there.
-  real, dimension(SZI_(G),SZJB_(G),SZK_(GV)), &
-                 optional, intent(in)    :: visc_rem_v !< Both the fraction of the meridional momentum
-                                                !! that remains after a time-step of viscosity, and
-                                                !! the fraction of a time-step's worth of a barotropic
-                                                !! acceleration that a layer experiences after viscosity
-                                                !! is applied [nondim].  This goes between 0 (at the
-                                                !! bottom) and 1 (far above the bottom).  When this
-                                                !! column is under an ice shelf, this also goes to 0
-                                                !! at the top due to the no-slip boundary condition there.
+  type(RealArray_t), optional, intent(in) :: visc_rem_v_a !< Both the fraction of the meridional
+                                                !! momentum that remains after a time-step of
+                                                !! viscosity, and the fraction of a time-step's
+                                                !! worth of a barotropic acceleration that a layer
+                                                !! experiences after viscosity is applied [nondim].
+                                                !! This goes between 0 (at the bottom) and 1 (far
+                                                !! above the bottom).  When this column is under an
+                                                !! ice shelf, this also goes to 0 at the top due to
+                                                !! the no-slip boundary condition there.
 
   ! Local variables
   real, dimension(SZIB_(G),SZJ_(G),SZK_(GV)) :: u_in  !< Input zonal velocity [L T-1 ~> m s-1]
@@ -623,9 +623,9 @@ subroutine continuity_adjust_vel(u, v, h, dt, G, GV, US, CS, OBC, pbv, uhbt, vhb
   type(RealArray_t) :: h_in_a, h_W_a, h_E_a, mask2dT_a
   type(RealArray_t) :: h_S_a, h_N_a
   type(RealArray_t) :: u_a, uh_a, por_face_areaU_a
-  type(RealArray_t) :: uhbt_a, visc_rem_u_a, u_cor_a
+  type(RealArray_t) :: uhbt_a, u_cor_a
   type(RealArray_t) :: v_a, vh_a, por_face_areaV_a
-  type(RealArray_t) :: vhbt_a, visc_rem_v_a, v_cor_a
+  type(RealArray_t) :: vhbt_a, v_cor_a
   real :: h_min                         ! Minimum layer thickness (2*Angstrom_H) [H ~> m or kg m-2]
 
   ! It might not be necessary to separate the input velocity array from the adjusted velocities,
@@ -635,87 +635,54 @@ subroutine continuity_adjust_vel(u, v, h, dt, G, GV, US, CS, OBC, pbv, uhbt, vhb
 
   bxC = set_continuity_box(G,GV, CS)
 
-  call h_in_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
-  call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W), source=h_W)
-  call h_E_a%alloc(lb=LBOUND(h_E), ub=UBOUND(h_E), source=h_E)
-  call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
   h_min = 2.0 * GV%Angstrom_H
-  call zonal_edge_thickness(bxC, h_in_a, h_W_a, h_E_a, mask2dT_a, &
-                            h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
-  call h_W_a%copy2F(h_W)
-  call h_E_a%copy2F(h_E)
-  call h_in_a%free()
-  call h_W_a%free()
-  call h_E_a%free()
-  call mask2dT_a%free()
-  call u_a%alloc(lb=LBOUND(u_in), ub=UBOUND(u_in), source=u_in)
+
   call h_in_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
   call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W), source=h_W)
   call h_E_a%alloc(lb=LBOUND(h_E), ub=UBOUND(h_E), source=h_E)
+  call h_S_a%alloc(lb=LBOUND(h_S), ub=UBOUND(h_S), source=h_S)
+  call h_N_a%alloc(lb=LBOUND(h_N), ub=UBOUND(h_N), source=h_N)
+  call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
+  call u_a%alloc(lb=LBOUND(u_in), ub=UBOUND(u_in), source=u_in)
   call uh_a%alloc(lb=LBOUND(uh), ub=UBOUND(uh), source=uh)
   call por_face_areaU_a%alloc(lb=LBOUND(pbv%por_face_areaU), ub=UBOUND(pbv%por_face_areaU), &
                               source=pbv%por_face_areaU)
   call uhbt_a%alloc(lb=LBOUND(uhbt), ub=UBOUND(uhbt), source=uhbt)
   call u_cor_a%alloc(lb=LBOUND(u), ub=UBOUND(u), source=u)
-  if (present(visc_rem_u)) then
-    call visc_rem_u_a%alloc(lb=LBOUND(visc_rem_u), ub=UBOUND(visc_rem_u), source=visc_rem_u)
-    call zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, G, GV, US, CS, OBC, &
-                         por_face_areaU_a, uhbt_a=uhbt_a, visc_rem_u_a=visc_rem_u_a, &
-                         u_cor_a=u_cor_a)
-    call visc_rem_u_a%free()
-  else
-    call zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, G, GV, US, CS, OBC, &
-                         por_face_areaU_a, uhbt_a=uhbt_a, u_cor_a=u_cor_a)
-  endif
-  call u_cor_a%copy2F(u)
-  call uh_a%copy2F(uh)
-  call u_a%free()
-  call h_in_a%free()
-  call h_W_a%free()
-  call h_E_a%free()
-  call uh_a%free()
-  call por_face_areaU_a%free()
-  call uhbt_a%free()
-  call u_cor_a%free()
-
-  call h_in_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
-  call h_S_a%alloc(lb=LBOUND(h_S), ub=UBOUND(h_S), source=h_S)
-  call h_N_a%alloc(lb=LBOUND(h_N), ub=UBOUND(h_N), source=h_N)
-  call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
-  h_min = 2.0 * GV%Angstrom_H
-  call meridional_edge_thickness(bxC, h_in_a, h_S_a, h_N_a, mask2dT_a, &
-                                 h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
-  call h_S_a%copy2F(h_S)
-  call h_N_a%copy2F(h_N)
-  call h_in_a%free()
-  call h_S_a%free()
-  call h_N_a%free()
-  call mask2dT_a%free()
   call v_a%alloc(lb=LBOUND(v_in), ub=UBOUND(v_in), source=v_in)
-  call h_in_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
-  call h_S_a%alloc(lb=LBOUND(h_S), ub=UBOUND(h_S), source=h_S)
-  call h_N_a%alloc(lb=LBOUND(h_N), ub=UBOUND(h_N), source=h_N)
   call vh_a%alloc(lb=LBOUND(vh), ub=UBOUND(vh), source=vh)
   call por_face_areaV_a%alloc(lb=LBOUND(pbv%por_face_areaV), ub=UBOUND(pbv%por_face_areaV), &
                               source=pbv%por_face_areaV)
   call vhbt_a%alloc(lb=LBOUND(vhbt), ub=UBOUND(vhbt), source=vhbt)
   call v_cor_a%alloc(lb=LBOUND(v), ub=UBOUND(v), source=v)
-  if (present(visc_rem_v)) then
-    call visc_rem_v_a%alloc(lb=LBOUND(visc_rem_v), ub=UBOUND(visc_rem_v), source=visc_rem_v)
-    call meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, G, GV, US, CS, OBC, &
-                              por_face_areaV_a, vhbt_a=vhbt_a, visc_rem_v_a=visc_rem_v_a, &
-                              v_cor_a=v_cor_a)
-    call visc_rem_v_a%free()
-  else
-    call meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, G, GV, US, CS, OBC, &
-                              por_face_areaV_a, vhbt_a=vhbt_a, v_cor_a=v_cor_a)
-  endif
+
+  call zonal_edge_thickness(bxC, h_in_a, h_W_a, h_E_a, mask2dT_a, &
+                            h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
+  call zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, G, GV, US, CS, OBC, &
+                       por_face_areaU_a, uhbt_a=uhbt_a, visc_rem_u_a=visc_rem_u_a, &
+                       u_cor_a=u_cor_a)
+
+  call meridional_edge_thickness(bxC, h_in_a, h_S_a, h_N_a, mask2dT_a, &
+                                 h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
+  call meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, G, GV, US, CS, OBC, &
+                            por_face_areaV_a, vhbt_a=vhbt_a, visc_rem_v_a=visc_rem_v_a, &
+                            v_cor_a=v_cor_a)
+
+  call u_cor_a%copy2F(u)
   call v_cor_a%copy2F(v)
-  call vh_a%copy2F(vh)
-  call v_a%free()
+
   call h_in_a%free()
+  call h_W_a%free()
+  call h_E_a%free()
   call h_S_a%free()
   call h_N_a%free()
+  call mask2dT_a%free()
+  call u_a%free()
+  call uh_a%free()
+  call por_face_areaU_a%free()
+  call uhbt_a%free()
+  call u_cor_a%free()
+  call v_a%free()
   call vh_a%free()
   call por_face_areaV_a%free()
   call vhbt_a%free()
