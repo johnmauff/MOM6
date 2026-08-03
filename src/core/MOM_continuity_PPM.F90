@@ -290,10 +290,14 @@ subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhb
   ! Minimum layer thickness (2*Angstrom_H) for zonal_edge_thickness / meridional_edge_thickness
   real :: edge_h_min
   ! %view pointers for forwarding continuity_PPM's optional containers to still-raw
-  ! zonal_mass_flux/meridional_mass_flux -- disassociated when the corresponding
-  ! _a container is absent, so present() reads correctly in the raw callee.
+  ! zonal_mass_flux/meridional_mass_flux. Must be explicitly nullified below --
+  ! a plain local pointer's association status on entry is undefined, not
+  ! disassociated, so present() would read incorrectly in the raw callee whenever
+  ! the corresponding _a container is absent unless we force it here.
   real, dimension(:,:),   contiguous, pointer :: uhbt, vhbt, du_cor, dv_cor
   real, dimension(:,:,:), contiguous, pointer :: visc_rem_u, visc_rem_v, u_cor, v_cor
+
+  nullify(uhbt, vhbt, du_cor, dv_cor, visc_rem_u, visc_rem_v, u_cor, v_cor)
 
   h_min = GV%Angstrom_H
 
