@@ -162,19 +162,39 @@ type, bind(C) :: RealArray_C
 end type
 ```
 
-The Fortran-side type has a `to_c()` method that fills a `RealArray_C`:
+The Fortran-side type has a `to_c()` method that fills a `RealArray_C`.
+In TIM's infra, `to_c_Real`/`to_c_Int` are **null-safe**: an unassociated
+`data` pointer (e.g. an absent optional container) converts to an
+all-null `cdesc` with `rank=0`, rather than crashing on
+`c_loc(this%data(1))`. This mirrors `Box_t%to_c`'s existing pattern:
 
 ```fortran
 function to_c_Real(this) result(cdesc)
   class(RealArray_t), intent(in) :: this
   type(RealArray_C) :: cdesc
-  cdesc%data  = c_loc(this%data(1))
-  cdesc%shape = c_loc(this%shape(1))
-  cdesc%lb    = c_loc(this%lb(1))
-  cdesc%ub    = c_loc(this%ub(1))
-  cdesc%rank  = this%rank
+
+  cdesc%data  = c_null_ptr
+  cdesc%shape = c_null_ptr
+  cdesc%lb    = c_null_ptr
+  cdesc%ub    = c_null_ptr
+  cdesc%rank  = 0
+
+  if (associated(this%data)) then
+    cdesc%data  = c_loc(this%data(1))
+    cdesc%shape = c_loc(this%shape(1))
+    cdesc%lb    = c_loc(this%lb(1))
+    cdesc%ub    = c_loc(this%ub(1))
+    cdesc%rank  = this%rank
+  endif
 end function
 ```
+
+Bridge code passing an optional array container through `%to_c()` can
+rely on the C-side null check rather than pre-verifying `associated()`
+before calling `%to_c()` itself. FMS2's `to_c` is fully commented out
+(no type-bound binding at all) and doesn't need this fix — every
+`%to_c()` call site in the tree is gated by `#ifdef _TIM`, so FMS2
+builds never compile or reach this code path.
 
 ### 3.2 Scalar passing rules (gotcha-prone)
 
@@ -400,8 +420,12 @@ The PR's commit history (~70 commits) reveals the friction worth flagging:
 4. **Null pointer args.** Optional pointer args (e.g., `OBC`) need
    `c_null_ptr` when not associated; never call `c_loc` on a disassociated
    pointer.
-5. **`to_c` on an unallocated container.** `c_loc(this%data(1))` will crash
-   if `data` is not allocated. Container alloc must precede `to_c`.
+5. **`to_c` on an unassociated container.** TIM's `to_c_Real`/`to_c_Int`
+   are null-safe (see §3.1) — an unassociated `data` pointer converts to
+   an all-null `cdesc` (`rank=0`) instead of crashing on
+   `c_loc(this%data(1))`. Don't assume this fix is present in every
+   checkout, though: an older/unpatched copy of `array_mod.F90` still
+   crashes on an unallocated container, so verify before relying on it.
 6. **Capture file proliferation.** Without `already_recorded`, capture mode
    would produce one file per call site invocation. The registry is
    essential, not optional.

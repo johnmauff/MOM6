@@ -200,12 +200,30 @@ section that holds the template or rationale.
    - Scalar / `logical` / `pointer` (`OBC`) → unchanged, passes through.
    - Derived type (`BT_cont_type`, …) → unchanged (lessons §9 #11).
 
-   **Flag every `optional` array dummy.** It keeps its `optional`
-   attribute, its `%view` must be guarded by `present(<name>_a)`, and
-   every existing `present(<name>)` test in the body must be renamed to
-   `present(<name>_a)` (lessons §6, §9 #8a). Note them now so Steps 4, 5
-   and 8 all handle them; a missed `present` guard compiles and fails at
-   run time.
+   **Stop and ask about every `optional` array dummy — do not decide
+   either way silently.** This skill has produced both outcomes in
+   practice on real subroutines (e.g. `zonal_mass_flux`'s `uhbt`,
+   `visc_rem_u`, `u_cor`, and `du_cor` were left as raw optional arrays;
+   other conversions have containerized theirs) and neither is a safe
+   default to assume.
+
+   For each optional array dummy found, present it to the user by name
+   and ask: convert it now, or leave it as a raw array, passed through
+   unconverted.
+
+   - **Convert now.** It becomes a container and keeps its `optional`
+     attribute; its `%view` must be guarded by `present(<name>_a)`, and
+     every existing `present(<name>)` test in the body must be renamed
+     to `present(<name>_a)` (lessons §6, §9 #8a). Note it now so Steps 4,
+     5 and 8 all handle it; a missed `present` guard compiles and fails
+     at run time.
+   - **Leave as raw.** Make no change to its declaration, rank, or any
+     `present(<name>)` test in the body. At call sites (Step 8) this
+     argument is simply forwarded as-is — it was never a container, so
+     there is nothing to marshal for it.
+
+   Record each answer before proceeding to Step 3; every optional array
+   dummy must have an explicit answer, not an inferred one.
 
    Then scan the **body** for derived-type array references
    (`G%mask2dT`, `G%areaT`, …) and scalar references (`GV%Angstrom_H`,
@@ -256,9 +274,10 @@ section that holds the template or rationale.
       `[nondim]`. Scan the **whole** declaration — the comment may be on
       the `real, dimension(...)` line or on any continuation line.
    2. Write the new declaration and re-attach the recorded comment to it.
-      Keep the wording exactly as it was; do not reword, re-wrap,
-      abbreviate, or "improve" it. A trailing period stays or goes
-      exactly as it was.
+      Keep the wording exactly as it was; do not reword, abbreviate, or
+      "improve" it, and never shorten or drop words to make a line fit —
+      wrap it instead (item 5). A trailing period stays or goes exactly
+      as it was.
    3. For a **new** dummy that had no prior comment (a grid-derived
       container such as `mask2dT_a`, or a scalar lifted out of `CS`),
       write a fresh `!<` comment in the same house style — every dummy in
@@ -266,6 +285,30 @@ section that holds the template or rationale.
       does not.
    4. Align the `!<` column with its neighbours for readability, but
       never at the cost of the text.
+   5. **Check the resulting line length — MOM6 enforces a 100-character
+      limit.** Collapsing a two-line raw-array declaration onto one
+      container-declaration line very often pushes it past 100
+      characters, especially when the comment carries a unit annotation
+      (`[H ~> m or kg m-2]`, `[nondim]`). If the new line exceeds 100
+      characters, wrap the comment onto a `!!` continuation line at a
+      word boundary — do not truncate, shorten, or drop any of the
+      comment to make it fit. Match the continuation style already used
+      by neighbouring dummies in the *same* subroutine (indent the `!!`
+      under the `!<` column above it); this file already wraps long
+      comments this way in many places, so there is always a local
+      example to match. Recheck the length of both resulting lines
+      before moving on.
+   6. **The `subroutine <name>(...)` header line is subject to the same
+      100-character limit — check it separately from the dummy
+      declarations.** Adding new grid-derived container dummies (Step 2)
+      lengthens the argument list on this line, and it is easy to check
+      every declaration's length while forgetting the one line that
+      names them all. If the header's first physical line exceeds 100
+      characters, move the `&` continuation earlier — wrap the argument
+      list across more lines, breaking at a comma — the same mechanism
+      already used to wrap it at all; do not remove or rename an
+      argument to make it fit. Recheck the length of every physical line
+      of the header, not just the first.
 
    Comments that are **not** on a dummy declaration — the `!>` Doxygen
    header above the subroutine, comment blocks between declarations, and
@@ -371,6 +414,26 @@ section that holds the template or rationale.
    (lessons §9 #15). After editing, re-check that the argument count and
    order at every site match the new signature.
 
+   **Raw-vs-container check, argument by argument.** Before moving to the
+   next call site, re-read Step 2's list of dummies that stayed raw for
+   *this* subroutine (an `optional` array left unconverted, a `logical`
+   array with no container type, or anything else) and confirm the actual
+   argument at that position is the raw pointer/array/value, not a
+   container. This is easiest to get wrong precisely when a subroutine
+   mixes converted and raw array dummies: a call site is usually built by
+   mechanically appending `_a` across most of the argument list, and a
+   raw dummy's caller-side actual often has a same-stem container sibling
+   sitting right next to it in scope — e.g. a raw `uh_3d` dummy fed by the
+   caller's own `uh`, when the caller also holds `uh_a` for a different,
+   already-converted argument. Passing `uh_a` there instead of `uh` is a
+   real type mismatch (`type(RealArray_t)` vs `real`), and only a Fortran
+   compiler catches it — which this skill cannot assume is available
+   (Step 9). This caused a real build failure in an already-reviewed
+   conversion (`zonal_flux_adjust`'s `uh_3d`), caught only once a CI build
+   ran. The more raw dummies a subroutine has, the higher the odds of
+   this slip — check it explicitly rather than trusting the mechanical
+   edit.
+
 ### 9. Verify
    Run the checks in lessons §10:
    - **Doc comments intact.** Count `!<` occurrences in each edited
@@ -383,11 +446,27 @@ section that holds the template or rationale.
      when new dummies were introduced in Step 4). Then read the removed
      lines and confirm each comment text reappears somewhere in the
      added lines.
+   - **Line length.** MOM6 enforces a 100-character limit (Step 4 items 5
+     and 6) — this applies to every added line, not just dummy
+     declarations, including the `subroutine <name>(...)` header line
+     itself. Check every added line: `git -C $0 diff -U0 -- <file> |
+     grep '^+' | grep -v '^+++' | awk '{ print length($0)-1 }' | sort -rn
+     | head -1` — if the top value exceeds 100, find and wrap the
+     offending line(s) (`git -C $0 diff -U0 -- <file> | grep '^+' | grep
+     -v '^+++' | awk 'length($0)-1 > 100'`). A collapsed declaration line
+     is the usual cause (wrap the comment onto a continuation line); a
+     lengthened argument list on the header line is the other common
+     cause (move the `&` continuation earlier, Step 4 item 6). Never
+     shorten text or drop an argument to make a line fit.
    - Diff review: no edits inside any loop body; the subroutine name is
      unchanged; only declarations, `%view` calls, and call-site blocks
      changed.
    - Every call site from Step 3 updated; argument count and order match
      the new signature at each.
+   - **Raw-vs-container argument audit.** Walk every call site's actual
+     arguments position by position against the callee's current
+     signature — matching count and order (above) does not catch a
+     same-position type swap (Step 8).
    - Nothing used outside the FMS2 ∩ TIM shared API surface
      (lessons §4) — in particular, no `%to_c` (lessons §9 #12).
 
@@ -458,6 +537,12 @@ section that holds the template or rationale.
   two-line declaration collapses to one line, which is where they are
   usually lost (Step 4). Every dummy added by the conversion gets a new
   one.
+- Do not leave a collapsed declaration line, or the subroutine's own
+  `subroutine <name>(...)` header line, over MOM6's 100-character limit.
+  Never fix an overlong line by shortening or dropping comment text or
+  an argument — wrap a declaration's comment onto a `!!` continuation
+  line, or move the header's `&` continuation earlier, instead (Step 4
+  items 5–6, Step 9).
 - Do not edit anything inside a loop body. A conversion changes
   declarations and adds `%view` calls; the math is untouched.
 - Do not change the numerical result. A conversion is inert by
@@ -473,7 +558,12 @@ section that holds the template or rationale.
   into `%alloc` (lessons §4.6).
 - Do not convert the members of a derived type (`BT_cont_type`) unless
   explicitly asked.
+- Do not decide unilaterally whether an `optional` array dummy becomes a
+  container or stays raw — Step 2 stops and asks per dummy; both
+  outcomes are common and neither is a default.
 - Do not leave a call site unupdated.
+- Do not pass a container actual to a dummy Step 2 classified as raw, or
+  vice versa (Step 8, Step 9).
 - Do not attempt to install a Fortran compiler, and do not claim a build
   passed that was never run.
 
@@ -497,8 +587,9 @@ Report:
    the call sites that now rebuild it. These are deliberately left
    per-site (Step 8) and are worth a single cleanup pass once the
    enclosing subroutine's conversions are complete.
-7. Any `optional` array dummy handled, and whether its call sites needed
-   conditional allocation.
+7. Every `optional` array dummy found, the user's decision for each
+   (converted vs. left raw), and whether call sites needed conditional
+   allocation for any converted ones.
 8. Build status — which infra layers were built, or explicitly that no
    build was run and why.
 9. Whether the change was committed, or the list of modified files for
