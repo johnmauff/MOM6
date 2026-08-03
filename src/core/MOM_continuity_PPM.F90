@@ -288,6 +288,10 @@ subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhb
   real :: h_min  ! The minimum layer thickness [H ~> m or kg m-2].  h_min could be 0.
   type(box_t) :: bxC                ! An iteration box
   logical :: x_first
+  type(RealArray_t) :: h_in_a, h_W_a, h_E_a, mask2dT_a ! Containers for zonal_edge_thickness
+  type(RealArray_t) :: h_S_a, h_N_a ! Containers for meridional_edge_thickness
+  ! Minimum layer thickness (2*Angstrom_H) for zonal_edge_thickness / meridional_edge_thickness
+  real :: edge_h_min
 
   h_min = GV%Angstrom_H
 
@@ -306,7 +310,19 @@ subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhb
     !  First advect zonally, with loop bounds that accomodate the subsequent meridional advection.
     !LB  = set_continuity_loop_bounds(G, CS, i_stencil=.false., j_stencil=.true.)
     bxC = set_continuity_box(G,GV, CS, i_stencil=.false., j_stencil=.true.)
-    call zonal_edge_thickness(bxC, hin, h_W, h_E, G, GV, US, CS, OBC)
+    call h_in_a%alloc(lb=LBOUND(hin), ub=UBOUND(hin), source=hin)
+    call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W), source=h_W)
+    call h_E_a%alloc(lb=LBOUND(h_E), ub=UBOUND(h_E), source=h_E)
+    call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
+    edge_h_min = 2.0 * GV%Angstrom_H
+    call zonal_edge_thickness(bxC, h_in_a, h_W_a, h_E_a, mask2dT_a, &
+                              edge_h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
+    call h_W_a%copy2F(h_W)
+    call h_E_a%copy2F(h_E)
+    call h_in_a%free()
+    call h_W_a%free()
+    call h_E_a%free()
+    call mask2dT_a%free()
     call zonal_mass_flux(bxC, u, hin, h_W, h_E, uh, dt, G, GV, US, CS, OBC, pbv%por_face_areaU, &
                          uhbt, visc_rem_u, u_cor, BT_cont, du_cor)
     call continuity_zonal_convergence(bxC, h, uh, dt, G, GV, hin=hin)
@@ -316,7 +332,19 @@ subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhb
     !  Now advect meridionally, using the updated thicknesses to determine the fluxes.
     !LB  = set_continuity_loop_bounds(G, CS, i_stencil=.false., j_stencil=.false.)
     bxC = set_continuity_box(G, GV, CS, i_stencil=.false., j_stencil=.false.)
-    call meridional_edge_thickness(bxC, h, h_S, h_N, G, GV, US, CS, OBC)
+    call h_in_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
+    call h_S_a%alloc(lb=LBOUND(h_S), ub=UBOUND(h_S), source=h_S)
+    call h_N_a%alloc(lb=LBOUND(h_N), ub=UBOUND(h_N), source=h_N)
+    call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
+    edge_h_min = 2.0 * GV%Angstrom_H
+    call meridional_edge_thickness(bxC, h_in_a, h_S_a, h_N_a, mask2dT_a, &
+                                   edge_h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
+    call h_S_a%copy2F(h_S)
+    call h_N_a%copy2F(h_N)
+    call h_in_a%free()
+    call h_S_a%free()
+    call h_N_a%free()
+    call mask2dT_a%free()
     call meridional_mass_flux(bxC, v, h, h_S, h_N, vh, dt, G, GV, US, CS, OBC, pbv%por_face_areaV, &
                               vhbt, visc_rem_v, v_cor, BT_cont, dv_cor)
     call continuity_meridional_convergence(bxC, h, vh, dt, G, GV, hmin=h_min)
@@ -325,7 +353,19 @@ subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhb
     !  First advect meridionally, with loop bounds that accomodate the subsequent zonal advection.
     !LB  = set_continuity_loop_bounds(G, CS, i_stencil=.true., j_stencil=.false.)
     bxC = set_continuity_box(G, GV, CS, i_stencil=.true., j_stencil=.false.)
-    call meridional_edge_thickness(bxC, hin, h_S, h_N, G, GV, US, CS, OBC)
+    call h_in_a%alloc(lb=LBOUND(hin), ub=UBOUND(hin), source=hin)
+    call h_S_a%alloc(lb=LBOUND(h_S), ub=UBOUND(h_S), source=h_S)
+    call h_N_a%alloc(lb=LBOUND(h_N), ub=UBOUND(h_N), source=h_N)
+    call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
+    edge_h_min = 2.0 * GV%Angstrom_H
+    call meridional_edge_thickness(bxC, h_in_a, h_S_a, h_N_a, mask2dT_a, &
+                                   edge_h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
+    call h_S_a%copy2F(h_S)
+    call h_N_a%copy2F(h_N)
+    call h_in_a%free()
+    call h_S_a%free()
+    call h_N_a%free()
+    call mask2dT_a%free()
     call meridional_mass_flux(bxC, v, hin, h_S, h_N, vh, dt, G, GV, US, CS, OBC, pbv%por_face_areaV, &
                               vhbt, visc_rem_v, v_cor, BT_cont, dv_cor)
     call continuity_meridional_convergence(bxC, h, vh, dt, G, GV, hin=hin)
@@ -333,7 +373,19 @@ subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhb
     !  Now advect zonally, using the updated thicknesses to determine the fluxes.
     !LB  = set_continuity_loop_bounds(G, CS, i_stencil=.false., j_stencil=.false.)
     bxC = set_continuity_box(G, GV, CS, i_stencil=.false., j_stencil=.false.)
-    call zonal_edge_thickness(bxC, h, h_W, h_E, G, GV, US, CS, OBC)
+    call h_in_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
+    call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W), source=h_W)
+    call h_E_a%alloc(lb=LBOUND(h_E), ub=UBOUND(h_E), source=h_E)
+    call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
+    edge_h_min = 2.0 * GV%Angstrom_H
+    call zonal_edge_thickness(bxC, h_in_a, h_W_a, h_E_a, mask2dT_a, &
+                              edge_h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
+    call h_W_a%copy2F(h_W)
+    call h_E_a%copy2F(h_E)
+    call h_in_a%free()
+    call h_W_a%free()
+    call h_E_a%free()
+    call mask2dT_a%free()
     call zonal_mass_flux(bxC, u, h, h_W, h_E, uh, dt, G, GV, US, CS, OBC, pbv%por_face_areaU, &
                          uhbt, visc_rem_u, u_cor, BT_cont, du_cor)
     call continuity_zonal_convergence(bxC, h, uh, dt, G, GV, hmin=h_min)
@@ -376,14 +428,41 @@ subroutine continuity_3d_fluxes(u, v, h, uh, vh, dt, G, GV, US, CS, OBC, pbv)
   real :: h_S(SZI_(G),SZJ_(G),SZK_(GV)) ! South edge thicknesses in the meridional PPM reconstruction [H ~> m or kg m-2]
   real :: h_N(SZI_(G),SZJ_(G),SZK_(GV)) ! North edge thicknesses in the meridional PPM reconstruction [H ~> m or kg m-2]
   type (box_t) :: bxC                   ! Iteration box for the continuity solver
+  type(RealArray_t) :: h_in_a, h_W_a, h_E_a, mask2dT_a ! Containers for zonal_edge_thickness
+  type(RealArray_t) :: h_S_a, h_N_a     ! Containers for meridional_edge_thickness
+  real :: h_min                         ! Minimum layer thickness (2*Angstrom_H) [H ~> m or kg m-2]
 
   ! Construct the iteration box
   bxC = set_continuity_box(G,GV, CS)
 
-  call zonal_edge_thickness(bxC, h, h_W, h_E, G, GV, US, CS, OBC)
+  call h_in_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
+  call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W), source=h_W)
+  call h_E_a%alloc(lb=LBOUND(h_E), ub=UBOUND(h_E), source=h_E)
+  call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
+  h_min = 2.0 * GV%Angstrom_H
+  call zonal_edge_thickness(bxC, h_in_a, h_W_a, h_E_a, mask2dT_a, &
+                            h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
+  call h_W_a%copy2F(h_W)
+  call h_E_a%copy2F(h_E)
+  call h_in_a%free()
+  call h_W_a%free()
+  call h_E_a%free()
+  call mask2dT_a%free()
   call zonal_mass_flux(bxC, u, h, h_W, h_E, uh, dt, G, GV, US, CS, OBC, pbv%por_face_areaU)
 
-  call meridional_edge_thickness(bxC, h, h_S, h_N, G, GV, US, CS, OBC)
+  call h_in_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
+  call h_S_a%alloc(lb=LBOUND(h_S), ub=UBOUND(h_S), source=h_S)
+  call h_N_a%alloc(lb=LBOUND(h_N), ub=UBOUND(h_N), source=h_N)
+  call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
+  h_min = 2.0 * GV%Angstrom_H
+  call meridional_edge_thickness(bxC, h_in_a, h_S_a, h_N_a, mask2dT_a, &
+                                 h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
+  call h_S_a%copy2F(h_S)
+  call h_N_a%copy2F(h_N)
+  call h_in_a%free()
+  call h_S_a%free()
+  call h_N_a%free()
+  call mask2dT_a%free()
   call meridional_mass_flux(bxC, v, h, h_S, h_N, vh, dt, G, GV, US, CS, OBC, pbv%por_face_areaV)
 
   ! Free the continuity solver iteration box
@@ -422,14 +501,41 @@ subroutine continuity_2d_fluxes(u, v, h, uhbt, vhbt, dt, G, GV, US, CS, OBC, pbv
   real :: h_S(SZI_(G),SZJ_(G),SZK_(GV)) ! South edge thicknesses in the meridional PPM reconstruction [H ~> m or kg m-2]
   real :: h_N(SZI_(G),SZJ_(G),SZK_(GV)) ! North edge thicknesses in the meridional PPM reconstruction [H ~> m or kg m-2]
   type (box_t) :: bxC                   ! Iteration box for the continuity solver
+  type(RealArray_t) :: h_in_a, h_W_a, h_E_a, mask2dT_a ! Containers for zonal_edge_thickness
+  type(RealArray_t) :: h_S_a, h_N_a     ! Containers for meridional_edge_thickness
+  real :: h_min                         ! Minimum layer thickness (2*Angstrom_H) [H ~> m or kg m-2]
 
   ! Construct the iteration box
   bxC = set_continuity_box(G,GV, CS)
 
-  call zonal_edge_thickness(bxC, h, h_W, h_E, G, GV, US, CS, OBC)
+  call h_in_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
+  call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W), source=h_W)
+  call h_E_a%alloc(lb=LBOUND(h_E), ub=UBOUND(h_E), source=h_E)
+  call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
+  h_min = 2.0 * GV%Angstrom_H
+  call zonal_edge_thickness(bxC, h_in_a, h_W_a, h_E_a, mask2dT_a, &
+                            h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
+  call h_W_a%copy2F(h_W)
+  call h_E_a%copy2F(h_E)
+  call h_in_a%free()
+  call h_W_a%free()
+  call h_E_a%free()
+  call mask2dT_a%free()
   call zonal_BT_mass_flux(bxC, u, h, h_W, h_E, uhbt, dt, G, GV, US, CS, OBC, pbv%por_face_areaU)
 
-  call meridional_edge_thickness(bxC, h, h_S, h_N, G, GV, US, CS, OBC)
+  call h_in_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
+  call h_S_a%alloc(lb=LBOUND(h_S), ub=UBOUND(h_S), source=h_S)
+  call h_N_a%alloc(lb=LBOUND(h_N), ub=UBOUND(h_N), source=h_N)
+  call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
+  h_min = 2.0 * GV%Angstrom_H
+  call meridional_edge_thickness(bxC, h_in_a, h_S_a, h_N_a, mask2dT_a, &
+                                 h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
+  call h_S_a%copy2F(h_S)
+  call h_N_a%copy2F(h_N)
+  call h_in_a%free()
+  call h_S_a%free()
+  call h_N_a%free()
+  call mask2dT_a%free()
   call meridional_BT_mass_flux(bxC, v, h, h_S, h_N, vhbt, dt, G, GV, US, CS, OBC, pbv%por_face_areaV)
 
   ! Free the continuity solver iteration box
@@ -494,6 +600,9 @@ subroutine continuity_adjust_vel(u, v, h, dt, G, GV, US, CS, OBC, pbv, uhbt, vhb
   real :: h_S(SZI_(G),SZJ_(G),SZK_(GV)) ! South edge thicknesses in the meridional PPM reconstruction [H ~> m or kg m-2]
   real :: h_N(SZI_(G),SZJ_(G),SZK_(GV)) ! North edge thicknesses in the meridional PPM reconstruction [H ~> m or kg m-2]
   type (box_t) :: bxC                   ! Iteration box for continuity solver
+  type(RealArray_t) :: h_in_a, h_W_a, h_E_a, mask2dT_a ! Containers for zonal_edge_thickness
+  type(RealArray_t) :: h_S_a, h_N_a     ! Containers for meridional_edge_thickness
+  real :: h_min                         ! Minimum layer thickness (2*Angstrom_H) [H ~> m or kg m-2]
 
   ! It might not be necessary to separate the input velocity array from the adjusted velocities,
   ! but it seems safer to do so, even if it might be less efficient.
@@ -502,11 +611,35 @@ subroutine continuity_adjust_vel(u, v, h, dt, G, GV, US, CS, OBC, pbv, uhbt, vhb
 
   bxC = set_continuity_box(G,GV, CS)
 
-  call zonal_edge_thickness(bxC, h, h_W, h_E, G, GV, US, CS, OBC)
+  call h_in_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
+  call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W), source=h_W)
+  call h_E_a%alloc(lb=LBOUND(h_E), ub=UBOUND(h_E), source=h_E)
+  call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
+  h_min = 2.0 * GV%Angstrom_H
+  call zonal_edge_thickness(bxC, h_in_a, h_W_a, h_E_a, mask2dT_a, &
+                            h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
+  call h_W_a%copy2F(h_W)
+  call h_E_a%copy2F(h_E)
+  call h_in_a%free()
+  call h_W_a%free()
+  call h_E_a%free()
+  call mask2dT_a%free()
   call zonal_mass_flux(bxC, u_in, h, h_W, h_E, uh, dt, G, GV, US, CS, OBC, pbv%por_face_areaU, &
                        uhbt=uhbt, visc_rem_u=visc_rem_u, u_cor=u)
 
-  call meridional_edge_thickness(bxC, h, h_S, h_N, G, GV, US, CS, OBC)
+  call h_in_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
+  call h_S_a%alloc(lb=LBOUND(h_S), ub=UBOUND(h_S), source=h_S)
+  call h_N_a%alloc(lb=LBOUND(h_N), ub=UBOUND(h_N), source=h_N)
+  call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
+  h_min = 2.0 * GV%Angstrom_H
+  call meridional_edge_thickness(bxC, h_in_a, h_S_a, h_N_a, mask2dT_a, &
+                                 h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
+  call h_S_a%copy2F(h_S)
+  call h_N_a%copy2F(h_N)
+  call h_in_a%free()
+  call h_S_a%free()
+  call h_N_a%free()
+  call mask2dT_a%free()
   call meridional_mass_flux(bxC, v_in, h, h_S, h_N, vh, dt, G, GV, US, CS, OBC, pbv%por_face_areaV, &
                             vhbt=vhbt, visc_rem_v=visc_rem_v, v_cor=v)
 
@@ -633,23 +766,24 @@ subroutine zonal_edge_thickness_fortran(bxC, h_in_a, h_W_a, h_E_a, mask2dT_a, &
 end subroutine zonal_edge_thickness_fortran
 
 !> Shim for zonal_edge_thickness — dispatches via ZONAL_EDGE_THICKNESS_MODE env var.
-subroutine zonal_edge_thickness(bxC, h_in, h_W, h_E, G, GV, US, CS, OBC)
-  type(box_t), intent(in) :: bxC                 !< Iteration box for continuity solver
-  type(ocean_grid_type),   intent(in)    :: G    !< Ocean's grid structure.
-  type(verticalGrid_type), intent(in)    :: GV   !< Ocean's vertical grid structure.
-  real,  dimension(SZI_(G),SZJ_(G),SZK_(GV)), &
-                           intent(in)    :: h_in !< Tracer cell layer thickness [H ~> m or kg m-2].
-  real,  dimension(SZI_(G),SZJ_(G),SZK_(GV)), &
-                           intent(out)   :: h_W  !< Western edge layer thickness [H ~> m or kg m-2].
-  real,  dimension(SZI_(G),SZJ_(G),SZK_(GV)), &
-                           intent(out)   :: h_E  !< Eastern edge layer thickness [H ~> m or kg m-2].
-  type(unit_scale_type),   intent(in)    :: US   !< A dimensional unit scaling type
-  type(continuity_PPM_CS), intent(in)    :: CS   !< This module's control structure.
-  type(ocean_OBC_type),    pointer       :: OBC  !< Open boundaries control structure.
+subroutine zonal_edge_thickness(bxC, h_in_a, h_W_a, h_E_a, mask2dT_a, &
+                                h_min, upwind_1st, monotonic, simple_2nd, OBC)
+  type(box_t),           intent(in)    :: bxC        !< Iteration box for continuity solver
+  type(RealArray_t),     intent(in)    :: h_in_a     !< Tracer cell layer thickness
+                                                     !! [H ~> m or kg m-2].
+  type(RealArray_t),     intent(inout) :: h_W_a      !< Western edge layer thickness
+                                                     !! [H ~> m or kg m-2].
+  type(RealArray_t),     intent(inout) :: h_E_a      !< Eastern edge layer thickness
+                                                     !! [H ~> m or kg m-2].
+  type(RealArray_t),     intent(in)    :: mask2dT_a  !< Cell land/ocean mask [nondim]
+  real,                  intent(in)    :: h_min      !< Minimum layer thickness
+                                                     !! (2*Angstrom_H) [H ~> m or kg m-2]
+  logical,               intent(in)    :: upwind_1st !< If true, use 1st-order upwind reconstruction
+  logical,               intent(in)    :: monotonic  !< If true, use the CW84 monotonic limiter
+  logical,               intent(in)    :: simple_2nd !< If true, use a simple 2nd-order scheme
+  type(ocean_OBC_type),  pointer       :: OBC        !< Open boundaries control structure.
 
   integer  :: mode, rc
-  real     :: h_min
-  type(RealArray_t) :: h_in_a, h_W_a, h_E_a, mask2dT_a
   type(RealArray_C) :: h_in_c, h_W_c, h_E_c, mask2dT_c
   type(Box_C)        :: bxC_c
   type(c_ptr)        :: OBC_c
@@ -661,17 +795,10 @@ subroutine zonal_edge_thickness(bxC, h_in, h_W, h_E, G, GV, US, CS, OBC)
   character(len=256) :: binFile, metaFile
 
   kernel = "zonal_edge_thickness"
-  h_min  = 2.0 * GV%Angstrom_H
 
   call cpu_clock_begin(id_clock_reconstruct)
 
   mode = getenv_mode("ZONAL_EDGE_THICKNESS_MODE", default=TIMH_runFORTRAN)
-
-  ! Build containers for all dispatch paths
-  call h_in_a%alloc(lb=LBOUND(h_in), ub=UBOUND(h_in), source=h_in)
-  call h_W_a%alloc( lb=LBOUND(h_W),  ub=UBOUND(h_W),  source=h_W)
-  call h_E_a%alloc( lb=LBOUND(h_E),  ub=UBOUND(h_E),  source=h_E)
-  call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
 
   select case (mode)
 
@@ -689,13 +816,13 @@ subroutine zonal_edge_thickness(bxC, h_in, h_W, h_E, G, GV, US, CS, OBC)
         call rec%add("_h_E_before", h_E_a)
         call rec%add("_mask2dT",    mask2dT_a)
         call rec%add("_h_min",      h_min)
-        call rec%add("_upwind_1st", CS%upwind_1st)
-        call rec%add("_monotonic",  CS%monotonic)
-        call rec%add("_simple_2nd", CS%simple_2nd)
+        call rec%add("_upwind_1st", upwind_1st)
+        call rec%add("_monotonic",  monotonic)
+        call rec%add("_simple_2nd", simple_2nd)
       endif
 
       call zonal_edge_thickness_fortran(bxC, h_in_a, h_W_a, h_E_a, mask2dT_a, &
-                                        h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
+                                        h_min, upwind_1st, monotonic, simple_2nd, OBC)
 
       if (capture) then
         call rec%add("_h_W_after", h_W_a)
@@ -711,9 +838,9 @@ subroutine zonal_edge_thickness(bxC, h_in, h_W, h_E, G, GV, US, CS, OBC)
       h_W_c        = h_W_a%to_c()
       h_E_c        = h_E_a%to_c()
       mask2dT_c    = mask2dT_a%to_c()
-      upwind_1st_c = CS%upwind_1st
-      monotonic_c  = CS%monotonic
-      simple_2nd_c = CS%simple_2nd
+      upwind_1st_c = upwind_1st
+      monotonic_c  = monotonic
+      simple_2nd_c = simple_2nd
       if (associated(OBC)) then
         OBC_c = c_loc(OBC)
       else
@@ -725,20 +852,11 @@ subroutine zonal_edge_thickness(bxC, h_in, h_W, h_E, G, GV, US, CS, OBC)
 
     case default
       call zonal_edge_thickness_fortran(bxC, h_in_a, h_W_a, h_E_a, mask2dT_a, &
-                                        h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
+                                        h_min, upwind_1st, monotonic, simple_2nd, OBC)
 
   end select
 
-  call h_W_a%copy2F(h_W)
-  call h_E_a%copy2F(h_E)
-
   call cpu_clock_end(id_clock_reconstruct)
-
-  ! Free up temporary containers
-  call h_in_a%free()
-  call h_W_a%free()
-  call h_E_a%free()
-  call mask2dT_a%free()
 
 end subroutine zonal_edge_thickness
 
@@ -777,23 +895,24 @@ subroutine meridional_edge_thickness_fortran(bxC, h_in_a, h_S_a, h_N_a, mask2dT_
 end subroutine meridional_edge_thickness_fortran
 
 !> Shim for meridional_edge_thickness — dispatches via MERIDIONAL_EDGE_THICKNESS_MODE env var.
-subroutine meridional_edge_thickness(bxC, h_in, h_S, h_N, G, GV, US, CS, OBC)
-  type(box_t), intent(in) :: bxC                 !< Iteration box for continuity solver
-  type(ocean_grid_type),   intent(in)    :: G    !< Ocean's grid structure.
-  type(verticalGrid_type), intent(in)    :: GV   !< Ocean's vertical grid structure.
-  real,  dimension(SZI_(G),SZJ_(G),SZK_(GV)), &
-                           intent(in)    :: h_in !< Tracer cell layer thickness [H ~> m or kg m-2].
-  real,  dimension(SZI_(G),SZJ_(G),SZK_(GV)), &
-                           intent(out)   :: h_S  !< Southern edge layer thickness [H ~> m or kg m-2].
-  real,  dimension(SZI_(G),SZJ_(G),SZK_(GV)), &
-                           intent(out)   :: h_N  !< Northern edge layer thickness [H ~> m or kg m-2].
-  type(unit_scale_type),   intent(in)    :: US   !< A dimensional unit scaling type
-  type(continuity_PPM_CS), intent(in)    :: CS   !< This module's control structure.
-  type(ocean_OBC_type),    pointer       :: OBC  !< Open boundaries control structure.
+subroutine meridional_edge_thickness(bxC, h_in_a, h_S_a, h_N_a, mask2dT_a, &
+                                     h_min, upwind_1st, monotonic, simple_2nd, OBC)
+  type(box_t),           intent(in)    :: bxC        !< Iteration box for continuity solver
+  type(RealArray_t),     intent(in)    :: h_in_a     !< Tracer cell layer thickness
+                                                     !! [H ~> m or kg m-2].
+  type(RealArray_t),     intent(inout) :: h_S_a      !< Southern edge layer thickness
+                                                     !! [H ~> m or kg m-2].
+  type(RealArray_t),     intent(inout) :: h_N_a      !< Northern edge layer thickness
+                                                     !! [H ~> m or kg m-2].
+  type(RealArray_t),     intent(in)    :: mask2dT_a  !< Cell land/ocean mask [nondim]
+  real,                  intent(in)    :: h_min      !< Minimum layer thickness
+                                                     !! (2*Angstrom_H) [H ~> m or kg m-2]
+  logical,               intent(in)    :: upwind_1st !< If true, use 1st-order upwind reconstruction
+  logical,               intent(in)    :: monotonic  !< If true, use the CW84 monotonic limiter
+  logical,               intent(in)    :: simple_2nd !< If true, use a simple 2nd-order scheme
+  type(ocean_OBC_type),  pointer       :: OBC        !< Open boundaries control structure.
 
   integer  :: mode, rc
-  real     :: h_min
-  type(RealArray_t) :: h_in_a, h_S_a, h_N_a, mask2dT_a
   type(RealArray_C) :: h_in_c, h_S_c, h_N_c, mask2dT_c
   type(Box_C)        :: bxC_c
   type(c_ptr)        :: OBC_c
@@ -805,17 +924,10 @@ subroutine meridional_edge_thickness(bxC, h_in, h_S, h_N, G, GV, US, CS, OBC)
   character(len=256) :: binFile, metaFile
 
   kernel = "meridional_edge_thickness"
-  h_min  = 2.0 * GV%Angstrom_H
 
   call cpu_clock_begin(id_clock_reconstruct)
 
   mode = getenv_mode("MERIDIONAL_EDGE_THICKNESS_MODE", default=TIMH_runFORTRAN)
-
-  ! Build containers for all dispatch paths
-  call h_in_a%alloc(lb=LBOUND(h_in), ub=UBOUND(h_in), source=h_in)
-  call h_S_a%alloc( lb=LBOUND(h_S), ub=UBOUND(h_S), source=h_S)
-  call h_N_a%alloc( lb=LBOUND(h_N), ub=UBOUND(h_N), source=h_N)
-  call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
 
   select case (mode)
 
@@ -833,13 +945,13 @@ subroutine meridional_edge_thickness(bxC, h_in, h_S, h_N, G, GV, US, CS, OBC)
         call rec%add("_h_N_before", h_N_a)
         call rec%add("_mask2dT",    mask2dT_a)
         call rec%add("_h_min",      h_min)
-        call rec%add("_upwind_1st", CS%upwind_1st)
-        call rec%add("_monotonic",  CS%monotonic)
-        call rec%add("_simple_2nd", CS%simple_2nd)
+        call rec%add("_upwind_1st", upwind_1st)
+        call rec%add("_monotonic",  monotonic)
+        call rec%add("_simple_2nd", simple_2nd)
       endif
 
       call meridional_edge_thickness_fortran(bxC, h_in_a, h_S_a, h_N_a, mask2dT_a, &
-                                             h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
+                                             h_min, upwind_1st, monotonic, simple_2nd, OBC)
 
       if (capture) then
         call rec%add("_h_S_after", h_S_a)
@@ -855,9 +967,9 @@ subroutine meridional_edge_thickness(bxC, h_in, h_S, h_N, G, GV, US, CS, OBC)
       h_S_c        = h_S_a%to_c()
       h_N_c        = h_N_a%to_c()
       mask2dT_c    = mask2dT_a%to_c()
-      upwind_1st_c = CS%upwind_1st
-      monotonic_c  = CS%monotonic
-      simple_2nd_c = CS%simple_2nd
+      upwind_1st_c = upwind_1st
+      monotonic_c  = monotonic
+      simple_2nd_c = simple_2nd
       if (associated(OBC)) then
         OBC_c = c_loc(OBC)
       else
@@ -869,19 +981,11 @@ subroutine meridional_edge_thickness(bxC, h_in, h_S, h_N, G, GV, US, CS, OBC)
 
     case default
       call meridional_edge_thickness_fortran(bxC, h_in_a, h_S_a, h_N_a, mask2dT_a, &
-                                             h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
+                                             h_min, upwind_1st, monotonic, simple_2nd, OBC)
 
   end select
 
-  call h_S_a%copy2F(h_S)
-  call h_N_a%copy2F(h_N)
-
   call cpu_clock_end(id_clock_reconstruct)
-
-  call h_in_a%free()
-  call h_S_a%free()
-  call h_N_a%free()
-  call mask2dT_a%free()
 
 end subroutine meridional_edge_thickness
 
