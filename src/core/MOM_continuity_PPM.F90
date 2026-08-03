@@ -290,6 +290,8 @@ subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhb
   logical :: x_first
   type(RealArray_t) :: h_in_a, h_W_a, h_E_a, mask2dT_a ! Containers for zonal_edge_thickness
   type(RealArray_t) :: h_S_a, h_N_a ! Containers for meridional_edge_thickness
+  type(RealArray_t) :: h_a, uh_a, IareaT_a, hin_a ! Containers for continuity_zonal_convergence
+  type(RealArray_t) :: vh_a ! Container for continuity_meridional_convergence
   ! Minimum layer thickness (2*Angstrom_H) for zonal_edge_thickness / meridional_edge_thickness
   real :: edge_h_min
 
@@ -325,7 +327,16 @@ subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhb
     call mask2dT_a%free()
     call zonal_mass_flux(bxC, u, hin, h_W, h_E, uh, dt, G, GV, US, CS, OBC, pbv%por_face_areaU, &
                          uhbt, visc_rem_u, u_cor, BT_cont, du_cor)
-    call continuity_zonal_convergence(bxC, h, uh, dt, G, GV, hin=hin)
+    call h_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
+    call uh_a%alloc(lb=LBOUND(uh), ub=UBOUND(uh), source=uh)
+    call IareaT_a%alloc(lb=LBOUND(G%IareaT), ub=UBOUND(G%IareaT), source=G%IareaT)
+    call hin_a%alloc(lb=LBOUND(hin), ub=UBOUND(hin), source=hin)
+    call continuity_zonal_convergence(bxC, h_a, uh_a, dt, IareaT_a, hin_a=hin_a)
+    call h_a%copy2F(h)
+    call h_a%free()
+    call uh_a%free()
+    call IareaT_a%free()
+    call hin_a%free()
 
     ! update host h from continuity_zonal_convergence
 
@@ -347,7 +358,14 @@ subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhb
     call mask2dT_a%free()
     call meridional_mass_flux(bxC, v, h, h_S, h_N, vh, dt, G, GV, US, CS, OBC, pbv%por_face_areaV, &
                               vhbt, visc_rem_v, v_cor, BT_cont, dv_cor)
-    call continuity_meridional_convergence(bxC, h, vh, dt, G, GV, hmin=h_min)
+    call h_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
+    call vh_a%alloc(lb=LBOUND(vh), ub=UBOUND(vh), source=vh)
+    call IareaT_a%alloc(lb=LBOUND(G%IareaT), ub=UBOUND(G%IareaT), source=G%IareaT)
+    call continuity_meridional_convergence(bxC, h_a, vh_a, dt, IareaT_a, hmin=h_min)
+    call h_a%copy2F(h)
+    call h_a%free()
+    call vh_a%free()
+    call IareaT_a%free()
 
   else  ! .not. x_first
     !  First advect meridionally, with loop bounds that accomodate the subsequent zonal advection.
@@ -368,7 +386,16 @@ subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhb
     call mask2dT_a%free()
     call meridional_mass_flux(bxC, v, hin, h_S, h_N, vh, dt, G, GV, US, CS, OBC, pbv%por_face_areaV, &
                               vhbt, visc_rem_v, v_cor, BT_cont, dv_cor)
-    call continuity_meridional_convergence(bxC, h, vh, dt, G, GV, hin=hin)
+    call h_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
+    call vh_a%alloc(lb=LBOUND(vh), ub=UBOUND(vh), source=vh)
+    call IareaT_a%alloc(lb=LBOUND(G%IareaT), ub=UBOUND(G%IareaT), source=G%IareaT)
+    call hin_a%alloc(lb=LBOUND(hin), ub=UBOUND(hin), source=hin)
+    call continuity_meridional_convergence(bxC, h_a, vh_a, dt, IareaT_a, hin_a=hin_a)
+    call h_a%copy2F(h)
+    call h_a%free()
+    call vh_a%free()
+    call IareaT_a%free()
+    call hin_a%free()
 
     !  Now advect zonally, using the updated thicknesses to determine the fluxes.
     !LB  = set_continuity_loop_bounds(G, CS, i_stencil=.false., j_stencil=.false.)
@@ -388,7 +415,14 @@ subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhb
     call mask2dT_a%free()
     call zonal_mass_flux(bxC, u, h, h_W, h_E, uh, dt, G, GV, US, CS, OBC, pbv%por_face_areaU, &
                          uhbt, visc_rem_u, u_cor, BT_cont, du_cor)
-    call continuity_zonal_convergence(bxC, h, uh, dt, G, GV, hmin=h_min)
+    call h_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
+    call uh_a%alloc(lb=LBOUND(uh), ub=UBOUND(uh), source=uh)
+    call IareaT_a%alloc(lb=LBOUND(G%IareaT), ub=UBOUND(G%IareaT), source=G%IareaT)
+    call continuity_zonal_convergence(bxC, h_a, uh_a, dt, IareaT_a, hmin=h_min)
+    call h_a%copy2F(h)
+    call h_a%free()
+    call uh_a%free()
+    call IareaT_a%free()
   endif
 
   ! Free the continuity solver iteration box
@@ -650,39 +684,44 @@ end subroutine continuity_adjust_vel
 
 
 !> Updates the thicknesses due to zonal thickness fluxes.
-subroutine continuity_zonal_convergence(bxC, h, uh, dt, G, GV, hin, hmin)
-  type(box_t), intent(in) :: bxC                 !< Iteration box for continuity solver
-  type(ocean_grid_type),       intent(in)    :: G    !< Ocean's grid structure
-  type(verticalGrid_type),     intent(in)    :: GV   !< Ocean's vertical grid structure
-  real, dimension(SZI_(G),SZJ_(G),SZK_(GV)), &
-                               intent(inout) :: h    !< Final layer thickness [H ~> m or kg m-2]
-  real, dimension(SZIB_(G),SZJ_(G),SZK_(GV)), &
-                               intent(in)    :: uh   !< Zonal thickness flux, u*h*dy [H L2 T-1 ~> m3 s-1 or kg s-1]
-  real,                        intent(in)    :: dt   !< Time increment [T ~> s]
-  real, dimension(SZI_(G),SZJ_(G),SZK_(GV)), &
-                     optional, intent(in)    :: hin  !< Initial layer thickness [H ~> m or kg m-2].
-                                                     !! If hin is absent, h is also the initial thickness.
-  real,              optional, intent(in)    :: hmin !< The minimum layer thickness [H ~> m or kg m-2]
+subroutine continuity_zonal_convergence(bxC, h_a, uh_a, dt, IareaT_a, hin_a, hmin)
+  type(box_t),        intent(in)    :: bxC      !< Iteration box for continuity solver
+  type(RealArray_t),  intent(inout) :: h_a      !< Final layer thickness [H ~> m or kg m-2]
+  type(RealArray_t),  intent(in)    :: uh_a     !< Zonal thickness flux, u*h*dy
+                                                !! [H L2 T-1 ~> m3 s-1 or kg s-1]
+  real,               intent(in)    :: dt       !< Time increment [T ~> s]
+  type(RealArray_t),  intent(in)    :: IareaT_a !< The grid cell's 1/areaT [L-2 ~> m-2].
+  type(RealArray_t), optional, intent(in) :: hin_a !< Initial layer thickness [H ~> m or kg m-2].
+                                              !! If hin is absent, h is also the initial thickness.
+  real,              optional, intent(in)    :: hmin !< The minimum layer thickness
+                                                     !! [H ~> m or kg m-2]
 
   real :: h_min  ! The minimum layer thickness [H ~> m or kg m-2].  h_min could be 0.
   integer :: i, j, k, ish, ieh, jsh, jeh, nz
+  real, dimension(:,:,:), contiguous, pointer :: h, uh, hin
+  real, dimension(:,:), contiguous, pointer :: IareaT
 
   call cpu_clock_begin(id_clock_update)
 
   h_min = 0.0 ; if (present(hmin)) h_min = hmin
 
-  if (present(hin)) then
+  call h_a%view(h)
+  call uh_a%view(uh)
+  call IareaT_a%view(IareaT)
+
+  if (present(hin_a)) then
+    call hin_a%view(hin)
     do concurrent(k=bxC%idxS(3):bxC%idxE(3), &
                   j=bxC%idxS(2):bxC%idxE(2), &
                   i=bxC%idxS(1):bxC%idxE(1))
-      h(i,j,k) = max( hin(i,j,k) - dt * G%IareaT(i,j) * (uh(I,j,k) - uh(I-1,j,k)), h_min )
+      h(i,j,k) = max( hin(i,j,k) - dt * IareaT(i,j) * (uh(I,j,k) - uh(I-1,j,k)), h_min )
     enddo
   else
     ! untested
     do concurrent(k=bxC%idxS(3):bxC%idxE(3), &
                   j=bxC%idxS(2):bxC%idxE(2), &
                   i=bxC%idxS(1):bxC%idxE(1))
-      h(i,j,k) = max( h(i,j,k) - dt * G%IareaT(i,j) * (uh(I,j,k) - uh(I-1,j,k)), h_min )
+      h(i,j,k) = max( h(i,j,k) - dt * IareaT(i,j) * (uh(I,j,k) - uh(I-1,j,k)), h_min )
     enddo
   endif
 
@@ -691,39 +730,44 @@ subroutine continuity_zonal_convergence(bxC, h, uh, dt, G, GV, hin, hmin)
 end subroutine continuity_zonal_convergence
 
 !> Updates the thicknesses due to meridional thickness fluxes.
-subroutine continuity_meridional_convergence(bxC, h, vh, dt, G, GV, hin, hmin)
-  type(box_t), intent(in) :: bxC                 !< Iteration box for continuity solver
-  type(ocean_grid_type),       intent(in)    :: G    !< Ocean's grid structure
-  type(verticalGrid_type),     intent(in)    :: GV   !< Ocean's vertical grid structure
-  real, dimension(SZI_(G),SZJ_(G),SZK_(GV)), &
-                               intent(inout) :: h    !< Final layer thickness [H ~> m or kg m-2]
-  real, dimension(SZI_(G),SZJB_(G),SZK_(GV)), &
-                               intent(in)    :: vh   !< Meridional thickness flux, v*h*dx [H L2 T-1 ~> m3 s-1 or kg s-1]
-  real,                        intent(in)    :: dt   !< Time increment [T ~> s]
-  real, dimension(SZI_(G),SZJ_(G),SZK_(GV)), &
-                     optional, intent(in)    :: hin  !< Initial layer thickness [H ~> m or kg m-2].
-                                                     !! If hin is absent, h is also the initial thickness.
-  real,              optional, intent(in)    :: hmin !< The minimum layer thickness [H ~> m or kg m-2]
+subroutine continuity_meridional_convergence(bxC, h_a, vh_a, dt, IareaT_a, hin_a, hmin)
+  type(box_t),        intent(in)    :: bxC      !< Iteration box for continuity solver
+  type(RealArray_t),  intent(inout) :: h_a      !< Final layer thickness [H ~> m or kg m-2]
+  type(RealArray_t),  intent(in)    :: vh_a     !< Meridional thickness flux, v*h*dx
+                                                !! [H L2 T-1 ~> m3 s-1 or kg s-1]
+  real,               intent(in)    :: dt       !< Time increment [T ~> s]
+  type(RealArray_t),  intent(in)    :: IareaT_a !< The grid cell's 1/areaT [L-2 ~> m-2].
+  type(RealArray_t), optional, intent(in) :: hin_a !< Initial layer thickness [H ~> m or kg m-2].
+                                              !! If hin is absent, h is also the initial thickness.
+  real,              optional, intent(in)    :: hmin !< The minimum layer thickness
+                                                     !! [H ~> m or kg m-2]
 
   real :: h_min  ! The minimum layer thickness [H ~> m or kg m-2].  h_min could be 0.
   integer :: i, j, k, ish, ieh, jsh, jeh, nz
+  real, dimension(:,:,:), contiguous, pointer :: h, vh, hin
+  real, dimension(:,:), contiguous, pointer :: IareaT
 
   call cpu_clock_begin(id_clock_update)
 
   h_min = 0.0 ; if (present(hmin)) h_min = hmin
 
-  if (present(hin)) then
+  call h_a%view(h)
+  call vh_a%view(vh)
+  call IareaT_a%view(IareaT)
+
+  if (present(hin_a)) then
+    call hin_a%view(hin)
     ! untested
     do concurrent(k=bxC%idxS(3):bxC%idxE(3), &
                   j=bxC%idxS(2):bxC%idxE(2), &
                   i=bxC%idxS(1):bxC%idxE(1))
-      h(i,j,k) = max( hin(i,j,k) - dt * G%IareaT(i,j) * (vh(i,J,k) - vh(i,J-1,k)), h_min )
+      h(i,j,k) = max( hin(i,j,k) - dt * IareaT(i,j) * (vh(i,J,k) - vh(i,J-1,k)), h_min )
     enddo
   else
     do concurrent(k=bxC%idxS(3):bxC%idxE(3), &
                   j=bxC%idxS(2):bxC%idxE(2), &
                   i=bxC%idxS(1):bxC%idxE(1))
-      h(i,j,k) = max( h(i,j,k) - dt * G%IareaT(i,j) * (vh(i,J,k) - vh(i,J-1,k)), h_min )
+      h(i,j,k) = max( h(i,j,k) - dt * IareaT(i,j) * (vh(i,J,k) - vh(i,J-1,k)), h_min )
     enddo
   endif
 
