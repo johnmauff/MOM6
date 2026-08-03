@@ -548,6 +548,27 @@ Comments that are not attached to a dummy — the `!>` header above the
 subroutine, blocks between declarations, anything in the body — stay
 exactly where and as they are.
 
+### No commentary about the conversion itself
+
+This codebase documents ocean physics and numerics — never the fact
+that a subroutine was migrated to containers, or why a particular
+Fortran mechanism is being used here. Do not add comments like
+`! Containers for zonal_mass_flux`, `! %view pointers for forwarding
+this routine's optional arguments to the still-raw child`, or
+`! Must be nullified -- see below` anywhere in converted code. The
+container API and the `_a` naming convention already make the pattern
+legible to anyone who has read this reference; a maintainer reading the
+physics code should not need to re-derive the migration's own rationale
+from prose scattered through it. This applies to declaration-block
+labels, multi-line explanatory blocks, and anything in between — a
+conversion diff should read as pure mechanism (types, `%view`/`%alloc`/
+`%free` calls, renamed dummies), not narration.
+
+The one exception, already covered above: a genuinely **new** dummy
+still needs a `!<` doc comment describing its physical meaning, in house
+style — exactly the same requirement as before, not an exception to this
+rule.
+
 ---
 
 ## 8. Grid-derived arrays and shrinking argument lists
@@ -653,6 +674,34 @@ references them.
     across this boundary.
 15. **Free every container on every path.** Early returns at a call site
     must still reach the `free` block.
+16. **Forwarding one of the routine's own optional container dummies to
+    a still-raw callee needs a nullified `%view` pointer, not a branch —
+    and the `nullify` is mandatory, not defensive.** Once a dummy is
+    `optional, type(RealArray_t)`, you cannot pass it directly to a
+    callee whose matching dummy is still a raw optional array (type
+    mismatch); the fix is a local pointer, guarded `%view`
+    (`if (present(x_a)) call x_a%view(x)`), forwarded to the callee
+    *unconditionally* by keyword. Fortran reads a disassociated pointer
+    passed to a non-pointer, non-allocatable `optional` dummy as
+    genuinely absent, so this is branch-free in both directions — but
+    only if the pointer is nullified first. A plain local pointer's
+    association status on subroutine entry is **undefined, not
+    disassociated**; skip the `nullify` and the callee's `present()` can
+    read `.true.` by accident off stack garbage whenever the container
+    is absent, silently corrupting results several call levels
+    downstream with no compile error and no crash — confirmed as a real,
+    CI-caught bug in this codebase. Nullify every such pointer once,
+    before the first guarded `%view` that might set it, regardless of
+    which branch of the routine actually runs. Do **not** nullify inside
+    the declaration (`pointer :: x => null()`) — that implicitly adds
+    `SAVE`, so it only runs once ever and the pointer then carries
+    whatever association it had at the end of the *previous* call,
+    which is worse than not nullifying at all for any routine invoked
+    more than once. This also requires the callee's own dummy to be a
+    plain optional array — never pointer or allocatable; check every
+    callee individually. See the `convert_optional_args_to_containers`
+    skill for the full mechanism and worked example, including the
+    caller side of this same forwarding problem.
 
 ---
 

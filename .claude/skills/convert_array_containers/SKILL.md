@@ -354,6 +354,15 @@ section that holds the template or rationale.
    invocation: pass it the `%view` pointer, not the container. Note it
    in the Step 10 report as a follow-up conversion candidate.
 
+   If the argument being forwarded to that still-raw callee is itself
+   one of *this* subroutine's `optional` container dummies, a plain
+   `%view` is not enough — an unguarded `%view` on an absent optional
+   container is invalid, and the callee's own `present()` check needs a
+   real absent/present signal, not just a pointer. Use the guarded-view,
+   mandatory-`nullify`, unconditional-forward technique instead (lessons
+   §9 #16), and see `convert_optional_args_to_containers` for the full
+   mechanism and worked example.
+
 ### 8. Update every call site from Step 3
    **Classify each call site first.** For every site, look at the
    *calling* subroutine's own dummy declarations and decide which of two
@@ -372,6 +381,15 @@ section that holds the template or rationale.
    This is the common case when converting bottom-up, and it is also the
    permanent end state when the caller is a routine that will never be
    converted (a module entry point such as `continuity_PPM`).
+
+   *If the array being built here comes from the caller's own local
+   scratch variable* (not one of the caller's own dummies), this
+   alloc/copy-in/free block is itself a candidate for
+   `convert_locals_to_containers` later — that skill retypes the local
+   itself so this block disappears entirely instead of rebuilding a
+   throwaway container from it on every call. Not this skill's job to do
+   now; just worth noting as a follow-up once this callee's conversion
+   has settled.
 
    *If the caller's own source array is `optional`*, a container local is
    always present as an actual argument, so an unallocated one would make
@@ -566,6 +584,14 @@ section that holds the template or rationale.
   vice versa (Step 8, Step 9).
 - Do not attempt to install a Fortran compiler, and do not claim a build
   passed that was never run.
+- Do not add comments about the conversion itself — the fact that a
+  subroutine was migrated to containers, why a dummy is now a pointer,
+  that a `nullify` is mandatory, and so on. This codebase documents
+  ocean physics, not its own refactoring history; the container API and
+  `_a` naming convention already make the pattern legible to anyone who
+  has read the lessons skill (lessons §7). A new dummy still gets a
+  `!<` doc comment describing its physical meaning — that requirement is
+  unchanged and is not an exception to this rule.
 
 If something not covered here comes up, consult lessons §9 (recurring
 pitfalls) before improvising.
@@ -586,7 +612,9 @@ Report:
    loop-invariant grid metadata (`G%IareaT`, `G%mask2dT`, …), listed with
    the call sites that now rebuild it. These are deliberately left
    per-site (Step 8) and are worth a single cleanup pass once the
-   enclosing subroutine's conversions are complete.
+   enclosing subroutine's conversions are complete — that pass is the
+   `hoist_container_marshalling` skill, run once the caller's full set of
+   conversions is settled and every call site is visible at once.
 7. Every `optional` array dummy found, the user's decision for each
    (converted vs. left raw), and whether call sites needed conditional
    allocation for any converted ones.
