@@ -12,6 +12,8 @@ use MOM_variables,    only : BT_cont_type, alloc_bt_cont_type, dealloc_bt_cont_t
 use MOM_variables,    only : accel_diag_ptrs, ocean_internal_state, cont_diag_ptrs
 use MOM_forcing_type, only : mech_forcing
 
+use array_mod, only : RealArray_t
+
 use MOM_checksum_packages, only : MOM_thermo_chksum, MOM_state_chksum, MOM_accel_chksum
 use MOM_cpu_clock,         only : cpu_clock_id, cpu_clock_begin, cpu_clock_end
 use MOM_cpu_clock,         only : CLOCK_COMPONENT, CLOCK_SUBCOMPONENT
@@ -408,6 +410,9 @@ subroutine step_MOM_dyn_split_RK2b(u_av, v_av, h, tv, visc, Time_local, dt, forc
   integer :: i, j, k, is, ie, js, je, Isq, Ieq, Jsq, Jeq, nz
   integer :: cont_stencil, obc_stencil
   integer :: cor_stencil
+  ! Containers for continuity()'s optional arguments
+  type(RealArray_t) :: uhbt_a, vhbt_a, visc_rem_u_a, visc_rem_v_a
+  type(RealArray_t) :: u_cor_a, v_cor_a, du_cor_a, dv_cor_a
 
   is  = G%isc  ; ie  = G%iec  ; js  = G%jsc  ; je  = G%jec ; nz = GV%ke
   Isq = G%IscB ; Ieq = G%IecB ; Jsq = G%JscB ; Jeq = G%JecB
@@ -676,8 +681,14 @@ subroutine step_MOM_dyn_split_RK2b(u_av, v_av, h, tv, visc, Time_local, dt, forc
 
 ! u_accel_bt = layer accelerations due to barotropic solver
   call cpu_clock_begin(id_clock_continuity)
+  call visc_rem_u_a%alloc(lb=LBOUND(CS%visc_rem_u), ub=UBOUND(CS%visc_rem_u), &
+                          source=CS%visc_rem_u)
+  call visc_rem_v_a%alloc(lb=LBOUND(CS%visc_rem_v), ub=UBOUND(CS%visc_rem_v), &
+                          source=CS%visc_rem_v)
   call continuity(u_inst, v_inst, h, hp, uh_in, vh_in, dt, G, GV, US, CS%continuity_CSp, CS%OBC, pbv, &
-                  visc_rem_u=CS%visc_rem_u, visc_rem_v=CS%visc_rem_v, BT_cont=CS%BT_cont)
+                  visc_rem_u_a=visc_rem_u_a, visc_rem_v_a=visc_rem_v_a, BT_cont=CS%BT_cont)
+  call visc_rem_u_a%free()
+  call visc_rem_v_a%free()
   call cpu_clock_end(id_clock_continuity)
   if (BT_cont_BT_thick) then
     call btcalc(h, G, GV, CS%barotropic_CSp, CS%BT_cont%h_u, CS%BT_cont%h_v, &
@@ -796,9 +807,25 @@ subroutine step_MOM_dyn_split_RK2b(u_av, v_av, h, tv, visc, Time_local, dt, forc
   ! uh = u_av * h
   ! hp = h + dt * div . uh
   call cpu_clock_begin(id_clock_continuity)
+  call uhbt_a%alloc(lb=LBOUND(CS%uhbt), ub=UBOUND(CS%uhbt), source=CS%uhbt)
+  call vhbt_a%alloc(lb=LBOUND(CS%vhbt), ub=UBOUND(CS%vhbt), source=CS%vhbt)
+  call visc_rem_u_a%alloc(lb=LBOUND(CS%visc_rem_u), ub=UBOUND(CS%visc_rem_u), &
+                          source=CS%visc_rem_u)
+  call visc_rem_v_a%alloc(lb=LBOUND(CS%visc_rem_v), ub=UBOUND(CS%visc_rem_v), &
+                          source=CS%visc_rem_v)
+  call u_cor_a%alloc(lb=LBOUND(u_av), ub=UBOUND(u_av), source=u_av)
+  call v_cor_a%alloc(lb=LBOUND(v_av), ub=UBOUND(v_av), source=v_av)
   call continuity(up, vp, h, hp, uh, vh, dt, G, GV, US, CS%continuity_CSp, CS%OBC, pbv, &
-                  CS%uhbt, CS%vhbt, CS%visc_rem_u, CS%visc_rem_v, &
-                  u_av, v_av, BT_cont=CS%BT_cont)
+                  uhbt_a=uhbt_a, vhbt_a=vhbt_a, visc_rem_u_a=visc_rem_u_a, &
+                  visc_rem_v_a=visc_rem_v_a, u_cor_a=u_cor_a, v_cor_a=v_cor_a, BT_cont=CS%BT_cont)
+  call u_cor_a%copy2F(u_av)
+  call v_cor_a%copy2F(v_av)
+  call uhbt_a%free()
+  call vhbt_a%free()
+  call visc_rem_u_a%free()
+  call visc_rem_v_a%free()
+  call u_cor_a%free()
+  call v_cor_a%free()
   call cpu_clock_end(id_clock_continuity)
   if (showCallTree) call callTree_wayPoint("done with continuity (step_MOM_dyn_split_RK2b)")
 
@@ -1024,9 +1051,32 @@ subroutine step_MOM_dyn_split_RK2b(u_av, v_av, h, tv, visc, Time_local, dt, forc
   ! u_av and v_av adjusted so their mass transports match uhbt and vhbt.
   call cpu_clock_begin(id_clock_continuity)
 
+  call uhbt_a%alloc(lb=LBOUND(CS%uhbt), ub=UBOUND(CS%uhbt), source=CS%uhbt)
+  call vhbt_a%alloc(lb=LBOUND(CS%vhbt), ub=UBOUND(CS%vhbt), source=CS%vhbt)
+  call visc_rem_u_a%alloc(lb=LBOUND(CS%visc_rem_u), ub=UBOUND(CS%visc_rem_u), &
+                          source=CS%visc_rem_u)
+  call visc_rem_v_a%alloc(lb=LBOUND(CS%visc_rem_v), ub=UBOUND(CS%visc_rem_v), &
+                          source=CS%visc_rem_v)
+  call u_cor_a%alloc(lb=LBOUND(u_av), ub=UBOUND(u_av), source=u_av)
+  call v_cor_a%alloc(lb=LBOUND(v_av), ub=UBOUND(v_av), source=v_av)
+  call du_cor_a%alloc(lb=LBOUND(CS%du_av_inst), ub=UBOUND(CS%du_av_inst), source=CS%du_av_inst)
+  call dv_cor_a%alloc(lb=LBOUND(CS%dv_av_inst), ub=UBOUND(CS%dv_av_inst), source=CS%dv_av_inst)
   call continuity(u_inst, v_inst, h, h, uh, vh, dt, G, GV, US, CS%continuity_CSp, CS%OBC, pbv, &
-                  CS%uhbt, CS%vhbt, CS%visc_rem_u, CS%visc_rem_v, u_av, v_av, &
-                  du_cor=CS%du_av_inst, dv_cor=CS%dv_av_inst)
+                  uhbt_a=uhbt_a, vhbt_a=vhbt_a, visc_rem_u_a=visc_rem_u_a, &
+                  visc_rem_v_a=visc_rem_v_a, u_cor_a=u_cor_a, v_cor_a=v_cor_a, &
+                  du_cor_a=du_cor_a, dv_cor_a=dv_cor_a)
+  call u_cor_a%copy2F(u_av)
+  call v_cor_a%copy2F(v_av)
+  call du_cor_a%copy2F(CS%du_av_inst)
+  call dv_cor_a%copy2F(CS%dv_av_inst)
+  call uhbt_a%free()
+  call vhbt_a%free()
+  call visc_rem_u_a%free()
+  call visc_rem_v_a%free()
+  call u_cor_a%free()
+  call v_cor_a%free()
+  call du_cor_a%free()
+  call dv_cor_a%free()
 
   ! This tests the ability to readjust the instantaneous velocity, and here it changes answers only at roundoff.
   ! do k=1,nz ; do j=js,je ; do I=Isq,Ieq
