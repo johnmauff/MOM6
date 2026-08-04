@@ -1094,16 +1094,6 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, G, GV, US, 
                                      !! as the depth-integrated transports [L T-1 ~> m s-1].
 
   ! Local variables
-  real, dimension(SZIB_(G),SZJ_(G),SZK_(GV)) :: duhdu ! Partial derivative of uh with u [H L ~> m2 or kg m-1].
-  real, dimension(SZIB_(G),SZJ_(G)) :: &
-    du, &         ! Corrective barotropic change in the velocity to give uhbt [L T-1 ~> m s-1].
-    du_min_CFL, & ! Lower limit on du correction to avoid CFL violations [L T-1 ~> m s-1]
-    du_max_CFL, & ! Upper limit on du correction to avoid CFL violations [L T-1 ~> m s-1]
-    duhdu_tot_0, & ! Summed partial derivative of uh with u [H L ~> m2 or kg m-1].
-    uh_tot_0, &   ! Summed transport with no barotropic correction [H L2 T-1 ~> m3 s-1 or kg s-1].
-    visc_rem_max  ! The column maximum of visc_rem [nondim].
-  real, dimension(SZIB_(G),SZJ_(G), SZK_(GV)) :: &
-    visc_rem_u_tmp      ! A 2-D copy of visc_rem_u or an array of 1's [nondim].
   real :: FAuI  ! A sum of zonal face areas [H L ~> m2 or kg m-1].
   real :: FA_u    ! A sum of zonal face areas [H L ~> m2 or kg m-1].
   real :: I_vrm   ! 1.0 / visc_rem_max [nondim]
@@ -1116,11 +1106,22 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, G, GV, US, 
   integer :: l_seg ! The OBC segment number
   logical :: use_visc_rem, set_BT_cont
   logical :: local_specified_BC, local_open_BC, any_simple_OBC  ! OBC-related logicals
+  real, dimension(u_a%lb(1):u_a%ub(1), u_a%lb(2):u_a%ub(2), u_a%lb(3):u_a%ub(3)) :: &
+    duhdu ! Partial derivative of uh with u [H L ~> m2 or kg m-1].
   type(RealArray_t) :: uh_tot_0_a, duhdu_tot_0_a, du_a, du_max_CFL_a, du_min_CFL_a
   type(RealArray_t) :: visc_rem_max_a, visc_rem_u_tmp_a
   real, dimension(:,:,:), contiguous, pointer :: u, h_in, h_W, h_E, uh, por_face_areaU
   real, dimension(:,:,:), contiguous, pointer :: visc_rem_u
   real, dimension(:,:),   contiguous, pointer :: du_cor
+  real, dimension(:,:),   contiguous, pointer :: &
+    du, &         ! Corrective barotropic change in the velocity to give uhbt [L T-1 ~> m s-1].
+    du_min_CFL, & ! Lower limit on du correction to avoid CFL violations [L T-1 ~> m s-1]
+    du_max_CFL, & ! Upper limit on du correction to avoid CFL violations [L T-1 ~> m s-1]
+    duhdu_tot_0, & ! Summed partial derivative of uh with u [H L ~> m2 or kg m-1].
+    uh_tot_0, &   ! Summed transport with no barotropic correction [H L2 T-1 ~> m3 s-1 or kg s-1].
+    visc_rem_max  ! The column maximum of visc_rem [nondim].
+  real, dimension(:,:,:), contiguous, pointer :: &
+    visc_rem_u_tmp      ! A 2-D copy of visc_rem_u or an array of 1's [nondim].
 
   nullify(visc_rem_u, du_cor)
 
@@ -1151,9 +1152,23 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, G, GV, US, 
   I_dt = 1.0 / dt
   if (CS%aggress_adjust) CFL_dt = I_dt
 
+  call du_a%alloc(lb=[G%IsdB, G%jsd], ub=[G%IedB, G%jed])
+  call du_min_CFL_a%alloc(lb=[G%IsdB, G%jsd], ub=[G%IedB, G%jed])
+  call du_max_CFL_a%alloc(lb=[G%IsdB, G%jsd], ub=[G%IedB, G%jed])
+  call duhdu_tot_0_a%alloc(lb=[G%IsdB, G%jsd], ub=[G%IedB, G%jed])
+  call uh_tot_0_a%alloc(lb=[G%IsdB, G%jsd], ub=[G%IedB, G%jed])
+  call visc_rem_max_a%alloc(lb=[G%IsdB, G%jsd], ub=[G%IedB, G%jed])
+  call visc_rem_u_tmp_a%alloc(lb=[G%IsdB, G%jsd, 1], ub=[G%IedB, G%jed, GV%ke])
+  call du_a%view(du)
+  call du_min_CFL_a%view(du_min_CFL)
+  call du_max_CFL_a%view(du_max_CFL)
+  call duhdu_tot_0_a%view(duhdu_tot_0)
+  call uh_tot_0_a%view(uh_tot_0)
+  call visc_rem_max_a%view(visc_rem_max)
+  call visc_rem_u_tmp_a%view(visc_rem_u_tmp)
+
   !$omp target enter data &
-  !$omp   map(alloc: visc_rem_u_tmp, duhdu, du, du_min_CFL, du_max_CFL, duhdu_tot_0, uh_tot_0, &
-  !$omp     visc_rem_max)
+  !$omp   map(alloc: duhdu)
 
   do concurrent (j=jsh:jeh)
 
@@ -1293,14 +1308,6 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, G, GV, US, 
     endif ! present(uhbt_a) .or. set_BT_cont
   enddo
 
-  call uh_tot_0_a%alloc(lb=LBOUND(uh_tot_0), ub=UBOUND(uh_tot_0), source=uh_tot_0)
-  call duhdu_tot_0_a%alloc(lb=LBOUND(duhdu_tot_0), ub=UBOUND(duhdu_tot_0), source=duhdu_tot_0)
-  call du_a%alloc(lb=LBOUND(du), ub=UBOUND(du), source=du)
-  call du_max_CFL_a%alloc(lb=LBOUND(du_max_CFL), ub=UBOUND(du_max_CFL), source=du_max_CFL)
-  call du_min_CFL_a%alloc(lb=LBOUND(du_min_CFL), ub=UBOUND(du_min_CFL), source=du_min_CFL)
-  call visc_rem_max_a%alloc(lb=LBOUND(visc_rem_max), ub=UBOUND(visc_rem_max), source=visc_rem_max)
-  call visc_rem_u_tmp_a%alloc(lb=LBOUND(visc_rem_u_tmp), ub=UBOUND(visc_rem_u_tmp), &
-                              source=visc_rem_u_tmp)
   call present_uhbt_or_set_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a, duhdu_tot_0_a, &
                                    du_a, du_max_CFL_a, du_min_CFL_a, &
                                    visc_rem_u_tmp_a, visc_rem_max_a, por_face_areaU_a, &
@@ -1316,8 +1323,7 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, G, GV, US, 
   call visc_rem_u_tmp_a%free()
 
   !$omp target exit data &
-  !$omp   map(release: visc_rem_u_tmp, duhdu, du, du_min_CFL, du_max_CFL, duhdu_tot_0, uh_tot_0, &
-  !$omp     visc_rem_max)
+  !$omp   map(release: duhdu)
 
   call cpu_clock_end(id_clock_correct)
 
@@ -1372,8 +1378,9 @@ subroutine present_uhbt_or_set_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_
   type(continuity_PPM_CS), intent(in)    :: CS  !< This module's control structure.
   type(ocean_OBC_type),      pointer     :: OBC !< Open boundaries control structure.
   ! Local variables
-  logical, dimension(SZIB_(G), SZJ_(G)) :: do_I
-  logical, dimension(SZIB_(G), SZJ_(G)) :: simple_OBC_pt  ! Indicates points in a row with specified transport OBCs
+  logical, dimension(u_a%lb(1):u_a%ub(1), u_a%lb(2):u_a%ub(2)) :: do_I
+  logical, dimension(u_a%lb(1):u_a%ub(1), u_a%lb(2):u_a%ub(2)) :: &
+    simple_OBC_pt  ! Indicates points in a row with specified transport OBCs
   logical:: set_BT_cont
   logical:: local_specified_BC, local_Flather_OBC, local_open_BC, any_simple_OBC  ! OBC-related logicals
   integer:: l_seg, i, j, k, n, ish, ieh, jsh, jeh, nz
@@ -1574,11 +1581,13 @@ subroutine zonal_BT_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uhbt_a, dt, G, GV,
                                                            !! [nondim]
 
   ! Local variables
-  real :: uh(SZIB_(G),SZJ_(G),SZK_(GV))      ! Volume flux through zonal faces = u*h*dy [H L2 T-1 ~> m3 s-1 or kg s-1]
-  real :: duhdu(SZIB_(G),SZJ_(G),SZK_(GV))   ! Partial derivative of uh with u [H L ~> m2 or kg m-1].
+  real, dimension(u_a%lb(1):u_a%ub(1), u_a%lb(2):u_a%ub(2), u_a%lb(3):u_a%ub(3)) :: &
+    uh      ! Volume flux through zonal faces = u*h*dy [H L2 T-1 ~> m3 s-1 or kg s-1]
+  real, dimension(u_a%lb(1):u_a%ub(1), u_a%lb(2):u_a%ub(2), u_a%lb(3):u_a%ub(3)) :: &
+    duhdu   ! Partial derivative of uh with u [H L ~> m2 or kg m-1].
   integer :: i, j, k, ish, ieh, jsh, jeh, nz, l_seg
   logical :: local_specified_BC
-  logical, dimension(SZJ_(G)) :: OBC_in_row
+  logical, dimension(u_a%lb(2):u_a%ub(2)) :: OBC_in_row
   real, dimension(:,:,:), contiguous, pointer :: u, h_in, h_W, h_E, por_face_areaU
   real, dimension(:,:),   contiguous, pointer :: uhbt
 
@@ -1940,12 +1949,12 @@ subroutine zonal_flux_adjust(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a, duhdu_t
                                                  !! faces = u*h*dy [H L2 T-1 ~> m3 s-1 or kg s-1].
   type(ocean_OBC_type),             optional, pointer       :: OBC !< Open boundaries control structure.
   ! Local variables
-  real, dimension(SZIB_(G),SZK_(GV)) :: &
+  real, dimension(u_a%lb(1):u_a%ub(1), u_a%lb(3):u_a%ub(3)) :: &
     uh_aux         ! An auxiliary zonal volume flux [H L2 T-1 ~> m3 s-1 or kg s-1].
   real :: &
     duhdu, &       ! Partial derivative of uh with u [H L ~> m2 or kg m-1].
     u_new          ! The velocity with the correction added [L T-1 ~> m s-1].
-  real, dimension(SZIB_(G)) :: &
+  real, dimension(u_a%lb(1):u_a%ub(1)) :: &
     uh_err, &      ! Difference between uhbt and the summed uh [H L2 T-1 ~> m3 s-1 or kg s-1].
     uh_err_best, & ! The smallest value of uh_err found so far [H L2 T-1 ~> m3 s-1 or kg s-1].
     duhdu_tot,&    ! Summed partial derivative of uh with u [H L ~> m2 or kg m-1].
@@ -1960,7 +1969,7 @@ subroutine zonal_flux_adjust(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a, duhdu_t
   integer :: jsh !< Start of j index range.
   integer :: ieh !< End of i index range.
   integer :: jeh !< End of j index range.
-  logical :: do_I(SZIB_(G)), local_OBC, use_uhbt
+  logical :: do_I(u_a%lb(1):u_a%ub(1)), local_OBC, use_uhbt
   integer, parameter:: max_itts = 20
   real, dimension(:,:,:), contiguous, pointer :: u, h_in, h_W, h_E, visc_rem, por_face_areaU, uh_3d
   real, dimension(:,:),   contiguous, pointer :: uh_tot_0, duhdu_tot_0, du, du_max_CFL, du_min_CFL
@@ -2154,7 +2163,7 @@ subroutine set_zonal_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, BT_cont, du0_a, uh_
   type(RealArray_t),       intent(in)    :: por_face_areaU_a !< fractional open area of U-faces
                                                              !! [nondim]
   ! Local variables
-  real, dimension(SZIB_(G)) :: &
+  real, dimension(u_a%lb(1):u_a%ub(1)) :: &
     duL, duR, &       ! The barotropic velocity increments that give the westerly
     du_CFL, &         ! The velocity increment that corresponds to CFL_min [L T-1 ~> m s-1].
                       ! (duL) and easterly (duR) test velocities [L T-1 ~> m s-1].
@@ -2336,16 +2345,8 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, G, GV,
                                      !! as the depth-integrated transports [L T-1 ~> m s-1].
 
   ! Local variables
-  real, dimension(SZI_(G),SZJB_(G),SZK_(GV)) :: &
+  real, dimension(v_a%lb(1):v_a%ub(1), v_a%lb(2):v_a%ub(2), v_a%lb(3):v_a%ub(3)) :: &
     dvhdv         ! Partial derivative of vh with v [H L ~> m2 or kg m-1].
-  real, dimension(SZI_(G),SZJB_(G)) :: &
-    dv, &         ! Corrective barotropic change in the velocity to give vhbt [L T-1 ~> m s-1].
-    dv_min_CFL, & ! Lower limit on dv correction to avoid CFL violations [L T-1 ~> m s-1]
-    dv_max_CFL, & ! Upper limit on dv correction to avoid CFL violations [L T-1 ~> m s-1]
-    dvhdv_tot_0, & ! Summed partial derivative of vh with v [H L ~> m2 or kg m-1].
-    vh_tot_0, &   ! Summed transport with no barotropic correction [H L2 T-1 ~> m3 s-1 or kg s-1].
-    visc_rem_max  ! The column maximum of visc_rem [nondim]
-  real, dimension(SZI_(G),SZJB_(G),SZK_(GV)) :: visc_rem_v_tmp ! A copy of visc_rem_v or an array of 1's [nondim]
   real :: I_vrm   ! 1.0 / visc_rem_max [nondim]
   real :: CFL_dt  ! The maximum CFL ratio of the adjusted velocities divided by
                   ! the time step [T-1 ~> s-1].
@@ -2361,6 +2362,15 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, G, GV,
   real, dimension(:,:,:), contiguous, pointer :: v, h_in, h_S, h_N, vh, por_face_areaV
   real, dimension(:,:,:), contiguous, pointer :: visc_rem_v
   real, dimension(:,:),   contiguous, pointer :: dv_cor
+  real, dimension(:,:),   contiguous, pointer :: &
+    dv, &         ! Corrective barotropic change in the velocity to give vhbt [L T-1 ~> m s-1].
+    dv_min_CFL, & ! Lower limit on dv correction to avoid CFL violations [L T-1 ~> m s-1]
+    dv_max_CFL, & ! Upper limit on dv correction to avoid CFL violations [L T-1 ~> m s-1]
+    dvhdv_tot_0, & ! Summed partial derivative of vh with v [H L ~> m2 or kg m-1].
+    vh_tot_0, &   ! Summed transport with no barotropic correction [H L2 T-1 ~> m3 s-1 or kg s-1].
+    visc_rem_max  ! The column maximum of visc_rem [nondim]
+  real, dimension(:,:,:), contiguous, pointer :: &
+    visc_rem_v_tmp ! A copy of visc_rem_v or an array of 1's [nondim]
 
   nullify(visc_rem_v, dv_cor)
 
@@ -2391,9 +2401,23 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, G, GV,
   I_dt = 1.0 / dt
   if (CS%aggress_adjust) CFL_dt = I_dt
 
+  call dv_a%alloc(lb=[G%isd, G%JsdB], ub=[G%ied, G%JedB])
+  call dv_min_CFL_a%alloc(lb=[G%isd, G%JsdB], ub=[G%ied, G%JedB])
+  call dv_max_CFL_a%alloc(lb=[G%isd, G%JsdB], ub=[G%ied, G%JedB])
+  call dvhdv_tot_0_a%alloc(lb=[G%isd, G%JsdB], ub=[G%ied, G%JedB])
+  call vh_tot_0_a%alloc(lb=[G%isd, G%JsdB], ub=[G%ied, G%JedB])
+  call visc_rem_max_a%alloc(lb=[G%isd, G%JsdB], ub=[G%ied, G%JedB])
+  call visc_rem_v_tmp_a%alloc(lb=[G%isd, G%JsdB, 1], ub=[G%ied, G%JedB, GV%ke])
+  call dv_a%view(dv)
+  call dv_min_CFL_a%view(dv_min_CFL)
+  call dv_max_CFL_a%view(dv_max_CFL)
+  call dvhdv_tot_0_a%view(dvhdv_tot_0)
+  call vh_tot_0_a%view(vh_tot_0)
+  call visc_rem_max_a%view(visc_rem_max)
+  call visc_rem_v_tmp_a%view(visc_rem_v_tmp)
+
   !$omp target enter data &
-  !$omp   map(alloc: dvhdv, dv, dv_min_CFL, dv_max_CFL, dvhdv_tot_0, vh_tot_0, visc_rem_max, &
-  !$omp     visc_rem_v_tmp)
+  !$omp   map(alloc: dvhdv)
 
   do concurrent (J=jsh-1:jeh)
 
@@ -2530,14 +2554,6 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, G, GV,
 
   enddo
 
-  call vh_tot_0_a%alloc(lb=LBOUND(vh_tot_0), ub=UBOUND(vh_tot_0), source=vh_tot_0)
-  call dvhdv_tot_0_a%alloc(lb=LBOUND(dvhdv_tot_0), ub=UBOUND(dvhdv_tot_0), source=dvhdv_tot_0)
-  call dv_a%alloc(lb=LBOUND(dv), ub=UBOUND(dv), source=dv)
-  call dv_max_CFL_a%alloc(lb=LBOUND(dv_max_CFL), ub=UBOUND(dv_max_CFL), source=dv_max_CFL)
-  call dv_min_CFL_a%alloc(lb=LBOUND(dv_min_CFL), ub=UBOUND(dv_min_CFL), source=dv_min_CFL)
-  call visc_rem_max_a%alloc(lb=LBOUND(visc_rem_max), ub=UBOUND(visc_rem_max), source=visc_rem_max)
-  call visc_rem_v_tmp_a%alloc(lb=LBOUND(visc_rem_v_tmp), ub=UBOUND(visc_rem_v_tmp), &
-                              source=visc_rem_v_tmp)
   call present_vhbt_or_set_BT_cont(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_a, dvhdv_tot_0_a, &
                                    dv_a, dv_max_CFL_a, dv_min_CFL_a, visc_rem_v_tmp_a, &
                                    visc_rem_max_a, por_face_areaV_a, vhbt_a, vh_a, v_cor_a, &
@@ -2551,8 +2567,7 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, G, GV,
   call visc_rem_v_tmp_a%free()
 
   !$omp target exit data &
-  !$omp   map(release: dvhdv, dv, dv_min_CFL, dv_max_CFL, dvhdv_tot_0, vh_tot_0, &
-  !$omp     visc_rem_max, visc_rem_v_tmp)
+  !$omp   map(release: dvhdv)
 
   call cpu_clock_end(id_clock_correct)
 
@@ -2609,8 +2624,9 @@ subroutine present_vhbt_or_set_BT_cont(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_
   type(continuity_PPM_CS), intent(in) :: CS !< This module's control structure.
   type(ocean_OBC_type), pointer :: OBC !< Open boundaries control structure.
   ! Local variables
-  logical, dimension(SZI_(G),SZJB_(G)) :: do_I
-  logical, dimension(SZI_(G),SZJB_(G)) :: simple_OBC_pt ! Indicates points in a row with specified transport OBCs
+  logical, dimension(v_a%lb(1):v_a%ub(1), v_a%lb(2):v_a%ub(2)) :: do_I
+  logical, dimension(v_a%lb(1):v_a%ub(1), v_a%lb(2):v_a%ub(2)) :: &
+    simple_OBC_pt ! Indicates points in a row with specified transport OBCs
   type(OBC_segment_type), pointer :: segment => NULL()
   real :: FAvi, FA_v    ! A sum of meridional face areas [H L ~> m2 or kg m-1].
   logical :: set_BT_cont
@@ -2815,10 +2831,12 @@ subroutine meridional_BT_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vhbt_a, dt, G
                                                            !! [nondim]
 
   ! Local variables
-  real :: vh(SZI_(G),SZJB_(G),SZK_(GV)) ! Volume flux through meridional faces = v*h*dx [H L2 T-1 ~> m3 s-1 or kg s-1]
-  real ::  dvhdv(SZI_(G),SZJB_(G),SZK_(GV))  ! Partial derivative of vh with v [H L ~> m2 or kg m-1].
+  real, dimension(v_a%lb(1):v_a%ub(1), v_a%lb(2):v_a%ub(2), v_a%lb(3):v_a%ub(3)) :: &
+    vh      ! Volume flux through meridional faces = v*h*dx [H L2 T-1 ~> m3 s-1 or kg s-1]
+  real, dimension(v_a%lb(1):v_a%ub(1), v_a%lb(2):v_a%ub(2), v_a%lb(3):v_a%ub(3)) :: &
+    dvhdv   ! Partial derivative of vh with v [H L ~> m2 or kg m-1].
   integer :: i, j, k, ish, ieh, jsh, jeh, nz, l_seg
-  logical :: local_specified_BC, OBC_in_row(SZJB_(G))
+  logical :: local_specified_BC, OBC_in_row(v_a%lb(2):v_a%ub(2))
   real, dimension(:,:,:), contiguous, pointer :: v, h_in, h_S, h_N, por_face_areaV
   real, dimension(:,:),   contiguous, pointer :: vhbt
 
@@ -3081,12 +3099,12 @@ subroutine meridional_flux_adjust(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_a, dv
                              !! faces = v*h*dx [H L2 T-1 ~> m3 s-1 or kg s-1].
   type(ocean_OBC_type), optional, pointer :: OBC !< Open boundaries control structure.
   ! Local variables
-  real, dimension(SZI_(G),SZK_(GV)) :: &
+  real, dimension(v_a%lb(1):v_a%ub(1), v_a%lb(3):v_a%ub(3)) :: &
     vh_aux     ! An auxiliary meridional volume flux [H L2 T-1 ~> m3 s-1 or kg s-1].
   real :: &
     dvhdv, &   ! Partial derivative of vh with v [H L ~> m2 or kg m-1].
     v_new      ! The velocity with the correction added [L T-1 ~> m s-1].
-  real, dimension(SZI_(G)) :: &
+  real, dimension(v_a%lb(1):v_a%ub(1)) :: &
     vh_err, &  ! Difference between vhbt and the summed vh [H L2 T-1 ~> m3 s-1 or kg s-1].
     vh_err_best, & ! The smallest value of vh_err found so far [H L2 T-1 ~> m3 s-1 or kg s-1].
     dvhdv_tot,&! Summed partial derivative of vh with u [H L ~> m2 or kg m-1].
@@ -3097,7 +3115,7 @@ subroutine meridional_flux_adjust(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_a, dv
   real :: tol_eta ! The tolerance for the current iteration [H ~> m or kg m-2].
   real :: tol_vel ! The tolerance for velocity in the current iteration [L T-1 ~> m s-1].
   integer :: i, j, k, nz, itt
-  logical :: do_I(SZI_(G)), local_OBC, use_vhbt
+  logical :: do_I(v_a%lb(1):v_a%ub(1)), local_OBC, use_vhbt
   integer, parameter :: max_itts = 20
   integer :: ish     !< Start of i index range.
   integer :: ieh     !< End of i index range.
@@ -3295,7 +3313,7 @@ subroutine set_merid_BT_cont(bxC, v_a, h_in_a, h_S_a, h_N_a, BT_cont, dv0_a, vh_
   type(RealArray_t),       intent(in)    :: por_face_areaV_a !< fractional open area of V-faces
                                                              !! [nondim]
   ! Local variables
-  real, dimension(SZI_(G)) :: &
+  real, dimension(v_a%lb(1):v_a%ub(1)) :: &
     dvL, dvR, &        ! The barotropic velocity increments that give the southerly
                        ! (dvL) and northerly (dvR) test velocities [L T-1 ~> m s-1].
     dv_CFL, &          ! The velocity increment that corresponds to CFL_min [L T-1 ~> m s-1].
