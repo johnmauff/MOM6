@@ -2408,15 +2408,15 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, G, GV,
       enddo
     endif
 
-    ! this is expensive
+    ! visc_rem_v_tmp must be valid over the full local domain, not just i=ish:ieh --
+    ! meridional_flux_thickness's open-boundary-segment branch reads it beyond this box
+    ! when this PE owns a segment of an open boundary.
     if (.not.use_visc_rem) then
-      !ORIG do concurrent (k=1:nz, i=G%isd:G%ied)
-      do concurrent (k=1:nz, i=ish:ieh)
+      do concurrent (k=1:nz, i=LBOUND(visc_rem_v_tmp,1):UBOUND(visc_rem_v_tmp,1))
         visc_rem_v_tmp(i,J,k) = 1.0
       enddo
     else
-      !ORIG do concurrent (k=1:nz, i=G%isd:G%ied)
-      do concurrent (k=1:nz, i=ish:ieh)
+      do concurrent (k=1:nz, i=LBOUND(visc_rem_v_tmp,1):UBOUND(visc_rem_v_tmp,1))
         visc_rem_v_tmp(i,J,k) = visc_rem_v(i,J,k)
       enddo
     endif
