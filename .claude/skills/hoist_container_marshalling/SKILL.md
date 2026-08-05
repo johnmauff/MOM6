@@ -1,6 +1,6 @@
 ---
 name: hoist_container_marshalling
-description: Reduce redundant %alloc/%free/%copy2F/%copy2Array churn in a MOM6 subroutine that already marshals RealArray_t/IntArray_t containers around calls to converted descendants (a Case-A caller, in convert_array_containers terms), and group the surviving alloc calls before -- and free/copy-back calls after -- the block of descendant calls, so that block reads and profiles as pure computation rather than memory bookkeeping. Use this on a subroutine that already has containers, and only when every descendant it calls is already container-native AND the subroutine's own dummy list has no optional raw array -- it refuses to run if even one call site still passes a raw array to a still-raw callee, or if the subroutine itself still takes an optional raw array (Step 0), since both cases pin a runtime-conditional alloc/free or copy2F that this skill cannot hoist away. A still-optional-and-raw dummy needs convert_optional_args_to_containers run on it first (often eliminating the branch entirely, not just relocating it, since a converted optional container forwards straight through to a same-typed optional dummy on the callee with no present() check needed). It never converts a new raw array, and it never touches a callee's signature or body. Best applied once every one of the subroutine's container conversions -- its own dummies, its own optional dummies, and every one of its descendants' -- are settled and every call site inside it is visible in one pass -- exactly the moment convert_array_containers' own Step 8/10 "hoisting candidate" deferral points to.
+description: Reduce redundant %alloc/%free/%copy2F/%copy2Array churn in a MOM6 subroutine that already marshals RealArray_t/IntArray_t containers around calls to converted descendants (a Case-A caller, in convert_array_containers terms), and group the surviving alloc calls before -- and free/copy-back calls after -- the block of descendant calls, so that block reads and profiles as pure computation rather than memory bookkeeping. Use this on a subroutine that already has containers. The eligibility check is per-container, not per-subroutine: a container whose call sequence touches a still-raw callee, or whose alloc/free is guarded by one of the subroutine's own optional raw array dummies, is entangled and stays exactly as it is -- but that only excludes that one container, not the whole subroutine, from hoisting; every other container is grouped and simplified normally (Step 1). An entangled container is named as a follow-up (convert_array_containers on the raw callee, or convert_optional_args_to_containers on the optional dummy), the same way convert_array_containers itself defers a hoisting candidate rather than solving it inline. It never converts a new raw array, and it never touches a callee's signature or body. Best applied once every container conversion feeding into this subroutine is settled and every call site inside it is visible in one pass -- exactly the moment convert_array_containers' own Step 8/10 "hoisting candidate" deferral points to.
 user-invocable: true
 argument-hint: <work-directory> <function-name> [--enable_git_commit] [--disable_git_commit]
 ---
@@ -45,41 +45,49 @@ intent-mapping rules. It is not reproduced here.
 ## Scope
 
 **In scope:** the marshalling code in one subroutine that already speaks
-containers, and whose every descendant call already speaks containers
-too -- reordering, merging, or eliminating `%alloc`, `%free`, `%copy2F`,
-and `%copy2Array` calls, and the plain scalar/loop-invariant computations
-that feed them (e.g. hoisting `edge_h_min = 2.0 * GV%Angstrom_H` out of a
+containers -- reordering, merging, or eliminating `%alloc`, `%free`,
+`%copy2F`, and `%copy2Array` calls for every container not entangled per
+the check below, and the plain scalar/loop-invariant computations that
+feed them (e.g. hoisting `edge_h_min = 2.0 * GV%Angstrom_H` out of a
 branch that computes it twice).
 
-**Hard precondition, checked in Step 0: every descendant this subroutine
-calls must already be container-native.** If even one call site passes a
-raw array to a callee that still takes raw arrays (a `zonal_BT_mass_flux`,
-`meridional_BT_mass_flux`, or anything else `convert_array_containers`
-hasn't reached yet), stop -- do not run on this subroutine. A still-raw
-callee needs its raw array populated (via `%copy2F`) immediately before
-the call that consumes it, which pins that copy2F in the middle of the
-call sequence and makes the "uninterrupted descendant-call block" goal
-(§4) permanently unreachable for that call, no matter how the rest of the
-subroutine's containers are hoisted. Convert the raw callee first
-(`convert_array_containers`), then come back.
+**No whole-subroutine precondition -- entanglement is checked per
+container, in Step 1.** A still-raw callee, or an optional raw array
+dummy on this subroutine's own signature, doesn't disqualify the
+subroutine from a hoisting pass; it disqualifies only the specific
+container(s) actually entangled with it. Two entanglement patterns, both
+tagged (not refused) in Step 1's table:
 
-**Second hard precondition, also checked in Step 0: the subroutine's own
-dummy list must have no `optional` raw array.** A subroutine like
-`continuity_adjust_vel`, whose own `optional` dummy (`visc_rem_u`) is
-still a raw array, is forced to build its container for that argument
-conditionally (`if (present(visc_rem_u)) then ... alloc ... free ...
-endif`, lessons §6) -- and that conditional alloc/free can never be
-hoisted to the unconditional top/bottom blocks, because doing so would
-make the container always "present" to the callee regardless of whether
-the caller actually supplied `visc_rem_u` (lessons §9 #8b). Convert that
-optional dummy first with `convert_optional_args_to_containers`. This
-usually does more than relocate the problem: once the subroutine's own
-`visc_rem_u` is `visc_rem_u_a` (an optional container), it forwards
-straight through to the callee's own optional `visc_rem_u_a` dummy with
-no `present()` check at all -- the same-type optional-to-optional
-forwarding rule preserves absence for free -- so the branch this skill
-couldn't hoist typically disappears entirely rather than surviving as an
-unavoidable exception.
+- **A container's `%copy2F` feeds a call into a callee that still takes
+  a raw array at that position** (a `zonal_BT_mass_flux`,
+  `meridional_BT_mass_flux`, or anything else `convert_array_containers`
+  hasn't reached yet). That specific `%copy2F` can never join the
+  grouped end-of-sequence block (§4) -- it must stay immediately before
+  the call it feeds, exactly as today. This does not stop the *same*
+  container's `%alloc` from joining the grouped top block if nothing
+  else about it is entangled; only the pinned operation is excluded, not
+  the container's whole lifecycle.
+- **A container is built from one of this subroutine's own `optional`
+  raw array dummies** (e.g. `continuity_adjust_vel`'s `visc_rem_u`), so
+  its `alloc`/`free` sits inside an `if (present(...))` guard (lessons
+  §6). That `alloc`/`free` pair can never be pulled out to the
+  unconditional top/bottom blocks -- doing so would make the container
+  always "present" to its callee regardless of whether the caller
+  actually supplied the argument (lessons §9 #8b).
+
+Either pattern makes the entangled container (or, for the first pattern,
+just the one pinned operation) ineligible for the fixes in §1-§3 below
+and the grouping in §4 -- leave it exactly where it is and name it in
+the Step 5 report as a follow-up (`convert_array_containers` on the raw
+callee; `convert_optional_args_to_containers` on the optional dummy --
+the latter often removes the entanglement entirely rather than
+relocating it, since a converted optional container forwards straight
+through to a same-typed optional dummy with no `present()` check
+needed). Every other container in the same subroutine hoists normally in
+the same pass. Only if *every* container turns out entangled (or already
+at one alloc/one free) does this skill have nothing to do -- report
+that, and name what would unblock each one, rather than refusing the
+whole subroutine up front.
 
 **Explicitly out of scope:**
 - Converting any raw array dummy or local to a container. That is
@@ -97,6 +105,11 @@ unavoidable exception.
   unless explicitly asked for separately. This skill's "grouping" step is
   about source-level readability and manual profiling, not about adding
   measurement code.
+- Hoisting a container's `%alloc`/`%free`/`%copy2F` across an
+  entanglement point identified in Step 1 (a still-raw callee, or an
+  optional-raw-dummy guard) -- that operation stays exactly where it is;
+  Step 1's classification decides this, not a judgment call to revisit
+  here.
 
 ## The core technique -- one litmus test, applied three ways
 
@@ -111,7 +124,9 @@ container's `%alloc(source=X)`:
 
 Walk the subroutine's actual body to answer this -- never assume from the
 variable's name or its position in the source. If the answer is no, one
-of three fixes applies:
+of three fixes applies. (Step 1 tags any operation entangled with a
+still-raw callee or an optional raw dummy first; this litmus test then
+applies to everything left untagged.)
 
 ### 1. Source never changes -- hoist to a single alloc/free
 
@@ -229,33 +244,16 @@ convention (lessons §7), not a signal either way.
    no `type(RealArray_t)`/`type(IntArray_t)` dummies or locals at all, stop
    and say so -- this skill has nothing to do on a still-raw subroutine;
    that is `convert_array_containers`'s job.
-6. **Every descendant must already be container-native.** Find every
-   `call <callee>(...)` inside `$1` (same grep as
-   `convert_array_containers` Step 3) and check each callee's own
-   declaration. If any actual argument passed to any callee is a raw,
-   grid-shaped array (not a `type(RealArray_t)`/`type(IntArray_t)`
-   container) -> stop:
-   `Error: $1 calls <callee> with a raw array argument (<arg>). hoist_container_marshalling requires every descendant to already be container-native -- run convert_array_containers on <callee> first.`
-   This is a hard requirement, not a judgment call: a still-raw callee
-   pins a `%copy2F` immediately before the call that feeds it (§ Scope),
-   which this skill cannot hoist or defer around, and mixing "fully
-   hoistable" containers with "must stay pinned" ones in the same pass is
-   exactly the confusion this precondition exists to avoid.
-7. **The subroutine's own dummy list must have no `optional` raw array.**
-   Read `$1`'s own declaration. If any `optional` dummy is still a raw,
-   grid-shaped array (not a `type(RealArray_t)`/`type(IntArray_t)`
-   container) -> stop:
-   `Error: $1 has an optional raw array dummy (<arg>). hoist_container_marshalling requires every optional dummy to already be a container -- run convert_optional_args_to_containers on <arg> first.`
-   Same reasoning as item 6: an optional raw dummy forces a runtime
-   `if (present(...))`-guarded alloc/free (lessons §6) that can never be
-   hoisted to the unconditional top/bottom blocks without corrupting the
-   callee's own `present()` check (lessons §9 #8b). Converting it first
-   usually removes the branch entirely rather than just relocating it --
-   see § Scope for why.
-8. Read the full subroutine. Build the table described in Step 1 below
-   *before* changing anything, and if it shows every container already at
-   exactly one `%alloc` and one `%free`, stop and report there is nothing
-   to hoist.
+6. Read the full subroutine. Build the table described in Step 1 below
+   *before* changing anything -- it tags each container's entanglement
+   (still-raw callee, optional-raw-dummy guard, or neither) in the same
+   pass. If every container is already at exactly one `%alloc` and one
+   `%free` with nothing tagged, stop and report there is nothing to
+   hoist. If every container is instead tagged entangled, stop and
+   report there is nothing to hoist *here*, naming what would unblock
+   each one (`convert_array_containers` on the raw callee;
+   `convert_optional_args_to_containers` on the optional dummy) -- run
+   separately, then come back.
 
 ### 1. Build the "before" table
 
@@ -269,10 +267,22 @@ tally by container name) is the fastest way to build this and to verify
 it afterward -- there is no need to read the whole body by eye once the
 table exists.
 
+**Tag entanglement for every operation, in the same pass.** For every
+`call <callee>(...)` this subroutine makes (same grep as
+`convert_array_containers` Step 3), check whether the actual argument at
+each position is a container or a raw array; if a container's `%copy2F`
+feeds a raw-array position, tag that specific `%copy2F` **pinned --
+still-raw callee**. Separately, check whether this subroutine's own
+dummy list has an `optional` raw array; if so, find the container(s)
+whose `alloc`/`free` sit inside that dummy's `if (present(...))` guard
+and tag them **entangled -- optional raw dummy**. Every other
+alloc/free/copy2F/copy2Array is untagged and eligible for §1-§3/§4 below.
+
 This table is what makes every later step mechanical rather than
 judgment-based: once you know container `X` is alloc'd 4 times, all with
-`source=Y`, the fix in §1 above applies without re-reading the
-surrounding code each time.
+`source=Y`, and untagged, the fix in §1 above applies without re-reading
+the surrounding code each time; a tagged operation is instead left alone
+and reported.
 
 ### 2. Classify every branch that matters
 
@@ -290,7 +300,9 @@ actual control flow, not just the presence of an `if`.
 
 ### 3. Apply the three fixes from the table
 
-For each container in the Step 1 table, in order:
+Skip any container or operation tagged pinned/entangled in Step 1 --
+leave it exactly where it is. For every remaining, untagged container in
+the table, in order:
 - **Unchanging source, multiple alloc/free pairs** -> hoist per §1 above.
 - **Source changes exactly once, no other container built from the same
   raw array afterward** -> `%copy2Array` in place per §2 above.
@@ -307,33 +319,41 @@ reason in the Step 5 report rather than leaving it unexplained.
 
 ### 4. Group the survivors
 
-Move every surviving `%alloc` to a single block before the subroutine's
-main branch (or before the sequence of descendant calls, if there is no
-branch). Move every surviving `%free`, plus any `%copy2F` that is not
-itself required *before* a later step in the same call sequence (i.e. it
-has no reader between where it currently sits and the end of the
-subroutine), to a single block after that sequence, in this fixed order
-within the block: all `%copy2F` calls first, then all `%free` calls.
+Move every surviving, untagged `%alloc` to a single block before the
+subroutine's main branch (or before the sequence of descendant calls, if
+there is no branch). Move every surviving, untagged `%free`, plus any
+untagged `%copy2F` that is not itself required *before* a later step in
+the same call sequence (i.e. it has no reader between where it currently
+sits and the end of the subroutine), to a single block after that
+sequence, in this fixed order within the block: all `%copy2F` calls
+first, then all `%free` calls.
 
-A `%copy2F` that *does* feed a later `%copy2Array`/`%alloc(source=...)` in
-the same sequence -- the Step 3 §3 merge case, before the merge is fully
-applied, or any pairing a merge turned out not to be possible for --
-stays exactly where it is needed; do not move a copy-back earlier or
-later than the point that makes it correct. Since Step 0 already refused
-to run on any subroutine with a still-raw descendant, this is the *only*
-reason a `%copy2F` should remain mid-sequence -- there is no other
-legitimate case for one, and the goal below is always fully achievable.
+Two, and only two, legitimate reasons an operation stays mid-sequence
+instead of joining a grouped block:
+- A `%copy2F` that *does* feed a later `%copy2Array`/`%alloc(source=...)`
+  in the same sequence -- the Step 3 §3 merge case, before the merge is
+  fully applied, or any pairing a merge turned out not to be possible
+  for. Do not move a copy-back earlier or later than the point that
+  makes it correct.
+- Any operation tagged **pinned -- still-raw callee** or **entangled --
+  optional raw dummy** in Step 1 -- leave it exactly where it is; it was
+  never a candidate for grouping in the first place.
 
 The goal is that the subroutine's block of descendant calls -- the
 `bxC = set_continuity_box(...)` / `call zonal_edge_thickness(...)` /
 `call zonal_mass_flux(...)` / `call continuity_zonal_convergence(...)`
-style sequence -- reads as pure computation, with no `%alloc`, `%free`,
-`%copy2F`, or `%copy2Array` calls interleaved, once this step is done.
+style sequence -- reads as pure computation for every untagged container,
+with no `%alloc`, `%free`, `%copy2F`, or `%copy2Array` calls interleaved
+for those, once this step is done. A pinned `%copy2F` feeding a
+still-raw callee is the one remaining exception to that read, and is
+called out explicitly in the Step 5 report.
 
 ### 5. Verify
 
-- Rebuild the Step 1 table against the edited code. Every container's
-  `%alloc` count must equal its `%free` count.
+- Rebuild the Step 1 table against the edited code. Every untagged
+  container's `%alloc` count must equal its `%free` count.
+- Every operation tagged pinned/entangled in Step 1 is byte-identical to
+  before, and named in the report together with what would unblock it.
 - For every remaining `%copy2F`/`%copy2Array` call, state in one line why
   it is necessary (feeds a specific later call or dummy write-back) --
   an unexplained one is a sign a fix from Step 3 was missed.
@@ -354,12 +374,12 @@ style sequence -- reads as pure computation, with no `%alloc`, `%free`,
 
 ## Hard rules
 
-- Never run on a subroutine that calls even one still-raw descendant
-  with a raw array argument (Step 0 item 6). Convert that descendant
-  first, or pick a different target.
-- Never run on a subroutine that itself still has an `optional` raw
-  array dummy (Step 0 item 7). Run `convert_optional_args_to_containers`
-  on it first.
+- Never hoist a container's `%alloc`/`%free`/`%copy2F` across an
+  entanglement point tagged in Step 1 (a still-raw callee, or an
+  optional-raw-dummy guard) -- leave that operation exactly where it is,
+  and name what would unblock it (`convert_array_containers` on the raw
+  callee; `convert_optional_args_to_containers` on the optional dummy)
+  instead of refusing the whole subroutine over it.
 - Never convert a raw array to a container here -- that is
   `convert_array_containers`'s job, run separately if something in scope
   turns out to still be raw.
@@ -397,16 +417,22 @@ Branch name: `claude_<lowercased_function-name>_hoist`.
 
 Report:
 1. The subroutine, and the before/after `%alloc` count total (sum across
-   all containers) as the headline number.
-2. Per container: before count -> after count, and which of the three
-   fixes (§1/§2/§3) applied, in one line each.
-3. Any container left with more than one alloc/free pair, and why.
-4. Confirmation that the descendant-call sequence is now uninterrupted by
-   marshalling (Step 0's precondition guarantees this is always fully
-   achievable; if a `%copy2F` still had to stay mid-sequence, say what it
-   feeds -- this should only ever be a Step 3 §3 merge case, never a
-   still-raw callee).
-5. Doc-comment count unchanged, line-length check, diff-scope confirmation
+   all untagged containers) as the headline number.
+2. Per untagged container: before count -> after count, and which of the
+   three fixes (§1/§2/§3) applied, in one line each.
+3. Any untagged container left with more than one alloc/free pair, and
+   why.
+4. Every entangled/pinned container or operation found in Step 1, left
+   unchanged, and what would unblock it (`convert_array_containers` on
+   the raw callee; `convert_optional_args_to_containers` on the optional
+   dummy) -- report these as follow-up candidates the same way
+   `convert_array_containers` itself reports a deferred hoisting
+   candidate.
+5. Confirmation that the descendant-call sequence is now uninterrupted by
+   marshalling for every untagged container; if a `%copy2F` still had to
+   stay mid-sequence, say what it feeds -- either a Step 3 §3 merge case
+   or a pinned still-raw callee (item 4 above).
+6. Doc-comment count unchanged, line-length check, diff-scope confirmation
    (only this subroutine's body changed).
-6. Build status.
-7. Whether committed, or the list of modified files for manual commit.
+7. Build status.
+8. Whether committed, or the list of modified files for manual commit.

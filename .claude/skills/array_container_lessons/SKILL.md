@@ -85,6 +85,23 @@ Either way, a converted routine calling a still-raw callee is a valid,
 buildable intermediate state — pass the callee a `%view` pointer and note
 it as the next conversion candidate.
 
+**This preference is specifically about marshalling churn on the
+container-*dummy* conversion — it is not the right direction for
+deciding whether `G`/`GV`/`US` can be dropped from a signature
+entirely.** Those are two different questions. Containerizing a
+subroutine's own array dummies is a local decision — it needs nothing
+from its callees, so top-down avoids rewriting scaffolding. Whether `G`
+can be *dropped* from a subroutine's signature (`convert_array_containers`
+"Settle these decisions" #2, and its Step 2b) is not local: a subroutine
+that still forwards `G`/`GV` wholesale to even one still-raw callee
+cannot drop it, no matter how many of its own `G%`/`GV%` field references
+have been promoted to containers. That fact is only knowable once every
+callee below it has itself finished the same check — which is inherently
+bottom-up information. Converting container dummies top-down and then
+deciding `G`/`GV` elimination bottom-up (leaves first, working back up)
+are not in conflict; the first is about where marshalling scaffolding
+lands, the second is about what a signature is still forced to carry.
+
 Because no signature *semantics* change — same values, same order, same
 bounds — a conversion is **numerically inert**. Any numerical difference
 afterwards is a bug, not an expected consequence.

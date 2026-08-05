@@ -1,6 +1,6 @@
 ---
 name: convert_array_containers
-description: Convert a MOM6 Fortran subroutine from raw grid-shaped arrays (real, dimension(SZI_(G),SZJ_(G),SZK_(GV))) to the RealArray_t / IntArray_t container types in place -- array dummies become containers, the body obtains ordinary Fortran pointers via %view so the math is untouched, and every call site is updated to alloc / copy2F / free around the call. Use when pushing the raw-array boundary further up the MOM6 call tree. Does NOT rename anything, add a dispatcher shim, capture mode, or a bind(C) bridge -- those belong to generate_cpp_bridge.
+description: Convert a MOM6 Fortran subroutine from raw grid-shaped arrays to RealArray_t/IntArray_t containers in place -- array dummies become containers, the body gets %view pointers so the math is untouched, and every call site gets alloc/copy2F/free. Also fixes local or logical-dummy sizing still keyed off G/GV macros once a matching dummy is already a container (Step 2a), and promotes any remaining G%/GV%/US%/CS% field reference, array or scalar, anywhere in an already-converted subroutine's body to a plain dummy (Step 2b). Use when pushing the raw-array boundary up the MOM6 call tree. Does NOT rename anything, add a dispatcher shim, capture mode, or a bind(C) bridge -- those belong to generate_cpp_bridge.
 user-invocable: true
 argument-hint: <work-directory> <function-name> [--enable_src_validate] [--enable_git_commit] [--disable_git_commit]
 ---
@@ -9,11 +9,10 @@ argument-hint: <work-directory> <function-name> [--enable_src_validate] [--enabl
 
 This skill is the **execution checklist**. All templates, the container
 API reference, intent rules, and pitfalls live in the
-`array_container_lessons` skill (numbered sections §1–§10) — invoke
-`array_container_lessons` once near the start of a session, before
-running this skill, and refer back to its numbered sections from each
-step below (Step 0 checks that it has been loaded). Do not reproduce
-templates here.
+`array_container_lessons` skill (numbered sections §1–§10) — invoke it
+once near the start of a session, before running this skill, and refer
+back to its numbered sections from each step below (Step 0 checks that
+it has been loaded). Do not reproduce templates here.
 
 **This skill converts data structures only.** It does not rename the
 subroutine, does not add a `*_fortran` variant, and does not introduce a
@@ -87,14 +86,11 @@ error. Do not retry, do not assume defaults, do not create anything.
    `Error: --enable_git_commit and --disable_git_commit are mutually exclusive.`
    Any unrecognised argument that starts with `--` → stop:
    `Error: unknown option "<value>". Run "/convert_array_containers --help" for usage.`
-4. **Reference material primed.** This skill assumes the
-   `array_container_lessons` skill has already been invoked earlier in
-   this session. If you have no memory of its numbered sections (§2, §3,
-   §4, §5, §6, §7, §8, §9 are referenced throughout this procedure),
-   invoke the `array_container_lessons` skill now, before proceeding to
-   Step 1 or any step below. Do not guess at template content or API
-   signatures from memory of a similar prior task — invoke it and read
-   its content first.
+4. **Reference material primed.** This skill assumes `array_container_lessons`
+   has already been invoked earlier in this session. If you have no memory
+   of its numbered sections (§2–§9 are referenced throughout this
+   procedure), invoke it now, before proceeding. Do not guess at template
+   content or API signatures from memory of a similar prior task.
 5. **A `<function-name>_fortran` sibling doesn't mean stop.** Run
    `grep -irn "^[[:space:]]*subroutine[[:space:]]\+<function-name>_fortran\b" $0/src $0/config_src`.
    If it matches, `<function-name>` is a bridge shim over an
@@ -105,12 +101,34 @@ error. Do not retry, do not assume defaults, do not create anything.
    derived type, and never touch a `bind(C)` interface declaration. If
    either seems necessary, stop — that means the task has drifted into
    `generate_cpp_bridge`'s territory.
-6. **Target is not already converted.** Locate `<function-name>`'s own
-   declaration with
+6. **Target is not already converted -- or has Step 2a/2b work left.**
+   Locate `<function-name>`'s own declaration with
    `grep -irn "^[[:space:]]*subroutine[[:space:]]\+<function-name>\b" $0/src $0/config_src`
    and read its dummy list. If every array dummy is already
-   `type(RealArray_t)` / `type(IntArray_t)`, stop and report that the
-   subroutine is already container-native; there is nothing to do.
+   `type(RealArray_t)` / `type(IntArray_t)`, this subroutine's own
+   dummy-conversion work (Steps 2, 4, 5, 6, 7) is done — but check both
+   of the following, since either can apply independently and both can
+   apply together in the same run:
+   - **Step 2a candidate:** at least one local array declaration, **or
+     any `logical` dummy** (the one array kind Step 2 never
+     containerizes), still sized via the `SZI_`/`SZJ_`/`SZK_`/`SZIB_`/`SZJB_`
+     macros and matching a mandatory dummy's shape (Step 2a below).
+   - **Step 2b candidate:** grep the body for every `<type>%<field>`
+     occurrence of a derived-type dummy this subroutine still takes but
+     isn't itself converting (`G`, `GV`, `US`, `CS`, or any other module
+     control-structure type) — including occurrences inside a call
+     argument to another subroutine, not just the subroutine's own
+     expressions. Any hit not already reached only through an existing
+     container dummy is a candidate, full stop; it does not matter
+     whether that field is used directly, only forwarded, or both (Step
+     2b below).
+
+   If neither applies, stop and report the subroutine is already
+   container-native. If either or both apply, proceed with exactly the
+   ones that do — one invocation, not two. Step 3 is still needed to
+   support both steps' call-site tracing, and Step 9's verification
+   still applies to whatever either step changes; every other
+   dummy-conversion step (2, 4, 5, 6, 7) stays skipped.
 
 Items 4, 5, and 6 always run, regardless of flags — a bad target is
 worth catching before any git/branch work happens. Step 1 runs only when
@@ -130,7 +148,12 @@ conversion work executes until Step 0 validation passes.
 2. **Argument-list reduction** — whether `G` / `GV` / `US` / `CS` can be
    dropped from the signature once their array members become containers
    and their scalar members become plain dummies (lessons §8). Default:
-   drop only what the body genuinely no longer references.
+   drop only what the body genuinely no longer references — but this
+   can't be finalized until every callee this subroutine still forwards
+   `G`/`GV`/`US` to wholesale (not merely a promoted field) has itself
+   settled the same question (see direction note below). A clean-looking
+   body doesn't mean `G` can go if it's still passed on to a
+   still-raw/still-forwarding descendant.
 3. **Scope of call-site updates** — default is to update every call site
    found in Step 3 in the same change, so the build stays green. Each
    site is handled per its own caller's state (Step 8, Case A or B); a
@@ -138,21 +161,27 @@ conversion work executes until Step 0 validation passes.
    passes its containers straight through.
 
 This skill converts **one subroutine per invocation** and does not
-recurse. A multi-level conversion is a sequence of invocations, and
-either direction works — but they differ in cost:
+recurse; a multi-level conversion is a sequence of invocations. Two
+separate direction questions apply, and they don't have to agree:
 
-- **Top-down** (start at the highest routine you intend to convert, work
-  toward the leaves): the marshalling block lands once, in the caller
-  that will remain raw permanently, and never moves. Each subsequent
-  conversion is mostly Step 8 Case B — swap a `%view` pointer argument
-  for the container it came from. **Preferred.**
-- **Bottom-up** (leaves first): every level's marshalling is written when
-  its callee is converted and deleted again when the caller itself is
-  converted. Correct, but churns the same code repeatedly.
+- **Dummy conversion (Steps 2/4/5/7/8):** top-down preferred (lessons §1)
+  — the marshalling block lands once, at the caller that stays raw
+  permanently, instead of being written and torn down at every level.
+- **Dropping `G`/`GV`/`US` from a signature (item 2 above, Step 2b):**
+  bottom-up *required*, not just preferred. A subroutine can't safely
+  drop `G` while any callee still needs it forwarded wholesale, and
+  that's only knowable once every callee has already settled it —
+  deciding top-down means either leaving `G` in provisionally and
+  re-checking later, or guessing wrong. Walk leaves-first so each
+  subroutine's drop decision is made exactly once, correctly.
+
+In practice: containerize dummies in whatever order suits the
+marshalling-churn concern, but defer every `G`/`GV` drop decision and
+every Step 2b promotion until walking back up from the leaves.
 
 Report the follow-up candidates found in Step 7 so the user can pick the
 next invocation deliberately, and say which direction the current
-invocation implies.
+invocation implies for both questions.
 
 If the user already specified any of these, take their values as-is.
 
@@ -202,10 +231,9 @@ section that holds the template or rationale.
 
    **Stop and ask about every `optional` array dummy — do not decide
    either way silently.** This skill has produced both outcomes in
-   practice on real subroutines (e.g. `zonal_mass_flux`'s `uhbt`,
-   `visc_rem_u`, `u_cor`, and `du_cor` were left as raw optional arrays;
-   other conversions have containerized theirs) and neither is a safe
-   default to assume.
+   practice (e.g. `zonal_mass_flux`'s `uhbt`, `visc_rem_u`, `u_cor`, and
+   `du_cor` were left raw; other conversions have containerized theirs)
+   and neither is a safe default.
 
    For each optional array dummy found, present it to the user by name
    and ask: convert it now, or leave it as a raw array, passed through
@@ -219,8 +247,7 @@ section that holds the template or rationale.
      at run time.
    - **Leave as raw.** Make no change to its declaration, rank, or any
      `present(<name>)` test in the body. At call sites (Step 8) this
-     argument is simply forwarded as-is — it was never a container, so
-     there is nothing to marshal for it.
+     argument is simply forwarded as-is — nothing to marshal for it.
 
    Record each answer before proceeding to Step 3; every optional array
    dummy must have an explicit answer, not an inferred one.
@@ -232,8 +259,136 @@ section that holds the template or rationale.
    the call site (lessons §8).
 
    Print the proposed new argument list and pause for user confirmation
-   before writing anything. Name every added and removed dummy
-   explicitly.
+   before writing anything, including any Step 2a rewrites found below —
+   the user should see the whole plan, not just the dummy changes.
+
+### 2a. Eliminate grid-macro sizing on locals and logical dummies that an existing dummy's bounds already describe
+
+   For every local array declared in the subroutine (`real` or
+   `logical`, any rank), **and for every `logical` dummy of the
+   subroutine** (a `real`/`integer` dummy still raw here would mean
+   Step 0 item 6 never reached this relaxed case at all — `logical` is
+   the one array kind Step 2 never containerizes, so it can outlive
+   every other dummy's conversion), whose dimensions are still written
+   using the `SZI_`/`SZJ_`/`SZK_`/`SZIB_`/`SZJB_` macros: check whether
+   any **mandatory** (non-`optional`) array dummy of this subroutine —
+   converted in this pass or a prior one — has, at some matching
+   dimension, the identical macro invocation.
+
+   - **Match dimension-by-dimension, not rank-by-rank.** A rank-2 local
+     declared `SZIB_(G),SZK_(GV)` matches a rank-3 dummy `u_a` whose
+     first dimension is `SZIB_(G)` and third is `SZK_(GV)`, even though
+     the ranks differ and the middle dimension is skipped — record the
+     specific dummy/dimension used for each of the local's own
+     dimensions. Prefer one dummy covering every dimension it can, for
+     readability, but different dimensions may key off different dummies.
+   - **Only a mandatory dummy qualifies.** An `optional` dummy's
+     container can be absent, so its `%lb`/`%ub` can be disassociated —
+     using it to size another array would be undefined behavior exactly
+     when it matters most. If the only macro-matching dummy for a
+     dimension is `optional`, leave that dimension's bound untouched and
+     note it in the Step 10 report.
+   - **For a dummy already converted in a prior pass**, its raw
+     declaration no longer exists to read the macro from directly —
+     trace one call site (Step 3; they must all agree) to the raw array
+     supplied as `source=` in that dummy's `%alloc` call, and read that
+     array's declaration to recover the per-dimension macro pattern.
+   - Rewrite the declaration from the macro form to the dummy's own
+     bound fields:
+     ```fortran
+     ! BEFORE
+     real, dimension(SZIB_(G),SZK_(GV)) :: uh_aux
+
+     ! AFTER -- u_a is a mandatory dummy of this subroutine, already a container
+     real, dimension(u_a%lb(1):u_a%ub(1), u_a%lb(3):u_a%ub(3)) :: uh_aux
+     ```
+     Legal because `u_a` is a genuine dummy argument, associated by the
+     caller before this subroutine is entered — unlike a `%view`-derived
+     pointer, which is only associated by an executable statement partway
+     through the body and can never be referenced this way (Hard rules).
+   - **This applies equally to a `logical` dummy sized the same way** —
+     e.g. `set_zonal_BT_cont` took `do_I` as
+     `logical, dimension(SZIB_(G),SZJ_(G)), intent(in)`. Rewiring its own
+     bound to another mandatory dummy's `%lb`/`%ub` is exactly as legal
+     as the macro it replaces referencing `G`, itself just another
+     dummy — Fortran doesn't care which dummy a specification expression
+     references, only that it's a dummy of the same subprogram. **Not
+     containerizing a logical (no `LogicalArray_t` exists) is a
+     different question from rewiring its bound** — don't treat a
+     macro-sized logical dummy as unresolved; it can be the difference
+     between `G`/`GV` staying in a signature or not.
+   - A local/dummy with no macro-matching mandatory dummy at all is
+     unaffected — leave its declaration as-is.
+
+   Do this **before** Step 4 rewrites any dummy declaration — the
+   "before" macro pattern on a dummy converted in this same pass is only
+   readable from its current, not-yet-rewritten declaration.
+
+   If only this step applies (no Step 2b candidate), it's the entire
+   run — Steps 4–8 have nothing left to do since the signature doesn't
+   change. If Step 2b also applies, do this step first (it needs the
+   final set of mandatory dummies) before continuing into Step 2b.
+
+### 2b. Promote remaining derived-type field references, even on an already-converted subroutine
+
+   Step 2a only rewrites a *bound expression*; it never touches a live
+   field reference in the body. This step finishes what Step 2 already
+   does on a first-time conversion — extracting a derived type's fields
+   into plain dummies — for a subroutine already past Steps 2/4/5.
+
+   **The check is one grep, not a judgment call.** For each derived-type
+   dummy this subroutine still takes but isn't itself converting (`G`,
+   `GV`, `US`, `CS`, or any other module control-structure type), grep
+   the body for every `<type>%<field>` occurrence — this includes
+   occurrences inside a call argument to another subroutine, not just
+   the subroutine's own expressions; grep doesn't care why the text is
+   there, and neither does this step. Deduplicate by field name. For
+   every distinct field found, regardless of how it's used:
+
+   - **Array field** (`G%dy_Cu`, `G%IareaT`, …): if a local
+     `type(RealArray_t)`/`type(IntArray_t)` already exists in this
+     subroutine sourced from that exact field (typically built to
+     forward it into an already-converted callee), promote *that* local
+     to a dummy and delete its now-redundant `%alloc`/`%free` pair.
+     Otherwise create a new dummy `<field>_a` with a fresh `!<` comment
+     (Step 4's rules apply). Either way, declare (or reuse) a `%view`
+     pointer under the field's bare name (Step 5), replace every literal
+     `<type>%<field>` occurrence in the body with it, and thread the
+     dummy through every call site using Step 8's ordinary Case A/Case B
+     logic — a raw caller builds/frees a container (flag a
+     loop-invariant source as a hoisting candidate); an already-converted
+     caller passes its matching dummy straight through or needs its own
+     Step 2b pass first (report as a follow-up, don't convert it here).
+   - **Scalar field** (`GV%H_subroundoff`, `CS%vol_CFL`, …): add a plain
+     scalar dummy of the same type with a fresh `!<` comment, replace
+     every literal occurrence with its bare name, and at every call site
+     add `<field>=<caller's-own-derived-type>%<field>` as a plain
+     expression — no container, no `alloc`/`free`.
+
+   Do this for **every** distinct field found — a field used directly in
+   this subroutine's own math is exactly as eligible as one only ever
+   forwarded to a callee, and finding one doesn't say anything about the
+   others; check the whole field list, not just the first hit. The
+   derived type itself drops from the signature (Settle these decisions
+   #2) only once the grep comes back empty.
+
+   Replacing a literal `<type>%<field>` with a bare name is the one
+   deliberate exception to "zero edits inside the body" — there's no way
+   to extract a field access without changing the text naming it. Every
+   changed line must differ from before by *only* that substitution;
+   verify line-by-line in Step 9.
+
+   **Run this bottom-up across a call tree, leaves first** — same
+   reasoning as the direction note above: a subroutine's dependence on
+   any of these derived types can't be settled until its own callees
+   have settled theirs.
+
+   Present the complete list of fields found to the user for
+   confirmation before writing, alongside whatever Step 2a found.
+
+   If only this step applies (no Step 2a candidate), skip straight here
+   from Step 0/1 — Step 3 still runs for this step's own call-site
+   threading.
 
 ### 3. Find every call site
    Run `grep -rn "call[[:space:]]\+<function-name>(" $0/src $0/config_src`
@@ -288,27 +443,22 @@ section that holds the template or rationale.
    5. **Check the resulting line length — MOM6 enforces a 100-character
       limit.** Collapsing a two-line raw-array declaration onto one
       container-declaration line very often pushes it past 100
-      characters, especially when the comment carries a unit annotation
-      (`[H ~> m or kg m-2]`, `[nondim]`). If the new line exceeds 100
-      characters, wrap the comment onto a `!!` continuation line at a
-      word boundary — do not truncate, shorten, or drop any of the
-      comment to make it fit. Match the continuation style already used
-      by neighbouring dummies in the *same* subroutine (indent the `!!`
-      under the `!<` column above it); this file already wraps long
-      comments this way in many places, so there is always a local
-      example to match. Recheck the length of both resulting lines
-      before moving on.
+      characters, especially with a unit annotation. If the new line
+      exceeds 100 characters, wrap the comment onto a `!!` continuation
+      line at a word boundary — do not truncate, shorten, or drop any of
+      the comment to make it fit. Match the continuation style already
+      used by neighbouring dummies in the *same* subroutine. Recheck the
+      length of both resulting lines before moving on.
    6. **The `subroutine <name>(...)` header line is subject to the same
       100-character limit — check it separately from the dummy
       declarations.** Adding new grid-derived container dummies (Step 2)
-      lengthens the argument list on this line, and it is easy to check
-      every declaration's length while forgetting the one line that
-      names them all. If the header's first physical line exceeds 100
-      characters, move the `&` continuation earlier — wrap the argument
-      list across more lines, breaking at a comma — the same mechanism
-      already used to wrap it at all; do not remove or rename an
-      argument to make it fit. Recheck the length of every physical line
-      of the header, not just the first.
+      lengthens this line, and it's easy to check every declaration's
+      length while forgetting the one that names them all. If the
+      header's first physical line exceeds 100 characters, move the `&`
+      continuation earlier — wrap the argument list across more lines,
+      breaking at a comma; do not remove or rename an argument to make
+      it fit. Recheck every physical line of the header, not just the
+      first.
 
    Comments that are **not** on a dummy declaration — the `!>` Doxygen
    header above the subroutine, comment blocks between declarations, and
@@ -385,11 +535,8 @@ section that holds the template or rationale.
    *If the array being built here comes from the caller's own local
    scratch variable* (not one of the caller's own dummies), this
    alloc/copy-in/free block is itself a candidate for
-   `convert_locals_to_containers` later — that skill retypes the local
-   itself so this block disappears entirely instead of rebuilding a
-   throwaway container from it on every call. Not this skill's job to do
-   now; just worth noting as a follow-up once this callee's conversion
-   has settled.
+   `convert_locals_to_containers` later — not this skill's job now; just
+   note it as a follow-up once this callee's conversion has settled.
 
    *If the caller's own source array is `optional`*, a container local is
    always present as an actual argument, so an unallocated one would make
@@ -403,8 +550,8 @@ section that holds the template or rationale.
    restructure the caller to hoist it out of a loop or share it across
    call sites as part of this conversion. Emit the straightforward
    per-site `alloc`/`free` and **report it in Step 10** as a hoisting
-   candidate instead. Hoisting is a whole-subroutine optimisation that is
-   safer to do once, with every call site visible, than incrementally.
+   candidate instead — that's a whole-subroutine optimisation, safer to
+   do once with every call site visible than incrementally.
 
    **Case B — the caller is already container-based.** Do **not** add a
    marshalling block. The caller already holds containers, so pass them
@@ -455,27 +602,18 @@ section that holds the template or rationale.
 ### 9. Verify
    Run the checks in lessons §10:
    - **Doc comments intact.** Count `!<` occurrences in each edited
-     subroutine before and after; the count must not drop. Any dummy
-     whose comment went missing is a defect — restore it from the
-     original before continuing. A quick mechanical check:
+     subroutine before and after; the count must not drop.
      `git -C $0 diff -U0 -- <file> | grep '^-' | grep -c '!<'` versus
      `git -C $0 diff -U0 -- <file> | grep '^+' | grep -c '!<'`; the added
-     count must be greater than or equal to the removed count (greater
-     when new dummies were introduced in Step 4). Then read the removed
-     lines and confirm each comment text reappears somewhere in the
-     added lines.
+     count must be ≥ the removed count (greater when new dummies were
+     introduced in Step 4). Confirm each removed comment's text
+     reappears somewhere in the added lines.
    - **Line length.** MOM6 enforces a 100-character limit (Step 4 items 5
-     and 6) — this applies to every added line, not just dummy
-     declarations, including the `subroutine <name>(...)` header line
-     itself. Check every added line: `git -C $0 diff -U0 -- <file> |
-     grep '^+' | grep -v '^+++' | awk '{ print length($0)-1 }' | sort -rn
-     | head -1` — if the top value exceeds 100, find and wrap the
-     offending line(s) (`git -C $0 diff -U0 -- <file> | grep '^+' | grep
-     -v '^+++' | awk 'length($0)-1 > 100'`). A collapsed declaration line
-     is the usual cause (wrap the comment onto a continuation line); a
-     lengthened argument list on the header line is the other common
-     cause (move the `&` continuation earlier, Step 4 item 6). Never
-     shorten text or drop an argument to make a line fit.
+     and 6) — applies to every added line, including the header.
+     `git -C $0 diff -U0 -- <file> | grep '^+' | grep -v '^+++' | awk
+     '{ print length($0)-1 }' | sort -rn | head -1` — if over 100, find
+     and wrap it. Never shorten text or drop an argument to make a line
+     fit.
    - Diff review: no edits inside any loop body; the subroutine name is
      unchanged; only declarations, `%view` calls, and call-site blocks
      changed.
@@ -483,10 +621,23 @@ section that holds the template or rationale.
      the new signature at each.
    - **Raw-vs-container argument audit.** Walk every call site's actual
      arguments position by position against the callee's current
-     signature — matching count and order (above) does not catch a
+     signature — matching count/order above doesn't catch a
      same-position type swap (Step 8).
    - Nothing used outside the FMS2 ∩ TIM shared API surface
      (lessons §4) — in particular, no `%to_c` (lessons §9 #12).
+   - **Step 2a rewrites, if any:** confirm every rewritten bound keys off
+     a dummy that is genuinely mandatory (`intent(in)`/`intent(inout)`/
+     `intent(out)`, not `optional`) — recheck even for a dummy that was
+     already a container before this run. Confirm no rewritten bound
+     references a `%view` pointer instead of the container itself.
+   - **Step 2b promotions, if any:** re-run the same grep for every
+     derived-type dummy this step touched — it should now come back
+     empty; a remaining hit means a field was missed, not that the step
+     doesn't apply to it. For every promoted field, confirm the changed
+     body lines differ from "before" by *only* the substitution. If an
+     array field was merged into an existing local container, confirm
+     that local's old `%alloc`/`%free` pair is gone. For a promoted
+     scalar, confirm no container/`%view`/`alloc`/`free` was introduced.
 
    **Build:** do not assume a Fortran compiler is available on this
    machine; many developer machines on this project do not have one, and
@@ -585,13 +736,27 @@ section that holds the template or rationale.
 - Do not attempt to install a Fortran compiler, and do not claim a build
   passed that was never run.
 - Do not add comments about the conversion itself — the fact that a
-  subroutine was migrated to containers, why a dummy is now a pointer,
-  that a `nullify` is mandatory, and so on. This codebase documents
-  ocean physics, not its own refactoring history; the container API and
-  `_a` naming convention already make the pattern legible to anyone who
-  has read the lessons skill (lessons §7). A new dummy still gets a
-  `!<` doc comment describing its physical meaning — that requirement is
-  unchanged and is not an exception to this rule.
+  subroutine was migrated, why a dummy is now a pointer, that a
+  `nullify` is mandatory, etc. (lessons §7). A new dummy still gets a
+  `!<` comment describing its physical meaning — that's not an
+  exception to this rule.
+- Do not size anything off a `%view`-derived pointer's `LBOUND`/`UBOUND`
+  (Step 2a) — only another dummy's own `%lb`/`%ub` is legal there; a
+  `%view` pointer is only associated by an executable statement partway
+  through the body, so referencing it in a specification expression is
+  undefined behavior, not merely bad style.
+- Do not use an `optional` dummy's `%lb`/`%ub` as a sizing source for
+  another local or dummy (Step 2a) — an absent optional's container is
+  itself disassociated, so its `%lb`/`%ub` would be too.
+- Do not create a new container dummy for a `G%`/`GV%` field when this
+  subroutine already has a local container built from that exact same
+  source (Step 2b) — promote the existing local instead of duplicating.
+- Do not touch anything in the body during a Step 2b promotion beyond
+  the literal `G%<field>` → `<field>` substitution — the one narrow
+  exception to the no-body-edits rule above.
+- Do not cherry-pick which qualifying derived-type fields (array or
+  scalar) to promote in a Step 2b pass — extract every distinct one the
+  grep finds and present the full list for confirmation.
 
 If something not covered here comes up, consult lessons §9 (recurring
 pitfalls) before improvising.
@@ -609,12 +774,10 @@ Report:
 5. Any callee still taking raw arrays, as a follow-up conversion
    candidate (Step 7).
 6. **Hoisting candidates:** every container whose source is
-   loop-invariant grid metadata (`G%IareaT`, `G%mask2dT`, …), listed with
-   the call sites that now rebuild it. These are deliberately left
-   per-site (Step 8) and are worth a single cleanup pass once the
-   enclosing subroutine's conversions are complete — that pass is the
-   `hoist_container_marshalling` skill, run once the caller's full set of
-   conversions is settled and every call site is visible at once.
+   loop-invariant grid metadata, listed with the call sites that now
+   rebuild it — worth a `hoist_container_marshalling` pass once the
+   enclosing subroutine's conversions are complete and every call site
+   is visible at once.
 7. Every `optional` array dummy found, the user's decision for each
    (converted vs. left raw), and whether call sites needed conditional
    allocation for any converted ones.
@@ -622,3 +785,13 @@ Report:
    build was run and why.
 9. Whether the change was committed, or the list of modified files for
    manual commit.
+10. **Step 2a rewrites:** every local or logical dummy whose sizing was
+    rewritten, which macro it referenced, and which existing
+    dummy/dimension it now uses — plus every one Step 2a considered but
+    could not rewire, so the user sees what's left.
+11. **Step 2b promotions:** every distinct `G%`/`GV%`/`US%`/`CS%` field
+    found (array or scalar), new dummy vs. merged-into-existing-local
+    (name it), and the resulting `G`/`GV`/`US`/`CS` drop decision
+    re-examined. If a caller needs its own Step 2b pass to supply a
+    newly threaded dummy, name it as a follow-up rather than converting
+    it here.

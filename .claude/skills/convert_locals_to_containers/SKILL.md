@@ -58,10 +58,11 @@ not reproduced here.
 subroutines (never a dummy argument), where at least one callee they are
 passed to already takes a container for that exact argument.
 
-**The eligibility test is per-local, not per-subroutine.** This is the
-main structural difference from `hoist_container_marshalling`, which
-refuses to run at all if even one call site in the whole subroutine
-still needs a raw array. Here, a subroutine can have some locals convert
+**The eligibility test is per-local, not per-subroutine** -- the same
+granularity `hoist_container_marshalling` uses for its own per-container
+entanglement check, just applied to a different question (whether to
+convert a local at all, versus whether an existing container's
+marshalling can be hoisted). A subroutine can have some locals convert
 and others stay raw in the very same pass -- eligibility depends only on
 where *that particular* local is used, not on the state of the rest of
 the subroutine. See "The core technique" below for the exact test,
@@ -129,13 +130,11 @@ that's a dummy argument -- that's out of scope entirely):
    Flag every such local explicitly and let the user decide, the same
    way `convert_array_containers` Step 2 stops and asks about every
    `optional` array dummy rather than assuming an answer. **This is not
-   a hypothetical edge case for the flagship use of this skill** --
-   `zonal_mass_flux`/`meridional_mass_flux`'s own candidate locals
-   (`du`/`dv`, the CFL-limit arrays, `visc_rem_*_tmp`, the
-   summed-transport accumulators) are *all* currently named in exactly
-   this kind of `!$omp target enter data map(alloc: ...)` directive, so
-   expect this question to come up on the very first real run, not as a
-   rare exception.
+   a hypothetical edge case for the flagship use of this skill** -- the
+   locals named above (`zonal_mass_flux`/`meridional_mass_flux`'s `du`,
+   `dv`, ...) are all currently named in exactly this kind of
+   `!$omp target enter data map(alloc: ...)` directive, so expect this
+   question on the very first real run, not as a rare exception.
 
 4. **Otherwise -> convert.** Rename the local's declaration `<name>` to
    `<name>_a` (container, same rank), preserving its existing plain `!`
