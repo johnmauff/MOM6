@@ -10,8 +10,6 @@ use MOM_variables,    only : BT_cont_type, alloc_bt_cont_type, dealloc_bt_cont_t
 use MOM_variables,    only : accel_diag_ptrs, ocean_internal_state, cont_diag_ptrs
 use MOM_forcing_type, only : mech_forcing
 
-use array_mod, only : RealArray_t
-
 use MOM_checksum_packages, only : MOM_thermo_chksum, MOM_state_chksum, MOM_accel_chksum
 use MOM_cpu_clock,         only : cpu_clock_id, cpu_clock_begin, cpu_clock_end
 use MOM_cpu_clock,         only : CLOCK_COMPONENT, CLOCK_SUBCOMPONENT
@@ -422,11 +420,6 @@ subroutine step_MOM_dyn_split_RK2(u_inst, v_inst, h, tv, visc, Time_local, dt, f
   integer :: cont_stencil, obc_stencil, vel_stencil
   real, dimension(SZI_(G),SZJ_(G),SZK_(GV)) :: h_tmp ! temporary copy of Layer thickness [H ~> m or kg m-2]
   integer :: cor_stencil
-  ! Containers for continuity()'s optional arguments
-  type(RealArray_t) :: uhbt_a, vhbt_a, visc_rem_u_a, visc_rem_v_a, u_cor_a, v_cor_a
-  ! Never allocated; unassociated data signals these continuity() arguments are absent.
-  type(RealArray_t) :: no_uhbt_a, no_vhbt_a
-  type(RealArray_t) :: no_u_cor_a, no_v_cor_a, no_du_cor_a, no_dv_cor_a
 
   is  = G%isc  ; ie  = G%iec  ; js  = G%jsc  ; je  = G%jec ; nz = GV%ke
   Isq = G%IscB ; Ieq = G%IecB ; Jsq = G%JscB ; Jeq = G%JecB
@@ -699,16 +692,8 @@ subroutine step_MOM_dyn_split_RK2(u_inst, v_inst, h, tv, visc, Time_local, dt, f
 ! u_accel_bt = layer accelerations due to barotropic solver
   if (associated(CS%BT_cont) .or. CS%BT_use_layer_fluxes) then
     call cpu_clock_begin(id_clock_continuity)
-    call visc_rem_u_a%alloc(lb=LBOUND(CS%visc_rem_u), ub=UBOUND(CS%visc_rem_u), &
-                            source=CS%visc_rem_u)
-    call visc_rem_v_a%alloc(lb=LBOUND(CS%visc_rem_v), ub=UBOUND(CS%visc_rem_v), &
-                            source=CS%visc_rem_v)
     call continuity(u_inst, v_inst, h, hp, uh_in, vh_in, dt, G, GV, US, CS%continuity_CSp, CS%OBC, pbv, &
-                    uhbt_a=no_uhbt_a, vhbt_a=no_vhbt_a, visc_rem_u_a=visc_rem_u_a, &
-                    visc_rem_v_a=visc_rem_v_a, u_cor_a=no_u_cor_a, v_cor_a=no_v_cor_a, &
-                    du_cor_a=no_du_cor_a, dv_cor_a=no_dv_cor_a, BT_cont=CS%BT_cont)
-    call visc_rem_u_a%free()
-    call visc_rem_v_a%free()
+                    visc_rem_u=CS%visc_rem_u, visc_rem_v=CS%visc_rem_v, BT_cont=CS%BT_cont)
 
     call cpu_clock_end(id_clock_continuity)
     if (BT_cont_BT_thick) then
@@ -865,26 +850,9 @@ subroutine step_MOM_dyn_split_RK2(u_inst, v_inst, h, tv, visc, Time_local, dt, f
   ! uh = u_av * h
   ! hp = h + dt * div . uh
   call cpu_clock_begin(id_clock_continuity)
-  call uhbt_a%alloc(lb=LBOUND(CS%uhbt), ub=UBOUND(CS%uhbt), source=CS%uhbt)
-  call vhbt_a%alloc(lb=LBOUND(CS%vhbt), ub=UBOUND(CS%vhbt), source=CS%vhbt)
-  call visc_rem_u_a%alloc(lb=LBOUND(CS%visc_rem_u), ub=UBOUND(CS%visc_rem_u), &
-                          source=CS%visc_rem_u)
-  call visc_rem_v_a%alloc(lb=LBOUND(CS%visc_rem_v), ub=UBOUND(CS%visc_rem_v), &
-                          source=CS%visc_rem_v)
-  call u_cor_a%alloc(lb=LBOUND(u_av), ub=UBOUND(u_av), source=u_av)
-  call v_cor_a%alloc(lb=LBOUND(v_av), ub=UBOUND(v_av), source=v_av)
   call continuity(up, vp, h, hp, uh, vh, dt, G, GV, US, CS%continuity_CSp, CS%OBC, pbv, &
-                  uhbt_a=uhbt_a, vhbt_a=vhbt_a, visc_rem_u_a=visc_rem_u_a, &
-                  visc_rem_v_a=visc_rem_v_a, u_cor_a=u_cor_a, v_cor_a=v_cor_a, &
-                  du_cor_a=no_du_cor_a, dv_cor_a=no_dv_cor_a, BT_cont=CS%BT_cont)
-  call u_cor_a%copy2F(u_av)
-  call v_cor_a%copy2F(v_av)
-  call uhbt_a%free()
-  call vhbt_a%free()
-  call visc_rem_u_a%free()
-  call visc_rem_v_a%free()
-  call u_cor_a%free()
-  call v_cor_a%free()
+                  uhbt=CS%uhbt, vhbt=CS%vhbt, visc_rem_u=CS%visc_rem_u, visc_rem_v=CS%visc_rem_v, &
+                  u_cor=u_av, v_cor=v_av, BT_cont=CS%BT_cont)
   call cpu_clock_end(id_clock_continuity)
 
   if (showCallTree) call callTree_wayPoint("done with continuity (step_MOM_dyn_split_RK2)")
@@ -1177,26 +1145,9 @@ subroutine step_MOM_dyn_split_RK2(u_inst, v_inst, h, tv, visc, Time_local, dt, f
     h_tmp(i,j,k) = h(i,j,k)
   enddo
 
-  call uhbt_a%alloc(lb=LBOUND(CS%uhbt), ub=UBOUND(CS%uhbt), source=CS%uhbt)
-  call vhbt_a%alloc(lb=LBOUND(CS%vhbt), ub=UBOUND(CS%vhbt), source=CS%vhbt)
-  call visc_rem_u_a%alloc(lb=LBOUND(CS%visc_rem_u), ub=UBOUND(CS%visc_rem_u), &
-                          source=CS%visc_rem_u)
-  call visc_rem_v_a%alloc(lb=LBOUND(CS%visc_rem_v), ub=UBOUND(CS%visc_rem_v), &
-                          source=CS%visc_rem_v)
-  call u_cor_a%alloc(lb=LBOUND(u_av), ub=UBOUND(u_av), source=u_av)
-  call v_cor_a%alloc(lb=LBOUND(v_av), ub=UBOUND(v_av), source=v_av)
   call continuity(u_inst, v_inst, h_tmp, h, uh, vh, dt, G, GV, US, CS%continuity_CSp, CS%OBC, pbv, &
-                  uhbt_a=uhbt_a, vhbt_a=vhbt_a, visc_rem_u_a=visc_rem_u_a, &
-                  visc_rem_v_a=visc_rem_v_a, u_cor_a=u_cor_a, v_cor_a=v_cor_a, &
-                  du_cor_a=no_du_cor_a, dv_cor_a=no_dv_cor_a)
-  call u_cor_a%copy2F(u_av)
-  call v_cor_a%copy2F(v_av)
-  call uhbt_a%free()
-  call vhbt_a%free()
-  call visc_rem_u_a%free()
-  call visc_rem_v_a%free()
-  call u_cor_a%free()
-  call v_cor_a%free()
+                  uhbt=CS%uhbt, vhbt=CS%vhbt, visc_rem_u=CS%visc_rem_u, visc_rem_v=CS%visc_rem_v, &
+                  u_cor=u_av, v_cor=v_av)
   call cpu_clock_end(id_clock_continuity)
 
   call do_group_pass(CS%pass_h, G%Domain, clock=id_clock_pass, omp_offload=.true.)
@@ -1565,10 +1516,6 @@ subroutine initialize_dyn_split_RK2(u, v, h, tv, uh, vh, eta, Time, G, GV, US, p
 
   ! local variables
   real, dimension(SZI_(G),SZJ_(G),SZK_(GV)) :: h_tmp ! A temporary copy of the layer thicknesses [H ~> m or kg m-2]
-  ! Never allocated; unassociated data signals these continuity() arguments are absent.
-  type(RealArray_t) :: no_uhbt_a, no_vhbt_a
-  type(RealArray_t) :: no_visc_rem_u_a, no_visc_rem_v_a
-  type(RealArray_t) :: no_u_cor_a, no_v_cor_a, no_du_cor_a, no_dv_cor_a
   character(len=40) :: mdl = "MOM_dynamics_split_RK2" ! This module's name.
   ! This include declares and sets the variable "version".
 # include "version_variable.h"
@@ -1836,11 +1783,7 @@ subroutine initialize_dyn_split_RK2(u, v, h, tv, uh, vh, eta, Time, G, GV, US, p
         do concurrent (k=1:nz, j=jsd:jed, i=isd:ied)
           h_tmp(i,j,k) = h(i,j,k)
         enddo
-        call continuity(CS%u_av, CS%v_av, h, h_tmp, uh, vh, dt, G, GV, US, CS%continuity_CSp, &
-                        CS%OBC, pbv, uhbt_a=no_uhbt_a, vhbt_a=no_vhbt_a, &
-                        visc_rem_u_a=no_visc_rem_u_a, visc_rem_v_a=no_visc_rem_v_a, &
-                        u_cor_a=no_u_cor_a, v_cor_a=no_v_cor_a, &
-                        du_cor_a=no_du_cor_a, dv_cor_a=no_dv_cor_a)
+        call continuity(CS%u_av, CS%v_av, h, h_tmp, uh, vh, dt, G, GV, US, CS%continuity_CSp, CS%OBC, pbv)
         call pass_var(h_tmp, G%Domain, clock=id_clock_pass_init)
         do concurrent (k=1:nz, j=jsd:jed, i=isd:ied)
           CS%h_av(i,j,k) = 0.5*(h(i,j,k) + h_tmp(i,j,k))
@@ -1860,10 +1803,7 @@ subroutine initialize_dyn_split_RK2(u, v, h, tv, uh, vh, eta, Time, G, GV, US, p
     if (.not. query_initialized(uh, "uh", restart_CS) .or. &
         .not. query_initialized(vh, "vh", restart_CS)) then
       do k=1,nz ; do j=jsd,jed ; do i=isd,ied ; h_tmp(i,j,k) = h(i,j,k) ; enddo ; enddo ; enddo
-      call continuity(u, v, h, h_tmp, uh, vh, dt, G, GV, US, CS%continuity_CSp, CS%OBC, pbv, &
-                      uhbt_a=no_uhbt_a, vhbt_a=no_vhbt_a, visc_rem_u_a=no_visc_rem_u_a, &
-                      visc_rem_v_a=no_visc_rem_v_a, u_cor_a=no_u_cor_a, v_cor_a=no_v_cor_a, &
-                      du_cor_a=no_du_cor_a, dv_cor_a=no_dv_cor_a)
+      call continuity(u, v, h, h_tmp, uh, vh, dt, G, GV, US, CS%continuity_CSp, CS%OBC, pbv)
       call pass_var(h_tmp, G%Domain, clock=id_clock_pass_init)
       do k=1,nz ; do j=jsd,jed ; do i=isd,ied
         CS%h_av(i,j,k) = 0.5*(h(i,j,k) + h_tmp(i,j,k))
