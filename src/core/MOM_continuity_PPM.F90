@@ -223,8 +223,10 @@ contains
 
 !> Time steps the layer thicknesses, using a monotonically limit, directionally split PPM scheme,
 !! based on Lin (1994).
-subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt_a, vhbt_a, &
+subroutine continuity_PPM(bxC, u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt_a, vhbt_a, &
                           visc_rem_u_a, visc_rem_v_a, u_cor_a, v_cor_a, BT_cont, du_cor_a, dv_cor_a)
+  type(box_t),             intent(in)    :: bxC !< The continuity solver's base (unwidened)
+                                                 !! iteration box; widened variants derive from it.
   type(ocean_grid_type),   intent(in)    :: G   !< The ocean's grid structure.
   type(verticalGrid_type), intent(in)    :: GV  !< Vertical grid structure.
   real, dimension(SZIB_(G),SZJ_(G),SZK_(GV)), &
@@ -281,7 +283,8 @@ subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhb
   real :: h_S(SZI_(G),SZJ_(G),SZK_(GV)) ! South edge thicknesses in the meridional PPM reconstruction [H ~> m or kg m-2]
   real :: h_N(SZI_(G),SZJ_(G),SZK_(GV)) ! North edge thicknesses in the meridional PPM reconstruction [H ~> m or kg m-2]
   real :: h_min  ! The minimum layer thickness [H ~> m or kg m-2].  h_min could be 0.
-  type(box_t) :: bxC                ! An iteration box
+  type(box_t) :: bx                 ! Stencil-widened box for whichever direction runs first
+  integer :: stencil                ! The continuity solver stencil size with the current settings
   logical :: x_first
   type(RealArray_t) :: h_in_a, h_W_a, h_E_a, mask2dT_a
   type(RealArray_t) :: h_S_a, h_N_a
@@ -300,6 +303,8 @@ subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhb
          "MOM_continuity_PPM: Module must be initialized before it is used.")
 
   x_first = (MOD(G%first_direction,2) == 0)
+
+  stencil = continuity_PPM_stencil(CS)
 
   if (visc_rem_u_a%associated() .neqv. visc_rem_v_a%associated()) call MOM_error(FATAL, &
       "MOM_continuity_PPM: Either both visc_rem_u_a and visc_rem_v_a or neither "// &
@@ -340,11 +345,10 @@ subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhb
 
   if (x_first) then
     !  First advect zonally, with loop bounds that accomodate the subsequent meridional advection.
-    !LB  = set_continuity_loop_bounds(G, CS, i_stencil=.false., j_stencil=.true.)
-    bxC = set_continuity_box(G,GV, CS, i_stencil=.false., j_stencil=.true.)
-    call zonal_edge_thickness(bxC, h_in_a, h_W_a, h_E_a, mask2dT_a, &
+    bx = bxC%grow(dim=2, n=stencil)
+    call zonal_edge_thickness(bx, h_in_a, h_W_a, h_E_a, mask2dT_a, &
                               edge_h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
-    call zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, OBC, &
+    call zonal_mass_flux(bx, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, OBC, &
                          por_face_areaU_a, uhbt_a=uhbt_a, visc_rem_u_a=visc_rem_u_a, &
                          u_cor_a=u_cor_a, BT_cont=BT_cont, du_cor_a=du_cor_a, &
                          dy_Cu_a=dy_Cu_a, IareaT_a=IareaT_a, IdxT_a=IdxT_a, dxCu_a=dxCu_a, &
@@ -354,13 +358,11 @@ subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhb
                          use_visc_rem_max=CS%use_visc_rem_max, vol_CFL=CS%vol_CFL, &
                          tol_vel=CS%tol_vel, tol_eta=CS%tol_eta, better_iter=CS%better_iter, &
                          marginal_faces=CS%marginal_faces)
-    call continuity_zonal_convergence(bxC, h_a, uh_a, dt, IareaT_a, hin_a=hin_a)
+    call continuity_zonal_convergence(bx, h_a, uh_a, dt, IareaT_a, hin_a=hin_a)
 
     ! update host h from continuity_zonal_convergence
 
     !  Now advect meridionally, using the updated thicknesses to determine the fluxes.
-    !LB  = set_continuity_loop_bounds(G, CS, i_stencil=.false., j_stencil=.false.)
-    bxC = set_continuity_box(G, GV, CS, i_stencil=.false., j_stencil=.false.)
     call meridional_edge_thickness(bxC, h_a, h_S_a, h_N_a, mask2dT_a, &
                                    edge_h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
     call meridional_mass_flux(bxC, v_a, h_a, h_S_a, h_N_a, vh_a, dt, OBC, &
@@ -378,11 +380,10 @@ subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhb
 
   else  ! .not. x_first
     !  First advect meridionally, with loop bounds that accomodate the subsequent zonal advection.
-    !LB  = set_continuity_loop_bounds(G, CS, i_stencil=.true., j_stencil=.false.)
-    bxC = set_continuity_box(G, GV, CS, i_stencil=.true., j_stencil=.false.)
-    call meridional_edge_thickness(bxC, h_in_a, h_S_a, h_N_a, mask2dT_a, &
+    bx = bxC%grow(dim=1, n=stencil)
+    call meridional_edge_thickness(bx, h_in_a, h_S_a, h_N_a, mask2dT_a, &
                                    edge_h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
-    call meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, OBC, &
+    call meridional_mass_flux(bx, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, OBC, &
                               por_face_areaV_a, vhbt_a=vhbt_a, visc_rem_v_a=visc_rem_v_a, &
                               v_cor_a=v_cor_a, BT_cont=BT_cont, dv_cor_a=dv_cor_a, &
                               dx_Cv_a=dx_Cv_a, IareaT_a=IareaT_a, IdyT_a=IdyT_a, dyCv_a=dyCv_a, &
@@ -393,11 +394,9 @@ subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhb
                               use_visc_rem_max=CS%use_visc_rem_max, vol_CFL=CS%vol_CFL, &
                               tol_vel=CS%tol_vel, tol_eta=CS%tol_eta, better_iter=CS%better_iter, &
                               marginal_faces=CS%marginal_faces)
-    call continuity_meridional_convergence(bxC, h_a, vh_a, dt, IareaT_a, hin_a=hin_a)
+    call continuity_meridional_convergence(bx, h_a, vh_a, dt, IareaT_a, hin_a=hin_a)
 
     !  Now advect zonally, using the updated thicknesses to determine the fluxes.
-    !LB  = set_continuity_loop_bounds(G, CS, i_stencil=.false., j_stencil=.false.)
-    bxC = set_continuity_box(G, GV, CS, i_stencil=.false., j_stencil=.false.)
     call zonal_edge_thickness(bxC, h_a, h_W_a, h_E_a, mask2dT_a, &
                               edge_h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
     call zonal_mass_flux(bxC, u_a, h_a, h_W_a, h_E_a, uh_a, dt, OBC, &
@@ -448,8 +447,8 @@ subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhb
   call dyT_a%free()
   call mask2dCv_a%free()
 
-  ! Free the continuity solver iteration box
-  call bxC%free()
+  ! Free the stencil-widened iteration box; bxC is the caller's box and stays owned by the caller.
+  call bx%free()
   !$omp target exit data map(delete: h_W, h_E, h_S, h_N)
 
 end subroutine continuity_PPM

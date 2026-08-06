@@ -25,6 +25,7 @@ use MOM_variables, only : BT_cont_type, porous_barrier_type
 use MOM_verticalGrid, only : verticalGrid_type
 
 use array_mod, only : RealArray_t
+use box_mod, only : Box_t
 
 #include <MOM_memory.h>
 
@@ -107,6 +108,10 @@ subroutine continuity(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt, v
   ! for whichever of the optional raw arguments above the caller did not supply.
   type(RealArray_t) :: uhbt_a, vhbt_a, visc_rem_u_a, visc_rem_v_a
   type(RealArray_t) :: u_cor_a, v_cor_a, du_cor_a, dv_cor_a
+  type(box_t) :: bxC ! The continuity solver's base iteration box, built once here
+
+  call bxC%safe_alloc(ndims=3)
+  call bxC%set(idxS=[G%isc, G%jsc, 1], idxE=[G%iec, G%jec, GV%ke])
 
   if (present(uhbt))       call uhbt_a%alloc(lb=LBOUND(uhbt), ub=UBOUND(uhbt), source=uhbt)
   if (present(vhbt))       call vhbt_a%alloc(lb=LBOUND(vhbt), ub=UBOUND(vhbt), source=vhbt)
@@ -119,8 +124,10 @@ subroutine continuity(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt, v
   if (present(du_cor)) call du_cor_a%alloc(lb=LBOUND(du_cor), ub=UBOUND(du_cor), source=du_cor)
   if (present(dv_cor)) call dv_cor_a%alloc(lb=LBOUND(dv_cor), ub=UBOUND(dv_cor), source=dv_cor)
 
-  call continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt_a, vhbt_a, &
+  call continuity_PPM(bxC, u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt_a, vhbt_a, &
                       visc_rem_u_a, visc_rem_v_a, u_cor_a, v_cor_a, BT_cont, du_cor_a, dv_cor_a)
+
+  call bxC%free()
 
   if (present(uhbt))       call uhbt_a%free()
   if (present(vhbt))       call vhbt_a%free()
