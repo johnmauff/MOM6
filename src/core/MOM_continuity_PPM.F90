@@ -223,24 +223,21 @@ contains
 
 !> Time steps the layer thicknesses, using a monotonically limit, directionally split PPM scheme,
 !! based on Lin (1994).
-subroutine continuity_PPM(bxC, u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt_a, vhbt_a, &
-                          visc_rem_u_a, visc_rem_v_a, u_cor_a, v_cor_a, BT_cont, du_cor_a, dv_cor_a)
+subroutine continuity_PPM(bxC, u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, G, GV, US, CS, OBC, pbv, &
+                          uhbt_a, vhbt_a, visc_rem_u_a, visc_rem_v_a, u_cor_a, v_cor_a, BT_cont, &
+                          du_cor_a, dv_cor_a)
   type(box_t),             intent(in)    :: bxC !< The continuity solver's base (unwidened)
                                                  !! iteration box; widened variants derive from it.
   type(ocean_grid_type),   intent(in)    :: G   !< The ocean's grid structure.
   type(verticalGrid_type), intent(in)    :: GV  !< Vertical grid structure.
-  real, dimension(SZIB_(G),SZJ_(G),SZK_(GV)), &
-                           intent(in)    :: u   !< Zonal velocity [L T-1 ~> m s-1].
-  real, dimension(SZI_(G),SZJB_(G),SZK_(GV)), &
-                           intent(in)    :: v   !< Meridional velocity [L T-1 ~> m s-1].
-  real, dimension(SZI_(G),SZJ_(G),SZK_(GV)), &
-                           intent(in)    :: hin !< Initial layer thickness [H ~> m or kg m-2].
-  real, dimension(SZI_(G),SZJ_(G),SZK_(GV)), &
-                           intent(inout) :: h   !< Final layer thickness [H ~> m or kg m-2].
-  real, dimension(SZIB_(G),SZJ_(G),SZK_(GV)), &
-                           intent(out)   :: uh  !< Zonal volume flux, u*h*dy [H L2 T-1 ~> m3 s-1 or kg s-1].
-  real, dimension(SZI_(G),SZJB_(G),SZK_(GV)), &
-                           intent(out)   :: vh  !< Meridional volume flux, v*h*dx [H L2 T-1 ~> m3 s-1 or kg s-1].
+  type(RealArray_t),       intent(in)    :: u_a   !< Zonal velocity [L T-1 ~> m s-1].
+  type(RealArray_t),       intent(in)    :: v_a   !< Meridional velocity [L T-1 ~> m s-1].
+  type(RealArray_t),       intent(in)    :: hin_a !< Initial layer thickness [H ~> m or kg m-2].
+  type(RealArray_t),       intent(inout) :: h_a   !< Final layer thickness [H ~> m or kg m-2].
+  type(RealArray_t),       intent(inout) :: uh_a  !< Zonal volume flux, u*h*dy
+                                                   !! [H L2 T-1 ~> m3 s-1 or kg s-1].
+  type(RealArray_t),       intent(inout) :: vh_a  !< Meridional volume flux, v*h*dx
+                                                   !! [H L2 T-1 ~> m3 s-1 or kg s-1].
   real,                    intent(in)    :: dt  !< Time increment [T ~> s].
   type(unit_scale_type),   intent(in)    :: US  !< A dimensional unit scaling type
   type(continuity_PPM_CS), intent(in)    :: CS  !< Module's control structure.
@@ -286,12 +283,11 @@ subroutine continuity_PPM(bxC, u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv
   type(box_t) :: bx                 ! Stencil-widened box for whichever direction runs first
   integer :: stencil                ! The continuity solver stencil size with the current settings
   logical :: x_first
-  type(RealArray_t) :: h_in_a, h_W_a, h_E_a, mask2dT_a
+  type(RealArray_t) :: h_W_a, h_E_a, mask2dT_a
   type(RealArray_t) :: h_S_a, h_N_a
-  type(RealArray_t) :: h_a, uh_a, IareaT_a, hin_a
-  type(RealArray_t) :: vh_a
-  type(RealArray_t) :: u_a, por_face_areaU_a
-  type(RealArray_t) :: v_a, por_face_areaV_a
+  type(RealArray_t) :: IareaT_a
+  type(RealArray_t) :: por_face_areaU_a
+  type(RealArray_t) :: por_face_areaV_a
   type(RealArray_t) :: dy_Cu_a, IdxT_a, dxCu_a, areaT_a, dxT_a, mask2dCu_a
   type(RealArray_t) :: dx_Cv_a, IdyT_a, dyCv_a, dyT_a, mask2dCv_a
   type(RealArray_t) :: no_hin_a ! Never allocated; unassociated data signals hin_a absent.
@@ -320,15 +316,8 @@ subroutine continuity_PPM(bxC, u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv
   call h_N_a%alloc(lb=LBOUND(h_N), ub=UBOUND(h_N), source=h_N)
   call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
   call IareaT_a%alloc(lb=LBOUND(G%IareaT), ub=UBOUND(G%IareaT), source=G%IareaT)
-  call hin_a%alloc(lb=LBOUND(hin), ub=UBOUND(hin), source=hin)
-  call h_in_a%alloc(lb=LBOUND(hin), ub=UBOUND(hin), source=hin)
-  call h_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
-  call u_a%alloc(lb=LBOUND(u), ub=UBOUND(u), source=u)
-  call uh_a%alloc(lb=LBOUND(uh), ub=UBOUND(uh), source=uh)
   call por_face_areaU_a%alloc(lb=LBOUND(pbv%por_face_areaU), ub=UBOUND(pbv%por_face_areaU), &
                               source=pbv%por_face_areaU)
-  call v_a%alloc(lb=LBOUND(v), ub=UBOUND(v), source=v)
-  call vh_a%alloc(lb=LBOUND(vh), ub=UBOUND(vh), source=vh)
   call por_face_areaV_a%alloc(lb=LBOUND(pbv%por_face_areaV), ub=UBOUND(pbv%por_face_areaV), &
                               source=pbv%por_face_areaV)
   call dy_Cu_a%alloc(lb=LBOUND(G%dy_Cu), ub=UBOUND(G%dy_Cu), source=G%dy_Cu)
@@ -346,9 +335,9 @@ subroutine continuity_PPM(bxC, u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv
   if (x_first) then
     !  First advect zonally, with loop bounds that accomodate the subsequent meridional advection.
     bx = bxC%grow(dim=2, n=stencil)
-    call zonal_edge_thickness(bx, h_in_a, h_W_a, h_E_a, mask2dT_a, &
+    call zonal_edge_thickness(bx, hin_a, h_W_a, h_E_a, mask2dT_a, &
                               edge_h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
-    call zonal_mass_flux(bx, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, OBC, &
+    call zonal_mass_flux(bx, u_a, hin_a, h_W_a, h_E_a, uh_a, dt, OBC, &
                          por_face_areaU_a, uhbt_a=uhbt_a, visc_rem_u_a=visc_rem_u_a, &
                          u_cor_a=u_cor_a, BT_cont=BT_cont, du_cor_a=du_cor_a, &
                          dy_Cu_a=dy_Cu_a, IareaT_a=IareaT_a, IdxT_a=IdxT_a, dxCu_a=dxCu_a, &
@@ -381,9 +370,9 @@ subroutine continuity_PPM(bxC, u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv
   else  ! .not. x_first
     !  First advect meridionally, with loop bounds that accomodate the subsequent zonal advection.
     bx = bxC%grow(dim=1, n=stencil)
-    call meridional_edge_thickness(bx, h_in_a, h_S_a, h_N_a, mask2dT_a, &
+    call meridional_edge_thickness(bx, hin_a, h_S_a, h_N_a, mask2dT_a, &
                                    edge_h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
-    call meridional_mass_flux(bx, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, OBC, &
+    call meridional_mass_flux(bx, v_a, hin_a, h_S_a, h_N_a, vh_a, dt, OBC, &
                               por_face_areaV_a, vhbt_a=vhbt_a, visc_rem_v_a=visc_rem_v_a, &
                               v_cor_a=v_cor_a, BT_cont=BT_cont, dv_cor_a=dv_cor_a, &
                               dx_Cv_a=dx_Cv_a, IareaT_a=IareaT_a, IdyT_a=IdyT_a, dyCv_a=dyCv_a, &
@@ -416,9 +405,6 @@ subroutine continuity_PPM(bxC, u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv
   call h_E_a%copy2F(h_E)
   call h_S_a%copy2F(h_S)
   call h_N_a%copy2F(h_N)
-  call uh_a%copy2F(uh)
-  call vh_a%copy2F(vh)
-  call h_a%copy2F(h)
 
   call h_W_a%free()
   call h_E_a%free()
@@ -426,14 +412,7 @@ subroutine continuity_PPM(bxC, u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv
   call h_N_a%free()
   call mask2dT_a%free()
   call IareaT_a%free()
-  call hin_a%free()
-  call h_in_a%free()
-  call h_a%free()
-  call u_a%free()
-  call uh_a%free()
   call por_face_areaU_a%free()
-  call v_a%free()
-  call vh_a%free()
   call por_face_areaV_a%free()
   call dy_Cu_a%free()
   call IdxT_a%free()

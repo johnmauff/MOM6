@@ -105,6 +105,9 @@ subroutine continuity(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt, v
                  optional, intent(out)   :: dv_cor !< The meridional velocity increments from v that give vhbt
                                                  !! as the depth-integrated transports [L T-1 ~> m s-1].
 
+  ! Mandatory containers forwarded to continuity_PPM, built by copy-in from the raw arguments
+  ! above; h_a/uh_a/vh_a are copied back out after the call since continuity_PPM writes into them.
+  type(RealArray_t) :: u_a, v_a, hin_a, h_a, uh_a, vh_a
   ! Containers forwarded to continuity_PPM. Left unassociated (the callee's absence signal)
   ! for whichever of the optional raw arguments above the caller did not supply.
   type(RealArray_t) :: uhbt_a, vhbt_a, visc_rem_u_a, visc_rem_v_a
@@ -113,6 +116,13 @@ subroutine continuity(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt, v
 
   call bxC%safe_alloc(ndims=3)
   call bxC%set(idxS=[G%isc, G%jsc, 1], idxE=[G%iec, G%jec, GV%ke])
+
+  call u_a%alloc(lb=LBOUND(u), ub=UBOUND(u), source=u)
+  call v_a%alloc(lb=LBOUND(v), ub=UBOUND(v), source=v)
+  call hin_a%alloc(lb=LBOUND(hin), ub=UBOUND(hin), source=hin)
+  call h_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
+  call uh_a%alloc(lb=LBOUND(uh), ub=UBOUND(uh), source=uh)
+  call vh_a%alloc(lb=LBOUND(vh), ub=UBOUND(vh), source=vh)
 
   if (present(uhbt))       call uhbt_a%alloc(lb=LBOUND(uhbt), ub=UBOUND(uhbt), source=uhbt)
   if (present(vhbt))       call vhbt_a%alloc(lb=LBOUND(vhbt), ub=UBOUND(vhbt), source=vhbt)
@@ -125,10 +135,18 @@ subroutine continuity(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt, v
   if (present(du_cor)) call du_cor_a%alloc(lb=LBOUND(du_cor), ub=UBOUND(du_cor), source=du_cor)
   if (present(dv_cor)) call dv_cor_a%alloc(lb=LBOUND(dv_cor), ub=UBOUND(dv_cor), source=dv_cor)
 
-  call continuity_PPM(bxC, u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt_a, vhbt_a, &
-                      visc_rem_u_a, visc_rem_v_a, u_cor_a, v_cor_a, BT_cont, du_cor_a, dv_cor_a)
+  call continuity_PPM(bxC, u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, G, GV, US, CS, OBC, pbv, &
+                      uhbt_a, vhbt_a, visc_rem_u_a, visc_rem_v_a, u_cor_a, v_cor_a, BT_cont, &
+                      du_cor_a, dv_cor_a)
 
   call bxC%free()
+
+  call h_a%copy2F(h)   ; call h_a%free()
+  call uh_a%copy2F(uh) ; call uh_a%free()
+  call vh_a%copy2F(vh) ; call vh_a%free()
+  call u_a%free()
+  call v_a%free()
+  call hin_a%free()
 
   if (present(uhbt))       call uhbt_a%free()
   if (present(vhbt))       call vhbt_a%free()
