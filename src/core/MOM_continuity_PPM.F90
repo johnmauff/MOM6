@@ -291,6 +291,7 @@ subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhb
   type(RealArray_t) :: v_a, por_face_areaV_a
   type(RealArray_t) :: dy_Cu_a, IdxT_a, dxCu_a, areaT_a, dxT_a, mask2dCu_a
   type(RealArray_t) :: dx_Cv_a, IdyT_a, dyCv_a, dyT_a, mask2dCv_a
+  type(RealArray_t) :: no_hin_a ! Never allocated; unassociated data signals hin_a absent.
   real :: edge_h_min ! Minimum layer thickness (2*Angstrom_H) [H ~> m or kg m-2]
 
   h_min = GV%Angstrom_H
@@ -373,7 +374,7 @@ subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhb
                               use_visc_rem_max=CS%use_visc_rem_max, vol_CFL=CS%vol_CFL, &
                               tol_vel=CS%tol_vel, tol_eta=CS%tol_eta, better_iter=CS%better_iter, &
                               marginal_faces=CS%marginal_faces)
-    call continuity_meridional_convergence(bxC, h_a, vh_a, dt, IareaT_a, hmin=h_min)
+    call continuity_meridional_convergence(bxC, h_a, vh_a, dt, IareaT_a, hin_a=no_hin_a, hmin=h_min)
 
   else  ! .not. x_first
     !  First advect meridionally, with loop bounds that accomodate the subsequent zonal advection.
@@ -409,7 +410,7 @@ subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhb
                          use_visc_rem_max=CS%use_visc_rem_max, vol_CFL=CS%vol_CFL, &
                          tol_vel=CS%tol_vel, tol_eta=CS%tol_eta, better_iter=CS%better_iter, &
                          marginal_faces=CS%marginal_faces)
-    call continuity_zonal_convergence(bxC, h_a, uh_a, dt, IareaT_a, hmin=h_min)
+    call continuity_zonal_convergence(bxC, h_a, uh_a, dt, IareaT_a, hin_a=no_hin_a, hmin=h_min)
   endif
 
   call h_W_a%copy2F(h_W)
@@ -858,7 +859,7 @@ subroutine continuity_zonal_convergence(bxC, h_a, uh_a, dt, IareaT_a, hin_a, hmi
                                                 !! [H L2 T-1 ~> m3 s-1 or kg s-1]
   real,               intent(in)    :: dt       !< Time increment [T ~> s]
   type(RealArray_t),  intent(in)    :: IareaT_a !< The grid cell's 1/areaT [L-2 ~> m-2].
-  type(RealArray_t), optional, intent(in) :: hin_a !< Initial layer thickness [H ~> m or kg m-2].
+  type(RealArray_t), intent(in) :: hin_a !< Initial layer thickness [H ~> m or kg m-2].
                                               !! If hin is absent, h is also the initial thickness.
   real,              optional, intent(in)    :: hmin !< The minimum layer thickness
                                                      !! [H ~> m or kg m-2]
@@ -876,7 +877,7 @@ subroutine continuity_zonal_convergence(bxC, h_a, uh_a, dt, IareaT_a, hin_a, hmi
   call uh_a%view(uh)
   call IareaT_a%view(IareaT)
 
-  if (present(hin_a)) then
+  if (hin_a%associated()) then
     call hin_a%view(hin)
     do concurrent(k=bxC%idxS(3):bxC%idxE(3), &
                   j=bxC%idxS(2):bxC%idxE(2), &
@@ -904,7 +905,7 @@ subroutine continuity_meridional_convergence(bxC, h_a, vh_a, dt, IareaT_a, hin_a
                                                 !! [H L2 T-1 ~> m3 s-1 or kg s-1]
   real,               intent(in)    :: dt       !< Time increment [T ~> s]
   type(RealArray_t),  intent(in)    :: IareaT_a !< The grid cell's 1/areaT [L-2 ~> m-2].
-  type(RealArray_t), optional, intent(in) :: hin_a !< Initial layer thickness [H ~> m or kg m-2].
+  type(RealArray_t), intent(in) :: hin_a !< Initial layer thickness [H ~> m or kg m-2].
                                               !! If hin is absent, h is also the initial thickness.
   real,              optional, intent(in)    :: hmin !< The minimum layer thickness
                                                      !! [H ~> m or kg m-2]
@@ -922,7 +923,7 @@ subroutine continuity_meridional_convergence(bxC, h_a, vh_a, dt, IareaT_a, hin_a
   call vh_a%view(vh)
   call IareaT_a%view(IareaT)
 
-  if (present(hin_a)) then
+  if (hin_a%associated()) then
     call hin_a%view(hin)
     ! untested
     do concurrent(k=bxC%idxS(3):bxC%idxE(3), &
@@ -1611,6 +1612,7 @@ subroutine present_uhbt_or_set_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_
   logical, dimension(:,:), contiguous, pointer :: do_I
   type(RealArray_t) :: h_u_a
   type(LogicalArray_t) :: do_I_a
+  type(RealArray_t) :: no_uh_3d_a ! Never allocated; unassociated data signals uh_3d_a absent.
 
   call u_a%view(u)
   call h_in_a%view(h_in)
@@ -1694,7 +1696,7 @@ subroutine present_uhbt_or_set_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_
       call zonal_flux_adjust(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a, duhdu_tot_0_a, du_a, &
                             du_max_CFL_a, du_min_CFL_a, dt, tol_vel, tol_eta, &
                             better_iter, vol_CFL, visc_rem_u_a, do_I_a, por_face_areaU_a, &
-                            dy_Cu_a=dy_Cu_a, IareaT_a=IareaT_a, IdxT_a=IdxT_a)
+                            uh_3d_a=no_uh_3d_a, dy_Cu_a=dy_Cu_a, IareaT_a=IareaT_a, IdxT_a=IdxT_a)
       call set_zonal_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, BT_cont, du_a, uh_tot_0_a, &
                              duhdu_tot_0_a, du_max_CFL_a, du_min_CFL_a, dt, vol_CFL, &
                              visc_rem_u_a, visc_rem_max_a, do_I_a, por_face_areaU_a, &
@@ -1995,7 +1997,7 @@ subroutine zonal_flux_thickness(bxC, u_a, h_a, h_W_a, h_E_a, h_u_a, dt, dy_Cu_a,
   type(RealArray_t),       intent(in)    :: por_face_areaU_a !< fractional open area of U-faces
                                                              !! [nondim]
   type(ocean_OBC_type),                      pointer       :: OBC !< Open boundaries control structure.
-  type(RealArray_t), optional, intent(in) :: visc_rem_u_a
+  type(RealArray_t), intent(in) :: visc_rem_u_a
                           !< Both the fraction of the momentum originally in a layer that remains after
                           !! a time-step of viscosity, and the fraction of a time-step's worth of a
                           !! barotropic acceleration that a layer experiences after viscosity is applied [nondim].
@@ -2020,7 +2022,7 @@ subroutine zonal_flux_thickness(bxC, u_a, h_a, h_W_a, h_E_a, h_u_a, dt, dy_Cu_a,
   call IareaT_a%view(IareaT)
   call IdxT_a%view(IdxT)
   call por_face_areaU_a%view(por_face_areaU)
-  if (present(visc_rem_u_a)) call visc_rem_u_a%view(visc_rem_u)
+  if (visc_rem_u_a%associated()) call visc_rem_u_a%view(visc_rem_u)
 
   ish = bxC%idxS(1) ; ieh = bxC%idxE(1) ; jsh = bxC%idxS(2) ; jeh = bxC%idxE(2) ; nz  = bxC%idxE(3)
 
@@ -2058,7 +2060,7 @@ subroutine zonal_flux_thickness(bxC, u_a, h_a, h_W_a, h_E_a, h_u_a, dt, dy_Cu_a,
  !             (h_W(i+1,j,k) + h_E(i,j,k) + GV%H_subroundoff)
     endif
 
-    if (present(visc_rem_u_a)) then
+    if (visc_rem_u_a%associated()) then
       ! Scale back the thickness to account for the effects of viscosity and the fractional open
       ! thickness to give an appropriate non-normalized weight for each layer in determining the
       ! barotropic acceleration.
@@ -2076,7 +2078,7 @@ subroutine zonal_flux_thickness(bxC, u_a, h_a, h_W_a, h_E_a, h_u_a, dt, dy_Cu_a,
       if (OBC%segment(n)%open .and. OBC%segment(n)%is_E_or_W) then
         I = OBC%segment(n)%HI%IsdB
         if (OBC%segment(n)%direction == OBC_DIRECTION_E) then
-          if (present(visc_rem_u_a)) then
+          if (visc_rem_u_a%associated()) then
             do concurrent (k=1:nz, j = OBC%segment(n)%HI%jsd:OBC%segment(n)%HI%jed)
               h_u(I,j,k) = h(i,j,k) * (visc_rem_u(I,j,k) * por_face_areaU(I,j,k))
             enddo
@@ -2086,7 +2088,7 @@ subroutine zonal_flux_thickness(bxC, u_a, h_a, h_W_a, h_E_a, h_u_a, dt, dy_Cu_a,
             enddo
           endif
         else
-          if (present(visc_rem_u_a)) then
+          if (visc_rem_u_a%associated()) then
             do concurrent (k=1:nz, j = OBC%segment(n)%HI%jsd:OBC%segment(n)%HI%jed)
               h_u(I,j,k) = h(i+1,j,k) * (visc_rem_u(I,j,k) * por_face_areaU(I,j,k))
             enddo
@@ -2163,7 +2165,7 @@ subroutine zonal_flux_adjust(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a, duhdu_t
                                                       !! values to work on.
   type(RealArray_t),       intent(in)    :: por_face_areaU_a !< fractional open area
                                                              !! of U-faces [nondim].
-  type(RealArray_t), optional, intent(inout) :: uh_3d_a !< Volume flux through zonal
+  type(RealArray_t), intent(inout) :: uh_3d_a !< Volume flux through zonal
                                                  !! faces = u*h*dy [H L2 T-1 ~> m3 s-1 or kg s-1].
   type(ocean_OBC_type),             optional, pointer       :: OBC !< Open boundaries control structure.
   type(RealArray_t),       intent(in)    :: dy_Cu_a !< The grid cell's unblocked lengths of the
@@ -2211,7 +2213,7 @@ subroutine zonal_flux_adjust(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a, duhdu_t
   call du_min_CFL_a%view(du_min_CFL)
   call por_face_areaU_a%view(por_face_areaU)
   if (present(uhbt_a)) call uhbt_a%view(uhbt)
-  if (present(uh_3d_a)) call uh_3d_a%view(uh_3d)
+  if (uh_3d_a%associated()) call uh_3d_a%view(uh_3d)
   call dy_Cu_a%view(dy_Cu)
   call IareaT_a%view(IareaT)
   call IdxT_a%view(IdxT)
@@ -2240,7 +2242,7 @@ subroutine zonal_flux_adjust(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a, duhdu_t
   !$omp   private(uh_err, uh_err_best, duhdu_tot, du_min, du_max, do_I, uh_aux, itt, tol_eta)
   do j=jsh,jeh
 
-    if (present(uh_3d_a)) then
+    if (uh_3d_a%associated()) then
       do concurrent (k=1:nz, I=ish-1:ieh)
         uh_aux(I,k) = uh_3d(I,j,k)
       enddo
@@ -2301,7 +2303,7 @@ subroutine zonal_flux_adjust(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a, duhdu_t
       if (.not. any(do_I(ish-1:ieh))) exit
       !$ endif
 
-      if ((itt < max_itts) .or. present(uh_3d_a)) then
+      if ((itt < max_itts) .or. uh_3d_a%associated()) then
         do concurrent (I=ish-1:ieh)
           uh_err(I) = 0.0 ; duhdu_tot(I) = 0.0
           if (use_uhbt) uh_err(I) = -uhbt(I,j)
@@ -2327,7 +2329,7 @@ subroutine zonal_flux_adjust(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a, duhdu_t
       endif
 
     enddo ! itt-loop
-    if (present(uh_3d_a)) then
+    if (uh_3d_a%associated()) then
       do concurrent (k=1:nz, I=ish-1:ieh)
         uh_3d(I,j,k) = uh_aux(I,k)
       enddo
@@ -2951,6 +2953,7 @@ subroutine present_vhbt_or_set_BT_cont(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_
   logical, dimension(:,:), contiguous, pointer :: do_I
   type(RealArray_t) :: h_v_a
   type(LogicalArray_t) :: do_I_a
+  type(RealArray_t) :: no_vh_3d_a ! Never allocated; unassociated data signals vh_3d_a absent.
 
   call v_a%view(v)
   call h_in_a%view(h_in)
@@ -3035,7 +3038,7 @@ subroutine present_vhbt_or_set_BT_cont(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_
       call meridional_flux_adjust(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_a, dvhdv_tot_0_a, &
                             dv_a, dv_max_CFL_a, dv_min_CFL_a, dt, tol_vel, &
                             tol_eta, better_iter, vol_CFL, visc_rem_v_a, do_I_a, &
-                            por_face_areaV_a, dx_Cv_a, IareaT_a, IdyT_a)
+                            por_face_areaV_a, dx_Cv_a, IareaT_a, IdyT_a, vh_3d_a=no_vh_3d_a)
       call set_merid_BT_cont(bxC, v_a, h_in_a, h_S_a, h_N_a, BT_cont, dv_a, vh_tot_0_a, &
                              dvhdv_tot_0_a, dv_max_CFL_a, dv_min_CFL_a, dt, vol_CFL, &
                              visc_rem_v_a, visc_rem_max_a, do_I_a, por_face_areaV_a, &
@@ -3235,7 +3238,7 @@ subroutine meridional_flux_thickness(bxC, v_a, h_a, h_S_a, h_N_a, h_v_a, dt, dx_
   type(RealArray_t),       intent(in)    :: por_face_areaV_a  !< fractional open area of V-faces
                                                               !! [nondim]
   type(ocean_OBC_type),                      pointer       :: OBC !< Open boundaries control structure.
-  type(RealArray_t), optional, intent(in) :: visc_rem_v_a !< Both the fraction
+  type(RealArray_t), intent(in) :: visc_rem_v_a !< Both the fraction
                           !! of the momentum originally in a layer that remains after a time-step of
                           !! viscosity, and the fraction of a time-step's worth of a barotropic
                           !! acceleration that a layer experiences after viscosity is applied [nondim].
@@ -3263,7 +3266,7 @@ subroutine meridional_flux_thickness(bxC, v_a, h_a, h_S_a, h_N_a, h_v_a, dt, dx_
   call IareaT_a%view(IareaT)
   call IdyT_a%view(IdyT)
   call por_face_areaV_a%view(por_face_areaV)
-  if (present(visc_rem_v_a)) call visc_rem_v_a%view(visc_rem_v)
+  if (visc_rem_v_a%associated()) call visc_rem_v_a%view(visc_rem_v)
 
   ish = bxC%idxS(1) ; ieh = bxC%idxE(1) ; jsh = bxC%idxS(2) ; jeh = bxC%idxE(2) ; nz  = bxC%idxE(3)
 
@@ -3301,7 +3304,7 @@ subroutine meridional_flux_thickness(bxC, v_a, h_a, h_S_a, h_N_a, h_v_a, dt, dx_
  !             (h_S(i,j+1,k) + h_N(i,j,k) + GV%H_subroundoff)
     endif
 
-    if (present(visc_rem_v_a)) then
+    if (visc_rem_v_a%associated()) then
       ! Scale back the thickness to account for the effects of viscosity and the fractional open
       ! thickness to give an appropriate non-normalized weight for each layer in determining the
       ! barotropic acceleration.
@@ -3319,7 +3322,7 @@ subroutine meridional_flux_thickness(bxC, v_a, h_a, h_S_a, h_N_a, h_v_a, dt, dx_
       if (OBC%segment(n)%open .and. OBC%segment(n)%is_N_or_S) then
         J = OBC%segment(n)%HI%JsdB
         if (OBC%segment(n)%direction == OBC_DIRECTION_N) then
-          if (present(visc_rem_v_a)) then
+          if (visc_rem_v_a%associated()) then
             do concurrent (k=1:nz, i = OBC%segment(n)%HI%isd:OBC%segment(n)%HI%ied)
               h_v(i,J,k) = h(i,J,k) * (visc_rem_v(i,J,k) * por_face_areaV(i,J,k))
             enddo
@@ -3329,7 +3332,7 @@ subroutine meridional_flux_thickness(bxC, v_a, h_a, h_S_a, h_N_a, h_v_a, dt, dx_
             enddo
           endif
         else
-          if (present(visc_rem_v_a)) then
+          if (visc_rem_v_a%associated()) then
             do concurrent (k=1:nz, i = OBC%segment(n)%HI%isd:OBC%segment(n)%HI%ied)
               h_v(i,J,k) = h(i,J+1,k) * (visc_rem_v(i,J,k) * por_face_areaV(i,J,k))
             enddo
@@ -3407,7 +3410,7 @@ subroutine meridional_flux_adjust(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_a, dv
                                                     !! u/v-faces of the h-cell [L ~> m].
   type(RealArray_t),       intent(in)    :: IareaT_a !< The grid cell's 1/areaT [L-2 ~> m-2].
   type(RealArray_t),       intent(in)    :: IdyT_a !< The grid cell's 1/dyT [L-1 ~> m-1].
-  type(RealArray_t), optional, intent(inout) :: vh_3d_a !< Volume flux through meridional
+  type(RealArray_t), intent(inout) :: vh_3d_a !< Volume flux through meridional
                              !! faces = v*h*dx [H L2 T-1 ~> m3 s-1 or kg s-1].
   type(ocean_OBC_type), optional, pointer :: OBC !< Open boundaries control structure.
   ! Local variables
@@ -3453,7 +3456,7 @@ subroutine meridional_flux_adjust(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_a, dv
   call IareaT_a%view(IareaT)
   call IdyT_a%view(IdyT)
   if (present(vhbt_a)) call vhbt_a%view(vhbt)
-  if (present(vh_3d_a)) call vh_3d_a%view(vh_3d)
+  if (vh_3d_a%associated()) call vh_3d_a%view(vh_3d)
   call do_I_in_a%view(do_I_in)
 
   local_OBC = .false.
@@ -3477,7 +3480,7 @@ subroutine meridional_flux_adjust(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_a, dv
   !$omp   private(vh_err, vh_err_best, dvhdv_tot, dv_min, dv_max, do_I, vh_aux, itt, tol_eta)
   do J=jsh-1,jeh
 
-    if (present(vh_3d_a)) then
+    if (vh_3d_a%associated()) then
       do concurrent (k=1:nz, i=ish:ieh)
         vh_aux(i,k) = vh_3d(i,J,k)
       enddo
@@ -3541,7 +3544,7 @@ subroutine meridional_flux_adjust(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_a, dv
       if (.not. any(do_I(ish:ieh))) exit
       !$ endif
 
-      if ((itt < max_itts) .or. present(vh_3d_a)) then
+      if ((itt < max_itts) .or. vh_3d_a%associated()) then
         do concurrent (i=ish:ieh)
           vh_err(i) = 0.0 ; dvhdv_tot(i) = 0.0
           if (use_vhbt) vh_err(i) = -vhbt(i,J)
@@ -3569,7 +3572,7 @@ subroutine meridional_flux_adjust(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_a, dv
     ! so-be-it, or else use a final upwind correction?
     ! This never seems to happen with 20 iterations as max_itt.
 
-    if (present(vh_3d_a)) then
+    if (vh_3d_a%associated()) then
       do concurrent (k=1:nz, i=ish:ieh)
         vh_3d(i,J,k) = vh_aux(i,k)
       enddo
