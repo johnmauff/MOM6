@@ -1597,7 +1597,6 @@ subroutine present_uhbt_or_set_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_
   logical,                 intent(in)    :: marginal_faces !< If true, report the marginal face
                           !! thicknesses; otherwise report transport-averaged thicknesses.
   ! Local variables
-  logical, dimension(u_a%lb(1):u_a%ub(1), u_a%lb(2):u_a%ub(2)) :: do_I
   logical, dimension(u_a%lb(1):u_a%ub(1), u_a%lb(2):u_a%ub(2)) :: &
     simple_OBC_pt  ! Indicates points in a row with specified transport OBCs
   logical:: set_BT_cont
@@ -1609,7 +1608,9 @@ subroutine present_uhbt_or_set_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_
   real, dimension(:,:),   contiguous, pointer :: uh_tot_0, duhdu_tot_0, du, du_max_CFL, du_min_CFL
   real, dimension(:,:),   contiguous, pointer :: visc_rem_max, uhbt, du_cor
   real, dimension(:,:),   contiguous, pointer :: dy_Cu
+  logical, dimension(:,:), contiguous, pointer :: do_I
   type(RealArray_t) :: h_u_a
+  type(LogicalArray_t) :: do_I_a
 
   call u_a%view(u)
   call h_in_a%view(h_in)
@@ -1641,6 +1642,8 @@ subroutine present_uhbt_or_set_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_
   endif ; endif
 
   if (present(uhbt_a) .or. set_BT_cont) then
+    call do_I_a%alloc(lb=[u_a%lb(1), u_a%lb(2)], ub=[u_a%ub(1), u_a%ub(2)])
+    call do_I_a%view(do_I)
     !$omp target enter data map(alloc: do_I, simple_OBC_pt)
     any_simple_OBC = .false.
     if (local_specified_BC .or. local_Flather_OBC) then
@@ -1662,7 +1665,7 @@ subroutine present_uhbt_or_set_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_
       ! Find du and uh.
       call zonal_flux_adjust(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a, duhdu_tot_0_a, du_a, &
                             du_max_CFL_a, du_min_CFL_a, dt, tol_vel, tol_eta, &
-                            better_iter, vol_CFL, visc_rem_u_a, do_I, por_face_areaU_a, &
+                            better_iter, vol_CFL, visc_rem_u_a, do_I_a, por_face_areaU_a, &
                             uhbt_a, uh_a, OBC=OBC, dy_Cu_a=dy_Cu_a, IareaT_a=IareaT_a, &
                             IdxT_a=IdxT_a)
 
@@ -1690,11 +1693,11 @@ subroutine present_uhbt_or_set_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_
       ! Diagnose the zero-transport correction, du0.
       call zonal_flux_adjust(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a, duhdu_tot_0_a, du_a, &
                             du_max_CFL_a, du_min_CFL_a, dt, tol_vel, tol_eta, &
-                            better_iter, vol_CFL, visc_rem_u_a, do_I, por_face_areaU_a, &
+                            better_iter, vol_CFL, visc_rem_u_a, do_I_a, por_face_areaU_a, &
                             dy_Cu_a=dy_Cu_a, IareaT_a=IareaT_a, IdxT_a=IdxT_a)
       call set_zonal_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, BT_cont, du_a, uh_tot_0_a, &
                              duhdu_tot_0_a, du_max_CFL_a, du_min_CFL_a, dt, vol_CFL, &
-                             visc_rem_u_a, visc_rem_max_a, do_I, por_face_areaU_a, &
+                             visc_rem_u_a, visc_rem_max_a, do_I_a, por_face_areaU_a, &
                              dxCu_a, dy_Cu_a, IareaT_a, IdxT_a)
       if (any_simple_OBC) then
         ! untested
@@ -1715,6 +1718,7 @@ subroutine present_uhbt_or_set_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_
       endif
     endif
     !$omp target exit data map(release: do_I, simple_OBC_pt)
+    call do_I_a%free()
   endif
 
   ! untested!
@@ -2104,7 +2108,7 @@ end subroutine zonal_flux_thickness
 !! desired barotropic (layer-summed) transport.
 subroutine zonal_flux_adjust(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a, duhdu_tot_0_a, &
                              du_a, du_max_CFL_a, du_min_CFL_a, dt, tol_vel_in, &
-                             tol_eta_in, better_iter, vol_CFL, visc_rem_a, do_I_in, &
+                             tol_eta_in, better_iter, vol_CFL, visc_rem_a, do_I_in_a, &
                              por_face_areaU_a, uhbt_a, uh_3d_a, OBC, dy_Cu_a, IareaT_a, IdxT_a)
   type(box_t),                                intent(in)    :: bxC  !< Iteration box for continuity solver
   type(RealArray_t),       intent(in)    :: u_a  !< Zonal velocity [L T-1 ~> m s-1].
@@ -2155,9 +2159,8 @@ subroutine zonal_flux_adjust(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a, duhdu_t
                                                      !! always true with.
 
 
-  logical, dimension(u_a%lb(1):u_a%ub(1), u_a%lb(2):u_a%ub(2)), &
-                                               intent(in)    :: do_I_in !< A logical flag indicating
-                                                                       !! which I values to work on.
+  type(LogicalArray_t),    intent(in)    :: do_I_in_a !< A logical flag indicating which I
+                                                      !! values to work on.
   type(RealArray_t),       intent(in)    :: por_face_areaU_a !< fractional open area
                                                              !! of U-faces [nondim].
   type(RealArray_t), optional, intent(inout) :: uh_3d_a !< Volume flux through zonal
@@ -2194,6 +2197,7 @@ subroutine zonal_flux_adjust(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a, duhdu_t
   real, dimension(:,:),   contiguous, pointer :: uh_tot_0, duhdu_tot_0, du, du_max_CFL, du_min_CFL
   real, dimension(:,:),   contiguous, pointer :: uhbt
   real, dimension(:,:),   contiguous, pointer :: dy_Cu, IareaT, IdxT
+  logical, dimension(:,:), contiguous, pointer :: do_I_in
 
   call u_a%view(u)
   call h_in_a%view(h_in)
@@ -2211,6 +2215,7 @@ subroutine zonal_flux_adjust(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a, duhdu_t
   call dy_Cu_a%view(dy_Cu)
   call IareaT_a%view(IareaT)
   call IdxT_a%view(IdxT)
+  call do_I_in_a%view(do_I_in)
 
 
   local_OBC = .false.
@@ -2341,7 +2346,7 @@ end subroutine zonal_flux_adjust
 !! function of barotropic flow to agree closely with the sum of the layer's transports.
 subroutine set_zonal_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, BT_cont, du0_a, uh_tot_0_a, &
                              duhdu_tot_0_a, du_max_CFL_a, du_min_CFL_a, dt, vol_CFL, &
-                             visc_rem_a, visc_rem_max_a, do_I, por_face_areaU_a, &
+                             visc_rem_a, visc_rem_max_a, do_I_a, por_face_areaU_a, &
                              dxCu_a, dy_Cu_a, IareaT_a, IdxT_a)
   type(box_t),             intent(in) :: bxC  !< Iteration box for continuity solver
   type(RealArray_t),       intent(in)    :: u_a    !< Zonal velocity [L T-1 ~> m s-1].
@@ -2379,8 +2384,8 @@ subroutine set_zonal_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, BT_cont, du0_a, uh_
                                                        !! Visc_rem is between 0 (at the bottom) and
                                                        !! 1 (far above the bottom).
   type(RealArray_t),       intent(in)    :: visc_rem_max_a !< Maximum allowable visc_rem [nondim].
-  logical, dimension(u_a%lb(1):u_a%ub(1), u_a%lb(2):u_a%ub(2)), &
-                           intent(in) :: do_I     !< A logical flag indicating which I values to work on.
+  type(LogicalArray_t),    intent(in) :: do_I_a  !< A logical flag indicating which I
+                                                 !! values to work on.
   type(RealArray_t),       intent(in)    :: por_face_areaU_a !< fractional open area of U-faces
                                                              !! [nondim]
   type(RealArray_t),       intent(in)    :: dxCu_a !< The dx spacing at u points [L ~> m].
@@ -2427,6 +2432,7 @@ subroutine set_zonal_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, BT_cont, du0_a, uh_
   real, dimension(:,:),   contiguous, pointer :: du0, uh_tot_0, duhdu_tot_0, du_max_CFL, &
                                                  du_min_CFL, visc_rem_max
   real, dimension(:,:),   contiguous, pointer :: dxCu, dy_Cu, IareaT, IdxT
+  logical, dimension(:,:), contiguous, pointer :: do_I
 
   call u_a%view(u)
   call h_in_a%view(h_in)
@@ -2444,6 +2450,7 @@ subroutine set_zonal_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, BT_cont, du0_a, uh_
   call dy_Cu_a%view(dy_Cu)
   call IareaT_a%view(IareaT)
   call IdxT_a%view(IdxT)
+  call do_I_a%view(do_I)
 
   ish = bxC%idxS(1) ; ieh = bxC%idxE(1) ; jsh = bxC%idxS(2) ; jeh = bxC%idxE(2) ; nz  = bxC%idxE(3)
   Idt = 1.0 / dt
@@ -2929,7 +2936,6 @@ subroutine present_vhbt_or_set_BT_cont(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_
   logical,                 intent(in)    :: marginal_faces !< If true, report the marginal face
                           !! thicknesses; otherwise report transport-averaged thicknesses.
   ! Local variables
-  logical, dimension(v_a%lb(1):v_a%ub(1), v_a%lb(2):v_a%ub(2)) :: do_I
   logical, dimension(v_a%lb(1):v_a%ub(1), v_a%lb(2):v_a%ub(2)) :: &
     simple_OBC_pt ! Indicates points in a row with specified transport OBCs
   type(OBC_segment_type), pointer :: segment => NULL()
@@ -2942,7 +2948,9 @@ subroutine present_vhbt_or_set_BT_cont(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_
   real, dimension(:,:),   contiguous, pointer :: vh_tot_0, dvhdv_tot_0, dv, dv_max_CFL, dv_min_CFL
   real, dimension(:,:),   contiguous, pointer :: visc_rem_max, vhbt, dv_cor
   real, dimension(:,:),   contiguous, pointer :: dx_Cv
+  logical, dimension(:,:), contiguous, pointer :: do_I
   type(RealArray_t) :: h_v_a
+  type(LogicalArray_t) :: do_I_a
 
   call v_a%view(v)
   call h_in_a%view(h_in)
@@ -2974,6 +2982,8 @@ subroutine present_vhbt_or_set_BT_cont(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_
   endif ; endif
 
   if (present(vhbt_a) .or. set_BT_cont) then
+    call do_I_a%alloc(lb=[v_a%lb(1), v_a%lb(2)], ub=[v_a%ub(1), v_a%ub(2)])
+    call do_I_a%view(do_I)
     !$omp target enter data map(alloc: do_I, simple_OBC_pt)
     any_simple_OBC = .false.
     if (local_specified_BC .or. local_Flather_OBC) then
@@ -2996,7 +3006,7 @@ subroutine present_vhbt_or_set_BT_cont(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_
       ! Find dv and vh.
       call meridional_flux_adjust(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_a, dvhdv_tot_0_a, &
                              dv_a, dv_max_CFL_a, dv_min_CFL_a, dt, tol_vel, &
-                             tol_eta, better_iter, vol_CFL, visc_rem_v_a, do_I, &
+                             tol_eta, better_iter, vol_CFL, visc_rem_v_a, do_I_a, &
                              por_face_areaV_a, dx_Cv_a, IareaT_a, IdyT_a, vhbt_a, vh_a, OBC=OBC)
 
       do concurrent (J=jsh-1:jeh)
@@ -3024,11 +3034,11 @@ subroutine present_vhbt_or_set_BT_cont(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_
     ! Diagnose the zero-transport correction, dv0.
       call meridional_flux_adjust(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_a, dvhdv_tot_0_a, &
                             dv_a, dv_max_CFL_a, dv_min_CFL_a, dt, tol_vel, &
-                            tol_eta, better_iter, vol_CFL, visc_rem_v_a, do_I, &
+                            tol_eta, better_iter, vol_CFL, visc_rem_v_a, do_I_a, &
                             por_face_areaV_a, dx_Cv_a, IareaT_a, IdyT_a)
       call set_merid_BT_cont(bxC, v_a, h_in_a, h_S_a, h_N_a, BT_cont, dv_a, vh_tot_0_a, &
                              dvhdv_tot_0_a, dv_max_CFL_a, dv_min_CFL_a, dt, vol_CFL, &
-                             visc_rem_v_a, visc_rem_max_a, do_I, por_face_areaV_a, &
+                             visc_rem_v_a, visc_rem_max_a, do_I_a, por_face_areaV_a, &
                              dyCv_a, dx_Cv_a, IareaT_a, IdyT_a)
 
       if (any_simple_OBC) then
@@ -3048,6 +3058,7 @@ subroutine present_vhbt_or_set_BT_cont(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_
       endif ! any_simple_OBC
     endif ! set_BT_cont
     !$omp target exit data map(release: do_I, simple_OBC_pt)
+    call do_I_a%free()
   endif ! present(vhbt_a) or set_BT_cont
 
   ! untested - probably needs to be refactored to be performant on GPU
@@ -3340,7 +3351,7 @@ end subroutine meridional_flux_thickness
 !> Returns the barotropic velocity adjustment that gives the desired barotropic (layer-summed) transport.
 subroutine meridional_flux_adjust(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_a, dvhdv_tot_0_a, &
                                   dv_a, dv_max_CFL_a, dv_min_CFL_a, dt, tol_vel_in, &
-                                  tol_eta_in, better_iter, vol_CFL, visc_rem_a, do_I_in, &
+                                  tol_eta_in, better_iter, vol_CFL, visc_rem_a, do_I_in_a, &
                                   por_face_areaV_a, dx_Cv_a, IareaT_a, IdyT_a, vhbt_a, vh_3d_a, OBC)
   type(box_t),             intent(in)    :: bxC  !< Iteration box for continuity solver
   type(RealArray_t),       intent(in)    :: v_a  !< Meridional velocity [L T-1 ~> m s-1].
@@ -3389,8 +3400,7 @@ subroutine meridional_flux_adjust(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_a, dv
                                                      !! estimating CFL numbers. Without
                                                      !! aggress_adjust, the default is false; it is
                                                      !! always true with.
-  logical, dimension(v_a%lb(1):v_a%ub(1), v_a%lb(2):v_a%ub(2)), &
-                           intent(in)  :: do_I_in  !< A flag indicating which I values to work on.
+  type(LogicalArray_t),    intent(in)  :: do_I_in_a !< A flag indicating which I values to work on.
   type(RealArray_t),       intent(in)  :: por_face_areaV_a !< fractional open area of V-faces
                                                            !! [nondim]
   type(RealArray_t),       intent(in)    :: dx_Cv_a !< The grid cell's unblocked lengths of the
@@ -3426,6 +3436,7 @@ subroutine meridional_flux_adjust(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_a, dv
   real, dimension(:,:,:), contiguous, pointer :: v, h_in, h_S, h_N, visc_rem, por_face_areaV, vh_3d
   real, dimension(:,:),   contiguous, pointer :: vh_tot_0, dvhdv_tot_0, dv, dv_max_CFL, dv_min_CFL
   real, dimension(:,:),   contiguous, pointer :: vhbt, dx_Cv, IareaT, IdyT
+  logical, dimension(:,:), contiguous, pointer :: do_I_in
 
   call v_a%view(v)
   call h_in_a%view(h_in)
@@ -3443,6 +3454,7 @@ subroutine meridional_flux_adjust(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_a, dv
   call IdyT_a%view(IdyT)
   if (present(vhbt_a)) call vhbt_a%view(vhbt)
   if (present(vh_3d_a)) call vh_3d_a%view(vh_3d)
+  call do_I_in_a%view(do_I_in)
 
   local_OBC = .false.
   if (present(OBC)) then
@@ -3573,7 +3585,7 @@ end subroutine meridional_flux_adjust
 !! function of barotropic flow to agree closely with the sum of the layer's transports.
 subroutine set_merid_BT_cont(bxC, v_a, h_in_a, h_S_a, h_N_a, BT_cont, dv0_a, vh_tot_0_a, &
                              dvhdv_tot_0_a, dv_max_CFL_a, dv_min_CFL_a, dt, vol_CFL, &
-                             visc_rem_a, visc_rem_max_a, do_I, por_face_areaV_a, &
+                             visc_rem_a, visc_rem_max_a, do_I_a, por_face_areaV_a, &
                              dyCv_a, dx_Cv_a, IareaT_a, IdyT_a)
   type(box_t),                                intent(in)    :: bxC  !< Iteration box for continuity solver
   type(RealArray_t),       intent(in)    :: v_a    !< Meridional velocity [L T-1 ~> m s-1].
@@ -3611,9 +3623,8 @@ subroutine set_merid_BT_cont(bxC, v_a, h_in_a, h_S_a, h_N_a, BT_cont, dv0_a, vh_
                                                        !! Visc_rem is between 0 (at the bottom) and
                                                        !! 1 (far above the bottom).
   type(RealArray_t),       intent(in)    :: visc_rem_max_a !< Maximum allowable visc_rem [nondim]
-  logical, dimension(v_a%lb(1):v_a%ub(1), v_a%lb(2):v_a%ub(2)), &
-                                               intent(in)    :: do_I !< A logical flag indicating
-                                                                    !! which I values to work on.
+  type(LogicalArray_t),    intent(in) :: do_I_a  !< A logical flag indicating which I
+                                                 !! values to work on.
   type(RealArray_t),       intent(in)    :: por_face_areaV_a !< fractional open area of V-faces
                                                              !! [nondim]
   type(RealArray_t),       intent(in)    :: dyCv_a !< The dy spacing at v points [L ~> m].
@@ -3660,6 +3671,7 @@ subroutine set_merid_BT_cont(bxC, v_a, h_in_a, h_S_a, h_N_a, BT_cont, dv0_a, vh_
   real, dimension(:,:),   contiguous, pointer :: dv0, vh_tot_0, dvhdv_tot_0, dv_max_CFL, &
                                                  dv_min_CFL, visc_rem_max
   real, dimension(:,:),   contiguous, pointer :: dyCv, dx_Cv, IareaT, IdyT
+  logical, dimension(:,:), contiguous, pointer :: do_I
 
   call v_a%view(v)
   call h_in_a%view(h_in)
@@ -3677,6 +3689,7 @@ subroutine set_merid_BT_cont(bxC, v_a, h_in_a, h_S_a, h_N_a, BT_cont, dv0_a, vh_
   call dx_Cv_a%view(dx_Cv)
   call IareaT_a%view(IareaT)
   call IdyT_a%view(IdyT)
+  call do_I_a%view(do_I)
 
   ish = bxC%idxS(1) ; ieh = bxC%idxE(1) ; jsh = bxC%idxS(2) ; jeh = bxC%idxE(2) ; nz  = bxC%idxE(3)
   Idt = 1.0 / dt
