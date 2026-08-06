@@ -413,6 +413,8 @@ subroutine step_MOM_dyn_split_RK2b(u_av, v_av, h, tv, visc, Time_local, dt, forc
   ! Containers for continuity()'s optional arguments
   type(RealArray_t) :: uhbt_a, vhbt_a, visc_rem_u_a, visc_rem_v_a
   type(RealArray_t) :: u_cor_a, v_cor_a, du_cor_a, dv_cor_a
+  ! Never allocated; unassociated data signals continuity()'s uhbt_a/vhbt_a are absent.
+  type(RealArray_t) :: no_uhbt_a, no_vhbt_a
 
   is  = G%isc  ; ie  = G%iec  ; js  = G%jsc  ; je  = G%jec ; nz = GV%ke
   Isq = G%IscB ; Ieq = G%IecB ; Jsq = G%JscB ; Jeq = G%JecB
@@ -509,7 +511,8 @@ subroutine step_MOM_dyn_split_RK2b(u_av, v_av, h, tv, visc, Time_local, dt, forc
   ! This calculates the transports and averaged thicknesses that will be used for the
   ! predictor version of the Coriolis scheme.
   call cpu_clock_begin(id_clock_continuity)
-  call continuity(u_av, v_av, h, hp, uh, vh, dt, G, GV, US, CS%continuity_CSp, CS%OBC, pbv)
+  call continuity(u_av, v_av, h, hp, uh, vh, dt, G, GV, US, CS%continuity_CSp, CS%OBC, pbv, &
+                  uhbt_a=no_uhbt_a, vhbt_a=no_vhbt_a)
   call cpu_clock_end(id_clock_continuity)
 
   if (G%nonblocking_updates) &
@@ -686,7 +689,8 @@ subroutine step_MOM_dyn_split_RK2b(u_av, v_av, h, tv, visc, Time_local, dt, forc
   call visc_rem_v_a%alloc(lb=LBOUND(CS%visc_rem_v), ub=UBOUND(CS%visc_rem_v), &
                           source=CS%visc_rem_v)
   call continuity(u_inst, v_inst, h, hp, uh_in, vh_in, dt, G, GV, US, CS%continuity_CSp, CS%OBC, pbv, &
-                  visc_rem_u_a=visc_rem_u_a, visc_rem_v_a=visc_rem_v_a, BT_cont=CS%BT_cont)
+                  uhbt_a=no_uhbt_a, vhbt_a=no_vhbt_a, visc_rem_u_a=visc_rem_u_a, &
+                  visc_rem_v_a=visc_rem_v_a, BT_cont=CS%BT_cont)
   call visc_rem_u_a%free()
   call visc_rem_v_a%free()
   call cpu_clock_end(id_clock_continuity)

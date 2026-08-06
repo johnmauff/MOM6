@@ -424,6 +424,8 @@ subroutine step_MOM_dyn_split_RK2(u_inst, v_inst, h, tv, visc, Time_local, dt, f
   integer :: cor_stencil
   ! Containers for continuity()'s optional arguments
   type(RealArray_t) :: uhbt_a, vhbt_a, visc_rem_u_a, visc_rem_v_a, u_cor_a, v_cor_a
+  ! Never allocated; unassociated data signals continuity()'s uhbt_a/vhbt_a are absent.
+  type(RealArray_t) :: no_uhbt_a, no_vhbt_a
 
   is  = G%isc  ; ie  = G%iec  ; js  = G%jsc  ; je  = G%jec ; nz = GV%ke
   Isq = G%IscB ; Ieq = G%IecB ; Jsq = G%JscB ; Jeq = G%JecB
@@ -701,7 +703,8 @@ subroutine step_MOM_dyn_split_RK2(u_inst, v_inst, h, tv, visc, Time_local, dt, f
     call visc_rem_v_a%alloc(lb=LBOUND(CS%visc_rem_v), ub=UBOUND(CS%visc_rem_v), &
                             source=CS%visc_rem_v)
     call continuity(u_inst, v_inst, h, hp, uh_in, vh_in, dt, G, GV, US, CS%continuity_CSp, CS%OBC, pbv, &
-                    visc_rem_u_a=visc_rem_u_a, visc_rem_v_a=visc_rem_v_a, BT_cont=CS%BT_cont)
+                    uhbt_a=no_uhbt_a, vhbt_a=no_vhbt_a, visc_rem_u_a=visc_rem_u_a, &
+                    visc_rem_v_a=visc_rem_v_a, BT_cont=CS%BT_cont)
     call visc_rem_u_a%free()
     call visc_rem_v_a%free()
 
@@ -1825,7 +1828,8 @@ subroutine initialize_dyn_split_RK2(u, v, h, tv, uh, vh, eta, Time, G, GV, US, p
         do concurrent (k=1:nz, j=jsd:jed, i=isd:ied)
           h_tmp(i,j,k) = h(i,j,k)
         enddo
-        call continuity(CS%u_av, CS%v_av, h, h_tmp, uh, vh, dt, G, GV, US, CS%continuity_CSp, CS%OBC, pbv)
+        call continuity(CS%u_av, CS%v_av, h, h_tmp, uh, vh, dt, G, GV, US, CS%continuity_CSp, &
+                        CS%OBC, pbv, uhbt_a=no_uhbt_a, vhbt_a=no_vhbt_a)
         call pass_var(h_tmp, G%Domain, clock=id_clock_pass_init)
         do concurrent (k=1:nz, j=jsd:jed, i=isd:ied)
           CS%h_av(i,j,k) = 0.5*(h(i,j,k) + h_tmp(i,j,k))
@@ -1845,7 +1849,8 @@ subroutine initialize_dyn_split_RK2(u, v, h, tv, uh, vh, eta, Time, G, GV, US, p
     if (.not. query_initialized(uh, "uh", restart_CS) .or. &
         .not. query_initialized(vh, "vh", restart_CS)) then
       do k=1,nz ; do j=jsd,jed ; do i=isd,ied ; h_tmp(i,j,k) = h(i,j,k) ; enddo ; enddo ; enddo
-      call continuity(u, v, h, h_tmp, uh, vh, dt, G, GV, US, CS%continuity_CSp, CS%OBC, pbv)
+      call continuity(u, v, h, h_tmp, uh, vh, dt, G, GV, US, CS%continuity_CSp, CS%OBC, pbv, &
+                      uhbt_a=no_uhbt_a, vhbt_a=no_vhbt_a)
       call pass_var(h_tmp, G%Domain, clock=id_clock_pass_init)
       do k=1,nz ; do j=jsd,jed ; do i=isd,ied
         CS%h_av(i,j,k) = 0.5*(h(i,j,k) + h_tmp(i,j,k))
