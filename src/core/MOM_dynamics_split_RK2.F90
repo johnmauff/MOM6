@@ -424,8 +424,9 @@ subroutine step_MOM_dyn_split_RK2(u_inst, v_inst, h, tv, visc, Time_local, dt, f
   integer :: cor_stencil
   ! Containers for continuity()'s optional arguments
   type(RealArray_t) :: uhbt_a, vhbt_a, visc_rem_u_a, visc_rem_v_a, u_cor_a, v_cor_a
-  ! Never allocated; unassociated data signals continuity()'s uhbt_a/vhbt_a are absent.
+  ! Never allocated; unassociated data signals these continuity() arguments are absent.
   type(RealArray_t) :: no_uhbt_a, no_vhbt_a
+  type(RealArray_t) :: no_u_cor_a, no_v_cor_a, no_du_cor_a, no_dv_cor_a
 
   is  = G%isc  ; ie  = G%iec  ; js  = G%jsc  ; je  = G%jec ; nz = GV%ke
   Isq = G%IscB ; Ieq = G%IecB ; Jsq = G%JscB ; Jeq = G%JecB
@@ -704,7 +705,8 @@ subroutine step_MOM_dyn_split_RK2(u_inst, v_inst, h, tv, visc, Time_local, dt, f
                             source=CS%visc_rem_v)
     call continuity(u_inst, v_inst, h, hp, uh_in, vh_in, dt, G, GV, US, CS%continuity_CSp, CS%OBC, pbv, &
                     uhbt_a=no_uhbt_a, vhbt_a=no_vhbt_a, visc_rem_u_a=visc_rem_u_a, &
-                    visc_rem_v_a=visc_rem_v_a, BT_cont=CS%BT_cont)
+                    visc_rem_v_a=visc_rem_v_a, u_cor_a=no_u_cor_a, v_cor_a=no_v_cor_a, &
+                    du_cor_a=no_du_cor_a, dv_cor_a=no_dv_cor_a, BT_cont=CS%BT_cont)
     call visc_rem_u_a%free()
     call visc_rem_v_a%free()
 
@@ -873,7 +875,8 @@ subroutine step_MOM_dyn_split_RK2(u_inst, v_inst, h, tv, visc, Time_local, dt, f
   call v_cor_a%alloc(lb=LBOUND(v_av), ub=UBOUND(v_av), source=v_av)
   call continuity(up, vp, h, hp, uh, vh, dt, G, GV, US, CS%continuity_CSp, CS%OBC, pbv, &
                   uhbt_a=uhbt_a, vhbt_a=vhbt_a, visc_rem_u_a=visc_rem_u_a, &
-                  visc_rem_v_a=visc_rem_v_a, u_cor_a=u_cor_a, v_cor_a=v_cor_a, BT_cont=CS%BT_cont)
+                  visc_rem_v_a=visc_rem_v_a, u_cor_a=u_cor_a, v_cor_a=v_cor_a, &
+                  du_cor_a=no_du_cor_a, dv_cor_a=no_dv_cor_a, BT_cont=CS%BT_cont)
   call u_cor_a%copy2F(u_av)
   call v_cor_a%copy2F(v_av)
   call uhbt_a%free()
@@ -1184,7 +1187,8 @@ subroutine step_MOM_dyn_split_RK2(u_inst, v_inst, h, tv, visc, Time_local, dt, f
   call v_cor_a%alloc(lb=LBOUND(v_av), ub=UBOUND(v_av), source=v_av)
   call continuity(u_inst, v_inst, h_tmp, h, uh, vh, dt, G, GV, US, CS%continuity_CSp, CS%OBC, pbv, &
                   uhbt_a=uhbt_a, vhbt_a=vhbt_a, visc_rem_u_a=visc_rem_u_a, &
-                  visc_rem_v_a=visc_rem_v_a, u_cor_a=u_cor_a, v_cor_a=v_cor_a)
+                  visc_rem_v_a=visc_rem_v_a, u_cor_a=u_cor_a, v_cor_a=v_cor_a, &
+                  du_cor_a=no_du_cor_a, dv_cor_a=no_dv_cor_a)
   call u_cor_a%copy2F(u_av)
   call v_cor_a%copy2F(v_av)
   call uhbt_a%free()
@@ -1561,8 +1565,10 @@ subroutine initialize_dyn_split_RK2(u, v, h, tv, uh, vh, eta, Time, G, GV, US, p
 
   ! local variables
   real, dimension(SZI_(G),SZJ_(G),SZK_(GV)) :: h_tmp ! A temporary copy of the layer thicknesses [H ~> m or kg m-2]
-  ! Never allocated; unassociated data signals continuity()'s uhbt_a/vhbt_a are absent.
+  ! Never allocated; unassociated data signals these continuity() arguments are absent.
   type(RealArray_t) :: no_uhbt_a, no_vhbt_a
+  type(RealArray_t) :: no_visc_rem_u_a, no_visc_rem_v_a
+  type(RealArray_t) :: no_u_cor_a, no_v_cor_a, no_du_cor_a, no_dv_cor_a
   character(len=40) :: mdl = "MOM_dynamics_split_RK2" ! This module's name.
   ! This include declares and sets the variable "version".
 # include "version_variable.h"
@@ -1831,7 +1837,10 @@ subroutine initialize_dyn_split_RK2(u, v, h, tv, uh, vh, eta, Time, G, GV, US, p
           h_tmp(i,j,k) = h(i,j,k)
         enddo
         call continuity(CS%u_av, CS%v_av, h, h_tmp, uh, vh, dt, G, GV, US, CS%continuity_CSp, &
-                        CS%OBC, pbv, uhbt_a=no_uhbt_a, vhbt_a=no_vhbt_a)
+                        CS%OBC, pbv, uhbt_a=no_uhbt_a, vhbt_a=no_vhbt_a, &
+                        visc_rem_u_a=no_visc_rem_u_a, visc_rem_v_a=no_visc_rem_v_a, &
+                        u_cor_a=no_u_cor_a, v_cor_a=no_v_cor_a, &
+                        du_cor_a=no_du_cor_a, dv_cor_a=no_dv_cor_a)
         call pass_var(h_tmp, G%Domain, clock=id_clock_pass_init)
         do concurrent (k=1:nz, j=jsd:jed, i=isd:ied)
           CS%h_av(i,j,k) = 0.5*(h(i,j,k) + h_tmp(i,j,k))
@@ -1852,7 +1861,9 @@ subroutine initialize_dyn_split_RK2(u, v, h, tv, uh, vh, eta, Time, G, GV, US, p
         .not. query_initialized(vh, "vh", restart_CS)) then
       do k=1,nz ; do j=jsd,jed ; do i=isd,ied ; h_tmp(i,j,k) = h(i,j,k) ; enddo ; enddo ; enddo
       call continuity(u, v, h, h_tmp, uh, vh, dt, G, GV, US, CS%continuity_CSp, CS%OBC, pbv, &
-                      uhbt_a=no_uhbt_a, vhbt_a=no_vhbt_a)
+                      uhbt_a=no_uhbt_a, vhbt_a=no_vhbt_a, visc_rem_u_a=no_visc_rem_u_a, &
+                      visc_rem_v_a=no_visc_rem_v_a, u_cor_a=no_u_cor_a, v_cor_a=no_v_cor_a, &
+                      du_cor_a=no_du_cor_a, dv_cor_a=no_dv_cor_a)
       call pass_var(h_tmp, G%Domain, clock=id_clock_pass_init)
       do k=1,nz ; do j=jsd,jed ; do i=isd,ied
         CS%h_av(i,j,k) = 0.5*(h(i,j,k) + h_tmp(i,j,k))

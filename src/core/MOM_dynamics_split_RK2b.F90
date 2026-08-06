@@ -413,8 +413,10 @@ subroutine step_MOM_dyn_split_RK2b(u_av, v_av, h, tv, visc, Time_local, dt, forc
   ! Containers for continuity()'s optional arguments
   type(RealArray_t) :: uhbt_a, vhbt_a, visc_rem_u_a, visc_rem_v_a
   type(RealArray_t) :: u_cor_a, v_cor_a, du_cor_a, dv_cor_a
-  ! Never allocated; unassociated data signals continuity()'s uhbt_a/vhbt_a are absent.
+  ! Never allocated; unassociated data signals these continuity() arguments are absent.
   type(RealArray_t) :: no_uhbt_a, no_vhbt_a
+  type(RealArray_t) :: no_visc_rem_u_a, no_visc_rem_v_a
+  type(RealArray_t) :: no_u_cor_a, no_v_cor_a, no_du_cor_a, no_dv_cor_a
 
   is  = G%isc  ; ie  = G%iec  ; js  = G%jsc  ; je  = G%jec ; nz = GV%ke
   Isq = G%IscB ; Ieq = G%IecB ; Jsq = G%JscB ; Jeq = G%JecB
@@ -512,7 +514,9 @@ subroutine step_MOM_dyn_split_RK2b(u_av, v_av, h, tv, visc, Time_local, dt, forc
   ! predictor version of the Coriolis scheme.
   call cpu_clock_begin(id_clock_continuity)
   call continuity(u_av, v_av, h, hp, uh, vh, dt, G, GV, US, CS%continuity_CSp, CS%OBC, pbv, &
-                  uhbt_a=no_uhbt_a, vhbt_a=no_vhbt_a)
+                  uhbt_a=no_uhbt_a, vhbt_a=no_vhbt_a, visc_rem_u_a=no_visc_rem_u_a, &
+                  visc_rem_v_a=no_visc_rem_v_a, u_cor_a=no_u_cor_a, v_cor_a=no_v_cor_a, &
+                  du_cor_a=no_du_cor_a, dv_cor_a=no_dv_cor_a)
   call cpu_clock_end(id_clock_continuity)
 
   if (G%nonblocking_updates) &
@@ -690,7 +694,8 @@ subroutine step_MOM_dyn_split_RK2b(u_av, v_av, h, tv, visc, Time_local, dt, forc
                           source=CS%visc_rem_v)
   call continuity(u_inst, v_inst, h, hp, uh_in, vh_in, dt, G, GV, US, CS%continuity_CSp, CS%OBC, pbv, &
                   uhbt_a=no_uhbt_a, vhbt_a=no_vhbt_a, visc_rem_u_a=visc_rem_u_a, &
-                  visc_rem_v_a=visc_rem_v_a, BT_cont=CS%BT_cont)
+                  visc_rem_v_a=visc_rem_v_a, u_cor_a=no_u_cor_a, v_cor_a=no_v_cor_a, &
+                  du_cor_a=no_du_cor_a, dv_cor_a=no_dv_cor_a, BT_cont=CS%BT_cont)
   call visc_rem_u_a%free()
   call visc_rem_v_a%free()
   call cpu_clock_end(id_clock_continuity)
@@ -821,7 +826,8 @@ subroutine step_MOM_dyn_split_RK2b(u_av, v_av, h, tv, visc, Time_local, dt, forc
   call v_cor_a%alloc(lb=LBOUND(v_av), ub=UBOUND(v_av), source=v_av)
   call continuity(up, vp, h, hp, uh, vh, dt, G, GV, US, CS%continuity_CSp, CS%OBC, pbv, &
                   uhbt_a=uhbt_a, vhbt_a=vhbt_a, visc_rem_u_a=visc_rem_u_a, &
-                  visc_rem_v_a=visc_rem_v_a, u_cor_a=u_cor_a, v_cor_a=v_cor_a, BT_cont=CS%BT_cont)
+                  visc_rem_v_a=visc_rem_v_a, u_cor_a=u_cor_a, v_cor_a=v_cor_a, &
+                  du_cor_a=no_du_cor_a, dv_cor_a=no_dv_cor_a, BT_cont=CS%BT_cont)
   call u_cor_a%copy2F(u_av)
   call v_cor_a%copy2F(v_av)
   call uhbt_a%free()

@@ -248,30 +248,30 @@ subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhb
                                                        !! [H L2 T-1 ~> m3 s-1 or kg s-1].
   type(RealArray_t),       intent(in)    :: vhbt_a !< The summed volume flux through meridional
                                                        !! faces [H L2 T-1 ~> m3 s-1 or kg s-1].
-  type(RealArray_t), optional, intent(in)    :: visc_rem_u_a
+  type(RealArray_t),       intent(in)    :: visc_rem_u_a
                              !< The fraction of zonal momentum originally
                              !! in a layer that remains after a time-step of viscosity, and the
                              !! fraction of a time-step's worth of a barotropic acceleration that
                              !! a layer experiences after viscosity is applied [nondim].
                              !! Visc_rem_u is between 0 (at the bottom) and 1 (far above the bottom).
-  type(RealArray_t), optional, intent(in)    :: visc_rem_v_a
+  type(RealArray_t),       intent(in)    :: visc_rem_v_a
                              !< The fraction of meridional momentum originally
                              !! in a layer that remains after a time-step of viscosity, and the
                              !! fraction of a time-step's worth of a barotropic acceleration that
                              !! a layer experiences after viscosity is applied [nondim].
                              !! Visc_rem_v is between 0 (at the bottom) and 1 (far above the bottom).
-  type(RealArray_t), optional, intent(inout) :: u_cor_a
+  type(RealArray_t),       intent(inout) :: u_cor_a
                              !< The zonal velocities that give uhbt as the depth-integrated
                              !! transport [L T-1 ~> m s-1].
-  type(RealArray_t), optional, intent(inout) :: v_cor_a
+  type(RealArray_t),       intent(inout) :: v_cor_a
                              !< The meridional velocities that give vhbt as the depth-integrated
                              !! transport [L T-1 ~> m s-1].
   type(BT_cont_type), optional, pointer  :: BT_cont !< A structure with elements that describe
                              !!  the effective open face areas as a function of barotropic flow.
-  type(RealArray_t), optional, intent(inout) :: du_cor_a !< The zonal velocity increments from u
+  type(RealArray_t),       intent(inout) :: du_cor_a !< The zonal velocity increments from u
                                                          !! that give uhbt as the depth-integrated
                                                          !! transports [L T-1 ~> m s-1].
-  type(RealArray_t), optional, intent(inout) :: dv_cor_a !< The meridional velocity increments from
+  type(RealArray_t),       intent(inout) :: dv_cor_a !< The meridional velocity increments from
                                                          !! v that give vhbt as the depth-integrated
                                                          !! transports [L T-1 ~> m s-1].
 
@@ -301,7 +301,7 @@ subroutine continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhb
 
   x_first = (MOD(G%first_direction,2) == 0)
 
-  if (present(visc_rem_u_a) .neqv. present(visc_rem_v_a)) call MOM_error(FATAL, &
+  if (visc_rem_u_a%associated() .neqv. visc_rem_v_a%associated()) call MOM_error(FATAL, &
       "MOM_continuity_PPM: Either both visc_rem_u_a and visc_rem_v_a or neither "// &
       "one must be present in call to continuity_PPM.")
 
@@ -493,6 +493,9 @@ subroutine continuity_3d_fluxes(u, v, h, uh, vh, dt, G, GV, US, CS, OBC, pbv)
   type(RealArray_t) :: dx_Cv_a, IdyT_a, dyCv_a, dyT_a, mask2dCv_a
   type(RealArray_t) :: no_uhbt_a ! Never allocated; unassociated data signals uhbt_a absent.
   type(RealArray_t) :: no_vhbt_a ! Never allocated; unassociated data signals vhbt_a absent.
+  ! Never allocated; unassociated data signals these mass-flux arguments are absent.
+  type(RealArray_t) :: no_visc_rem_u_a, no_visc_rem_v_a
+  type(RealArray_t) :: no_u_cor_a, no_v_cor_a, no_du_cor_a, no_dv_cor_a
   real :: h_min                         ! Minimum layer thickness (2*Angstrom_H) [H ~> m or kg m-2]
 
   ! Construct the iteration box
@@ -530,7 +533,9 @@ subroutine continuity_3d_fluxes(u, v, h, uh, vh, dt, G, GV, US, CS, OBC, pbv)
   call zonal_edge_thickness(bxC, h_in_a, h_W_a, h_E_a, mask2dT_a, &
                             h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
   call zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, OBC, &
-                       por_face_areaU_a, uhbt_a=no_uhbt_a, dy_Cu_a=dy_Cu_a, IareaT_a=IareaT_a, &
+                       por_face_areaU_a, uhbt_a=no_uhbt_a, visc_rem_u_a=no_visc_rem_u_a, &
+                       u_cor_a=no_u_cor_a, du_cor_a=no_du_cor_a, &
+                       dy_Cu_a=dy_Cu_a, IareaT_a=IareaT_a, &
                        IdxT_a=IdxT_a, dxCu_a=dxCu_a, areaT_a=areaT_a, dxT_a=dxT_a, &
                        mask2dCu_a=mask2dCu_a, &
                        H_subroundoff=GV%H_subroundoff, &
@@ -541,7 +546,9 @@ subroutine continuity_3d_fluxes(u, v, h, uh, vh, dt, G, GV, US, CS, OBC, pbv)
   call meridional_edge_thickness(bxC, h_in_a, h_S_a, h_N_a, mask2dT_a, &
                                  h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
   call meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, OBC, &
-                            por_face_areaV_a, vhbt_a=no_vhbt_a, dx_Cv_a=dx_Cv_a, &
+                            por_face_areaV_a, vhbt_a=no_vhbt_a, visc_rem_v_a=no_visc_rem_v_a, &
+                            v_cor_a=no_v_cor_a, dv_cor_a=no_dv_cor_a, &
+                            dx_Cv_a=dx_Cv_a, &
                             IareaT_a=IareaT_a, &
                             IdyT_a=IdyT_a, dyCv_a=dyCv_a, areaT_a=areaT_a, dyT_a=dyT_a, &
                             mask2dCv_a=mask2dCv_a, H_subroundoff=GV%H_subroundoff, &
@@ -713,7 +720,7 @@ subroutine continuity_adjust_vel(u, v, h, dt, G, GV, US, CS, OBC, pbv, uhbt, vhb
   real, dimension(SZI_(G),SZJB_(G)), &
                            intent(in)    :: vhbt !< The vertically summed thickness flux through
                                                 !! meridional faces [H L2 T-1 ~> m3 s-1 or kg s-1].
-  type(RealArray_t), optional, intent(in) :: visc_rem_u_a !< Both the fraction of the zonal momentum
+  type(RealArray_t),       intent(in) :: visc_rem_u_a !< Both the fraction of the zonal momentum
                                                 !! that remains after a time-step of viscosity, and
                                                 !! the fraction of a time-step's worth of a barotropic
                                                 !! acceleration that a layer experiences after viscosity
@@ -721,7 +728,7 @@ subroutine continuity_adjust_vel(u, v, h, dt, G, GV, US, CS, OBC, pbv, uhbt, vhb
                                                 !! bottom) and 1 (far above the bottom).  When this
                                                 !! column is under an ice shelf, this also goes to 0
                                                 !! at the top due to the no-slip boundary condition there.
-  type(RealArray_t), optional, intent(in) :: visc_rem_v_a !< Both the fraction of the meridional
+  type(RealArray_t),       intent(in) :: visc_rem_v_a !< Both the fraction of the meridional
                                                 !! momentum that remains after a time-step of
                                                 !! viscosity, and the fraction of a time-step's
                                                 !! worth of a barotropic acceleration that a layer
@@ -751,6 +758,8 @@ subroutine continuity_adjust_vel(u, v, h, dt, G, GV, US, CS, OBC, pbv, uhbt, vhb
   type(RealArray_t) :: vhbt_a, v_cor_a
   type(RealArray_t) :: dy_Cu_a, IareaT_a, IdxT_a, dxCu_a, areaT_a, dxT_a, mask2dCu_a
   type(RealArray_t) :: dx_Cv_a, IdyT_a, dyCv_a, dyT_a, mask2dCv_a
+  ! Never allocated; unassociated data signals these mass-flux arguments are absent.
+  type(RealArray_t) :: no_du_cor_a, no_dv_cor_a
   real :: h_min                         ! Minimum layer thickness (2*Angstrom_H) [H ~> m or kg m-2]
 
   ! It might not be necessary to separate the input velocity array from the adjusted velocities,
@@ -797,7 +806,8 @@ subroutine continuity_adjust_vel(u, v, h, dt, G, GV, US, CS, OBC, pbv, uhbt, vhb
                             h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
   call zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, OBC, &
                        por_face_areaU_a, uhbt_a=uhbt_a, visc_rem_u_a=visc_rem_u_a, &
-                       u_cor_a=u_cor_a, dy_Cu_a=dy_Cu_a, IareaT_a=IareaT_a, IdxT_a=IdxT_a, &
+                       u_cor_a=u_cor_a, du_cor_a=no_du_cor_a, &
+                       dy_Cu_a=dy_Cu_a, IareaT_a=IareaT_a, IdxT_a=IdxT_a, &
                        dxCu_a=dxCu_a, areaT_a=areaT_a, dxT_a=dxT_a, mask2dCu_a=mask2dCu_a, &
                        H_subroundoff=GV%H_subroundoff, &
                        CFL_limit_adjust=CS%CFL_limit_adjust, aggress_adjust=CS%aggress_adjust, &
@@ -808,7 +818,8 @@ subroutine continuity_adjust_vel(u, v, h, dt, G, GV, US, CS, OBC, pbv, uhbt, vhb
                                  h_min, CS%upwind_1st, CS%monotonic, CS%simple_2nd, OBC)
   call meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, OBC, &
                             por_face_areaV_a, vhbt_a=vhbt_a, visc_rem_v_a=visc_rem_v_a, &
-                            v_cor_a=v_cor_a, dx_Cv_a=dx_Cv_a, IareaT_a=IareaT_a, &
+                            v_cor_a=v_cor_a, dv_cor_a=no_dv_cor_a, &
+                            dx_Cv_a=dx_Cv_a, IareaT_a=IareaT_a, &
                             IdyT_a=IdyT_a, dyCv_a=dyCv_a, areaT_a=areaT_a, dyT_a=dyT_a, &
                             mask2dCv_a=mask2dCv_a, H_subroundoff=GV%H_subroundoff, &
                             CFL_limit_adjust=CS%CFL_limit_adjust, &
@@ -1226,18 +1237,18 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, OBC, &
                                                              !! [nondim]
   type(RealArray_t),       intent(in) :: uhbt_a !< The summed volume flux through zonal faces
                                                  !! [H L2 T-1 ~> m3 s-1 or kg s-1].
-  type(RealArray_t), optional, intent(in) :: visc_rem_u_a
+  type(RealArray_t),       intent(in) :: visc_rem_u_a
                      !< The fraction of zonal momentum originally in a layer that remains after a
                      !! time-step of viscosity, and the fraction of a time-step's worth of a
                      !! barotropic acceleration that a layer experiences after viscosity is applied
                      !! [nondim]. Visc_rem_u is between 0 (at the bottom) and 1 (far above the
                      !! bottom).
-  type(RealArray_t), optional, intent(inout) :: u_cor_a
+  type(RealArray_t),       intent(inout) :: u_cor_a
                      !< The zonal velocities (u with a barotropic correction)
                      !! that give uhbt as the depth-integrated transport [L T-1 ~> m s-1]
   type(BT_cont_type), optional, pointer  :: BT_cont !< A structure with elements that describe the
                      !! effective open face areas as a function of barotropic flow.
-  type(RealArray_t), optional, intent(inout) :: du_cor_a
+  type(RealArray_t),       intent(inout) :: du_cor_a
                                      !< The zonal velocity increments from u that give uhbt
                                      !! as the depth-integrated transports [L T-1 ~> m s-1].
   type(RealArray_t),       intent(in)    :: dy_Cu_a !< The grid cell's unblocked lengths of the
@@ -1322,8 +1333,8 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, OBC, &
   call h_E_a%view(h_E)
   call uh_a%view(uh)
   call por_face_areaU_a%view(por_face_areaU)
-  if (present(visc_rem_u_a)) call visc_rem_u_a%view(visc_rem_u)
-  if (present(du_cor_a)) call du_cor_a%view(du_cor)
+  if (visc_rem_u_a%associated()) call visc_rem_u_a%view(visc_rem_u)
+  if (du_cor_a%associated()) call du_cor_a%view(du_cor)
   call dy_Cu_a%view(dy_Cu)
   call IareaT_a%view(IareaT)
   call IdxT_a%view(IdxT)
@@ -1331,7 +1342,7 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, OBC, &
   call dxT_a%view(dxT)
   call mask2dCu_a%view(mask2dCu)
 
-  use_visc_rem = present(visc_rem_u_a)
+  use_visc_rem = visc_rem_u_a%associated()
 
   set_BT_cont = .false. ; if (present(BT_cont)) set_BT_cont = (associated(BT_cont))
 
@@ -1367,7 +1378,7 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, OBC, &
 
   do concurrent (j=jsh:jeh)
 
-    if (present(du_cor_a)) then
+    if (du_cor_a%associated()) then
       do concurrent (i=ish-1:ieh)
         du_cor(i,j) = 0.0
       enddo
@@ -1561,11 +1572,11 @@ subroutine present_uhbt_or_set_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_
                                                            !! [nondim].
   type(RealArray_t),       intent(in)    :: por_face_areaU_a !< fractional open area of U-faces
                                                              !! [nondim]
-  type(RealArray_t), optional, intent(inout) :: u_cor_a !< The zonal velocities (u with a barotropic
+  type(RealArray_t),       intent(inout) :: u_cor_a !< The zonal velocities (u with a barotropic
                                                          !! correction) that give uhbt as the
                                                          !! depth-integrated transport
                                                          !! [L T-1 ~> m s-1]
-  type(RealArray_t), optional, intent(inout) :: du_cor_a !< The zonal velocity increments from u
+  type(RealArray_t),       intent(inout) :: du_cor_a !< The zonal velocity increments from u
                                                           !! that give uhbt as the depth-integrated
                                                           !! transports [L T-1 ~> m s-1].
   type(BT_cont_type), optional, pointer  :: BT_cont !< A structure with elements that describe the
@@ -1633,8 +1644,8 @@ subroutine present_uhbt_or_set_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_
   call visc_rem_max_a%view(visc_rem_max)
   call por_face_areaU_a%view(por_face_areaU)
   if (uhbt_a%associated()) call uhbt_a%view(uhbt)
-  if (present(u_cor_a)) call u_cor_a%view(u_cor)
-  if (present(du_cor_a)) call du_cor_a%view(du_cor)
+  if (u_cor_a%associated()) call u_cor_a%view(u_cor)
+  if (du_cor_a%associated()) call du_cor_a%view(du_cor)
   call dy_Cu_a%view(dy_Cu)
 
   ish = bxC%idxS(1) ; ieh = bxC%idxE(1) ; jsh = bxC%idxS(2) ; jeh = bxC%idxE(2) ; nz  = bxC%idxE(3)
@@ -1677,7 +1688,7 @@ subroutine present_uhbt_or_set_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_
                             IdxT_a=IdxT_a)
 
       do concurrent (j=jsh:jeh)
-        if (present(u_cor_a)) then
+        if (u_cor_a%associated()) then
           do concurrent (k=1:nz, I=ish-1:ieh)
             u_cor(I,j,k) = u(I,j,k) + du(I,j) * visc_rem_u(I,j,k)
           enddo
@@ -1689,7 +1700,7 @@ subroutine present_uhbt_or_set_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_
           endif
         endif ! u-corrected
 
-        if (present(du_cor_a)) then
+        if (du_cor_a%associated()) then
           do concurrent (I=ish-1:ieh)
             du_cor(I,j) = du(I,j)
           enddo
@@ -1756,7 +1767,7 @@ subroutine present_uhbt_or_set_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_
   endif
 
   if  (set_BT_cont) then ; if (allocated(BT_cont%h_u)) then
-    if (present(u_cor_a)) then
+    if (u_cor_a%associated()) then
       call h_u_a%alloc(lb=LBOUND(BT_cont%h_u), ub=UBOUND(BT_cont%h_u), source=BT_cont%h_u)
       call zonal_flux_thickness(bxC, u_cor_a, h_in_a, h_W_a, h_E_a, h_u_a, dt, dy_Cu_a, IareaT_a, &
                                 IdxT_a, vol_CFL, marginal_faces, por_face_areaU_a, OBC, &
@@ -2575,18 +2586,18 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, OBC, &
                                                              !! [nondim]
   type(RealArray_t),       intent(in) :: vhbt_a !< The summed volume flux through meridional
                                                  !! faces [H L2 T-1 ~> m3 s-1 or kg s-1].
-  type(RealArray_t), optional, intent(in) :: visc_rem_v_a
+  type(RealArray_t),       intent(in) :: visc_rem_v_a
                      !< Both the fraction of the momentum originally in a layer that remains after a
                      !! time-step of viscosity, and the fraction of a time-step's worth of a
                      !! barotropic acceleration that a layer experiences after viscosity is applied
                      !! [nondim]. Visc_rem_v is between 0 (at the bottom) and 1 (far above the
                      !! bottom).
-  type(RealArray_t), optional, intent(inout) :: v_cor_a
+  type(RealArray_t),       intent(inout) :: v_cor_a
                      !< The meridional velocities (v with a barotropic correction)
                      !! that give vhbt as the depth-integrated transport [L T-1 ~> m s-1].
   type(BT_cont_type), optional, pointer  :: BT_cont !< A structure with elements that describe the
                      !! effective open face areas as a function of barotropic flow.
-  type(RealArray_t), optional, intent(inout) :: dv_cor_a
+  type(RealArray_t),       intent(inout) :: dv_cor_a
                                      !< The meridional velocity increments from v that give vhbt
                                      !! as the depth-integrated transports [L T-1 ~> m s-1].
   type(RealArray_t),       intent(in)    :: dx_Cv_a !< The grid cell's unblocked lengths of the
@@ -2669,8 +2680,8 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, OBC, &
   call h_N_a%view(h_N)
   call vh_a%view(vh)
   call por_face_areaV_a%view(por_face_areaV)
-  if (present(visc_rem_v_a)) call visc_rem_v_a%view(visc_rem_v)
-  if (present(dv_cor_a)) call dv_cor_a%view(dv_cor)
+  if (visc_rem_v_a%associated()) call visc_rem_v_a%view(visc_rem_v)
+  if (dv_cor_a%associated()) call dv_cor_a%view(dv_cor)
   call dx_Cv_a%view(dx_Cv)
   call IareaT_a%view(IareaT)
   call IdyT_a%view(IdyT)
@@ -2678,7 +2689,7 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, OBC, &
   call dyT_a%view(dyT)
   call mask2dCv_a%view(mask2dCv)
 
-  use_visc_rem = present(visc_rem_v_a)
+  use_visc_rem = visc_rem_v_a%associated()
 
   set_BT_cont = .false. ; if (present(BT_cont)) set_BT_cont = (associated(BT_cont))
 
@@ -2714,7 +2725,7 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, OBC, &
 
   do concurrent (J=jsh-1:jeh)
 
-    if (present(dv_cor_a)) then
+    if (dv_cor_a%associated()) then
       do concurrent (i=ish:ieh)
         dv_cor(i,J) = 0.0
       enddo
@@ -2903,11 +2914,11 @@ subroutine present_vhbt_or_set_BT_cont(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_
                                                            !! [nondim]
   type(RealArray_t),       intent(in)    :: por_face_areaV_a !< fractional open area of V-faces
                                                              !! [nondim]
-  type(RealArray_t), optional, intent(inout) :: v_cor_a !< The meridional velocities (v with a
+  type(RealArray_t),       intent(inout) :: v_cor_a !< The meridional velocities (v with a
                                                          !! barotropic correction) that give vhbt as
                                                          !! the depth-integrated transport
                                                          !! [L T-1 ~> m s-1].
-  type(RealArray_t), optional, intent(inout) :: dv_cor_a !< The meridional velocity increments from
+  type(RealArray_t),       intent(inout) :: dv_cor_a !< The meridional velocity increments from
                                                          !! v that give vhbt as the depth-integrated
                                                          !! transports [L T-1 ~> m s-1].
   type(BT_cont_type), optional, pointer :: BT_cont !< A structure with elements that describe the
@@ -2976,8 +2987,8 @@ subroutine present_vhbt_or_set_BT_cont(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_
   call visc_rem_max_a%view(visc_rem_max)
   call por_face_areaV_a%view(por_face_areaV)
   if (vhbt_a%associated()) call vhbt_a%view(vhbt)
-  if (present(v_cor_a)) call v_cor_a%view(v_cor)
-  if (present(dv_cor_a)) call dv_cor_a%view(dv_cor)
+  if (v_cor_a%associated()) call v_cor_a%view(v_cor)
+  if (dv_cor_a%associated()) call dv_cor_a%view(dv_cor)
   call dx_Cv_a%view(dx_Cv)
 
   ish = bxC%idxS(1) ; ieh = bxC%idxE(1) ; jsh = bxC%idxS(2) ; jeh = bxC%idxE(2) ; nz  = bxC%idxE(3)
@@ -3020,7 +3031,7 @@ subroutine present_vhbt_or_set_BT_cont(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_
                              por_face_areaV_a, dx_Cv_a, IareaT_a, IdyT_a, vhbt_a, vh_a, OBC=OBC)
 
       do concurrent (J=jsh-1:jeh)
-        if (present(v_cor_a)) then
+        if (v_cor_a%associated()) then
           do concurrent (k=1:nz, i=ish:ieh)
             v_cor(i,J,k) = v(i,J,k) + dv(i,J) * visc_rem_v(i,J,k)
           enddo
@@ -3032,7 +3043,7 @@ subroutine present_vhbt_or_set_BT_cont(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_
           endif
         endif ! v-corrected
 
-        if (present(dv_cor_a)) then
+        if (dv_cor_a%associated()) then
           do concurrent (i=ish:ieh)
             dv_cor(i,J) = dv(i,J)
           enddo
@@ -3099,7 +3110,7 @@ subroutine present_vhbt_or_set_BT_cont(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_
   endif
 
   if (set_BT_cont) then ; if (allocated(BT_cont%h_v)) then
-    if (present(v_cor_a)) then
+    if (v_cor_a%associated()) then
       call h_v_a%alloc(lb=LBOUND(BT_cont%h_v), ub=UBOUND(BT_cont%h_v), source=BT_cont%h_v)
       call meridional_flux_thickness(bxC, v_cor_a, h_in_a, h_S_a, h_N_a, h_v_a, dt, dx_Cv_a, &
                                      IareaT_a, IdyT_a, vol_CFL, marginal_faces, &

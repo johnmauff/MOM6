@@ -248,6 +248,9 @@ subroutine step_MOM_dyn_unsplit(u, v, h, tv, visc, Time_local, dt, forces, &
   integer :: cor_stencil  ! Stencil size for Coriolis schemes [nondim]
   ! Never allocated; unassociated data signals continuity()'s uhbt_a/vhbt_a are absent.
   type(RealArray_t) :: no_uhbt_a, no_vhbt_a
+  ! Never allocated; unassociated data signals these continuity() arguments are absent.
+  type(RealArray_t) :: no_visc_rem_u_a, no_visc_rem_v_a
+  type(RealArray_t) :: no_u_cor_a, no_v_cor_a, no_du_cor_a, no_dv_cor_a
   is = G%isc ; ie = G%iec ; js = G%jsc ; je = G%jec ; nz = GV%ke
   Isq = G%IscB ; Ieq = G%IecB ; Jsq = G%JscB ; Jeq = G%JecB
   dt_pred = dt / 3.0
@@ -283,7 +286,9 @@ subroutine step_MOM_dyn_unsplit(u, v, h, tv, visc, Time_local, dt, forces, &
 ! hp = h + dt/2 div . uh
   call cpu_clock_begin(id_clock_continuity)
   call continuity(u, v, h, hp, uh, vh, dt*0.5, G, GV, US, CS%continuity_CSp, CS%OBC, pbv, &
-                  uhbt_a=no_uhbt_a, vhbt_a=no_vhbt_a)
+                  uhbt_a=no_uhbt_a, vhbt_a=no_vhbt_a, visc_rem_u_a=no_visc_rem_u_a, &
+                  visc_rem_v_a=no_visc_rem_v_a, u_cor_a=no_u_cor_a, v_cor_a=no_v_cor_a, &
+                  du_cor_a=no_du_cor_a, dv_cor_a=no_dv_cor_a)
   call cpu_clock_end(id_clock_continuity)
   call pass_var(hp, G%Domain, clock=id_clock_pass)
   call pass_vector(uh, vh, G%Domain, clock=id_clock_pass)
@@ -375,7 +380,9 @@ subroutine step_MOM_dyn_unsplit(u, v, h, tv, visc, Time_local, dt, forces, &
 ! h_av = hp + dt/2 div . uh
   call cpu_clock_begin(id_clock_continuity)
   call continuity(up, vp, hp, h_av, uh, vh, (0.5*dt), G, GV, US, CS%continuity_CSp, CS%OBC, pbv, &
-                  uhbt_a=no_uhbt_a, vhbt_a=no_vhbt_a)
+                  uhbt_a=no_uhbt_a, vhbt_a=no_vhbt_a, visc_rem_u_a=no_visc_rem_u_a, &
+                  visc_rem_v_a=no_visc_rem_v_a, u_cor_a=no_u_cor_a, v_cor_a=no_v_cor_a, &
+                  du_cor_a=no_du_cor_a, dv_cor_a=no_dv_cor_a)
   call cpu_clock_end(id_clock_continuity)
   call pass_var(h_av, G%Domain, clock=id_clock_pass)
   call pass_vector(uh, vh, G%Domain, clock=id_clock_pass)
@@ -437,7 +444,9 @@ subroutine step_MOM_dyn_unsplit(u, v, h, tv, visc, Time_local, dt, forces, &
 ! h = hp + dt/2 div . uh
   call cpu_clock_begin(id_clock_continuity)
   call continuity(upp, vpp, hp, h, uh, vh, (dt*0.5), G, GV, US, CS%continuity_CSp, CS%OBC, pbv, &
-                  uhbt_a=no_uhbt_a, vhbt_a=no_vhbt_a)
+                  uhbt_a=no_uhbt_a, vhbt_a=no_vhbt_a, visc_rem_u_a=no_visc_rem_u_a, &
+                  visc_rem_v_a=no_visc_rem_v_a, u_cor_a=no_u_cor_a, v_cor_a=no_v_cor_a, &
+                  du_cor_a=no_du_cor_a, dv_cor_a=no_dv_cor_a)
   call cpu_clock_end(id_clock_continuity)
   call pass_var(h, G%Domain, clock=id_clock_pass)
   call pass_vector(uh, vh, G%Domain, clock=id_clock_pass)
