@@ -123,7 +123,7 @@ module array_mod
   type :: LogicalArray_t
      logical, pointer, contiguous :: data(:) => null()   !< Storage ptr for array container
      integer, pointer, contiguous :: data_c(:) => null() !< Integer-encoded (0/1) shadow buffer for
-							 !< the C/AMReX bridge boundary
+                                                         !< the C/AMReX bridge boundary
      integer :: rank = 0                     !< Rank of array
      integer, pointer :: shape(:) => null()  !< Shape of array
      integer, pointer :: lb(:) => null()     !< Lower bounds
