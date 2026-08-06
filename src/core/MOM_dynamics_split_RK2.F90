@@ -1561,6 +1561,8 @@ subroutine initialize_dyn_split_RK2(u, v, h, tv, uh, vh, eta, Time, G, GV, US, p
 
   ! local variables
   real, dimension(SZI_(G),SZJ_(G),SZK_(GV)) :: h_tmp ! A temporary copy of the layer thicknesses [H ~> m or kg m-2]
+  ! Never allocated; unassociated data signals continuity()'s uhbt_a/vhbt_a are absent.
+  type(RealArray_t) :: no_uhbt_a, no_vhbt_a
   character(len=40) :: mdl = "MOM_dynamics_split_RK2" ! This module's name.
   ! This include declares and sets the variable "version".
 # include "version_variable.h"
