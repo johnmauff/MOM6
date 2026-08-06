@@ -46,6 +46,7 @@ module array_mod
    contains
      procedure :: allocReal                    !< Allocate memory in container
      procedure :: freeReal                     !< Deallocates memory from a container
+     procedure :: associated => isAssociatedReal !< True if the container holds allocated data
      procedure :: to_c_Real                    !< Convert to a C compatible structure
      procedure :: viewReal1D, viewReal2D, &    !< Associates a Fortran pointer to an array container
                   viewReal3D, viewReal4D
@@ -88,6 +89,7 @@ module array_mod
    contains
      procedure :: allocInt                   !< Allocates  memory in container
      procedure :: freeInt                    !< Deallocates memory from a container
+     procedure :: associated => isAssociatedInt !< True if the container holds allocated data
      procedure :: to_c_Int                   !< Convert to a C compatible structure
      procedure ::  viewInt1D,  viewInt2D, &   !< Associates a Fortran pointer to an array container
                    viewInt3D,  viewInt4D
@@ -120,7 +122,7 @@ module array_mod
 
   type :: LogicalArray_t
      logical, pointer, contiguous :: data(:) => null()   !< Storage ptr for array container
-     integer, pointer, contiguous :: data_c(:) => null() !< Integer-encoded (0/1) shadow buffer for 
+     integer, pointer, contiguous :: data_c(:) => null() !< Integer-encoded (0/1) shadow buffer for
 							 !< the C/AMReX bridge boundary
      integer :: rank = 0                     !< Rank of array
      integer, pointer :: shape(:) => null()  !< Shape of array
@@ -129,6 +131,7 @@ module array_mod
    contains
      procedure :: allocLogical                   !< Allocates memory in container
      procedure :: freeLogical                    !< Deallocates memory from a container
+     procedure :: associated => isAssociatedLogical !< True if the container holds allocated data
      procedure :: to_c_Logical                   !< Convert to a C compatible structure
      procedure :: from_c_Logical                 !< Refresh %data from the C compatible structure
      procedure ::  viewLogical1D,  viewLogical2D, &   !< Associates a Fortran pointer to an array container
@@ -637,6 +640,20 @@ subroutine freeInt(this)
   if (associated(this%ub))    deallocate(this%ub)
   this%rank = 0
 end subroutine freeInt
+
+function isAssociatedReal(this) result(is_assoc)
+  class(RealArray_t), intent(in) :: this  !< The array container to query
+  logical :: is_assoc                     !< True if the container holds allocated data
+
+  is_assoc = associated(this%data)
+end function isAssociatedReal
+
+function isAssociatedInt(this) result(is_assoc)
+  class(IntArray_t), intent(in) :: this  !< The array container to query
+  logical :: is_assoc                    !< True if the container holds allocated data
+
+  is_assoc = associated(this%data)
+end function isAssociatedInt
 
 subroutine allocReal1D(this, dims, lb, ub, source)
    class(RealArray_t), intent(inout) :: this                !< The array container to allocate
@@ -1209,6 +1226,13 @@ subroutine freeLogical(this)
   if (associated(this%ub))     deallocate(this%ub)
   this%rank = 0
 end subroutine freeLogical
+
+function isAssociatedLogical(this) result(is_assoc)
+  class(LogicalArray_t), intent(in) :: this  !< The array container to query
+  logical :: is_assoc                        !< True if the container holds allocated data
+
+  is_assoc = associated(this%data)
+end function isAssociatedLogical
 
 subroutine allocLogical1D(this, dims, lb, ub, source)
    class(LogicalArray_t), intent(inout) :: this  !< The array container to allocate
