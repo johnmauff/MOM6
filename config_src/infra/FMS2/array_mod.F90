@@ -737,14 +737,14 @@ subroutine freeInt(this)
   this%rank = 0
 end subroutine freeInt
 
-function isAssociatedReal(this) result(is_assoc)
+pure function isAssociatedReal(this) result(is_assoc)
   class(RealArray_t), intent(in) :: this  !< The array container to query
   logical :: is_assoc                     !< True if the container holds allocated data
 
   is_assoc = associated(this%data)
 end function isAssociatedReal
 
-function isAssociatedInt(this) result(is_assoc)
+pure function isAssociatedInt(this) result(is_assoc)
   class(IntArray_t), intent(in) :: this  !< The array container to query
   logical :: is_assoc                    !< True if the container holds allocated data
 
@@ -1152,7 +1152,7 @@ subroutine freeLogical(this)
   this%rank = 0
 end subroutine freeLogical
 
-function isAssociatedLogical(this) result(is_assoc)
+pure function isAssociatedLogical(this) result(is_assoc)
   class(LogicalArray_t), intent(in) :: this  !< The array container to query
   logical :: is_assoc                        !< True if the container holds allocated data
 
