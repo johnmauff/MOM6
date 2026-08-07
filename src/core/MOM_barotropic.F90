@@ -661,6 +661,7 @@ subroutine btstep(U_in, V_in, eta_in, dt, bc_accel_u, bc_accel_v, forces, pbce, 
   type(RealArray_t) :: gtot_E_a, gtot_W_a, gtot_N_a, gtot_S_a, e_anom_a
   type(RealArray_t) :: accel_layer_u_a, accel_layer_v_a
   type(RealArray_t) :: U_in_a, V_in_a, wt_u_a, wt_v_a
+  type(RealArray_t) :: Datu_a, Datv_a
   real, dimension(SZIB_(G),SZJ_(G)) :: Drag_u
                   ! The zonal acceleration due to frequency-dependent drag [L T-2 ~> m s-2]
   real, dimension(SZI_(G),SZJB_(G)) :: Drag_v
@@ -1228,11 +1229,17 @@ subroutine btstep(U_in, V_in, eta_in, dt, bc_accel_u, bc_accel_v, forces, pbce, 
   elseif (use_BT_cont) then
     call set_local_BT_cont_types(BT_cont, BTCL_u, BTCL_v, G, US, MS, CS%BT_Domain, 1+ievf-ie)
   else
+    call Datu_a%alloc(lb=LBOUND(Datu), ub=UBOUND(Datu), source=Datu)
+    call Datv_a%alloc(lb=LBOUND(Datv), ub=UBOUND(Datv), source=Datv)
     if (CS%Nonlinear_continuity) then
-      call find_face_areas(Datu, Datv, G, GV, US, CS, MS, 1, eta)
+      call find_face_areas(Datu_a, Datv_a, G, GV, US, CS, MS, 1, eta)
     else
-      call find_face_areas(Datu, Datv, G, GV, US, CS, MS, 1)
+      call find_face_areas(Datu_a, Datv_a, G, GV, US, CS, MS, 1)
     endif
+    call Datu_a%copy2F(Datu)
+    call Datv_a%copy2F(Datv)
+    call Datu_a%free()
+    call Datv_a%free()
   endif
 
   ! Set up fields related to the open boundary conditions.  These calls include halo updates that
@@ -2619,6 +2626,7 @@ subroutine btstep_timeloop(eta, ubt, vbt, uhbt0, Datu, BTCL_u, vhbt0, Datv, BTCL
   type(unit_scale_type),    intent(in)    :: US      !< A dimensional unit scaling type
 
   ! Local variables
+  type(RealArray_t) :: Datu_a, Datv_a
   real, dimension(SZIBW_(CS),SZJW_(CS)) :: &
     uhbt, &       ! The zonal barotropic thickness fluxes [H L2 T-1 ~> m3 s-1 or kg s-1]
     ubt_prev, &   ! The starting value of ubt in a barotropic step [L T-1 ~> m s-1]
@@ -2849,8 +2857,15 @@ subroutine btstep_timeloop(eta, ubt, vbt, uhbt0, Datu, BTCL_u, vhbt0, Datv, BTCL
 
     ! Do a predictor step update of eta
     if (evolving_face_areas) then
-      if ((n>1) .and. (mod(n-1,CS%Nonlin_cont_update_period) == 0)) &
-        call find_face_areas(Datu, Datv, G, GV, US, CS, MS, 1+iev-ie, eta)
+      if ((n>1) .and. (mod(n-1,CS%Nonlin_cont_update_period) == 0)) then
+        call Datu_a%alloc(lb=LBOUND(Datu), ub=UBOUND(Datu), source=Datu)
+        call Datv_a%alloc(lb=LBOUND(Datv), ub=UBOUND(Datv), source=Datv)
+        call find_face_areas(Datu_a, Datv_a, G, GV, US, CS, MS, 1+iev-ie, eta)
+        call Datu_a%copy2F(Datu)
+        call Datv_a%copy2F(Datv)
+        call Datu_a%free()
+        call Datv_a%free()
+      endif
     endif
 
     if (CS%dynamic_psurf .or. (.not.CS%BT_project_velocity)) then
@@ -3914,6 +3929,7 @@ subroutine set_dtbt(G, GV, US, CS, pbce, gtot_est, BT_cont, eta, SSH_add)
                                                       !! error when calculating the external wave speed [Z ~> m].
 
   ! Local variables
+  type(RealArray_t) :: Datu_a, Datv_a
   real, dimension(SZI_(G),SZJ_(G)) :: &
     gtot_E, &     ! gtot_X is the effective total reduced gravity used to relate
     gtot_W, &     ! free surface height deviations to pressure forces (including
@@ -3966,9 +3982,21 @@ subroutine set_dtbt(G, GV, US, CS, pbce, gtot_est, BT_cont, eta, SSH_add)
   if (use_BT_cont) then
     call BT_cont_to_face_areas(BT_cont, Datu, Datv, G, US, MS, halo=0)
   elseif (CS%Nonlinear_continuity .and. present(eta)) then
-    call find_face_areas(Datu, Datv, G, GV, US, CS, MS, 0, eta=eta)
+    call Datu_a%alloc(lb=LBOUND(Datu), ub=UBOUND(Datu), source=Datu)
+    call Datv_a%alloc(lb=LBOUND(Datv), ub=UBOUND(Datv), source=Datv)
+    call find_face_areas(Datu_a, Datv_a, G, GV, US, CS, MS, 0, eta=eta)
+    call Datu_a%copy2F(Datu)
+    call Datv_a%copy2F(Datv)
+    call Datu_a%free()
+    call Datv_a%free()
   else
-    call find_face_areas(Datu, Datv, G, GV, US, CS, MS, 0, add_max=add_SSH)
+    call Datu_a%alloc(lb=LBOUND(Datu), ub=UBOUND(Datu), source=Datu)
+    call Datv_a%alloc(lb=LBOUND(Datv), ub=UBOUND(Datv), source=Datv)
+    call find_face_areas(Datu_a, Datv_a, G, GV, US, CS, MS, 0, add_max=add_SSH)
+    call Datu_a%copy2F(Datu)
+    call Datv_a%copy2F(Datv)
+    call Datu_a%free()
+    call Datv_a%free()
   endif
 
   det_de = 0.0
@@ -5605,12 +5633,10 @@ end subroutine swap
 
 !> This subroutine determines the open face areas of cells for calculating
 !! the barotropic transport.
-subroutine find_face_areas(Datu, Datv, G, GV, US, CS, MS, halo, eta, add_max)
+subroutine find_face_areas(Datu_a, Datv_a, G, GV, US, CS, MS, halo, eta, add_max)
   type(memory_size_type),  intent(in) :: MS    !< A type that describes the memory sizes of the argument arrays.
-  real, dimension(MS%isdw-1:MS%iedw,MS%jsdw:MS%jedw), &
-                           intent(out) :: Datu !< The open zonal face area [H L ~> m2 or kg m-1].
-  real, dimension(MS%isdw:MS%iedw,MS%jsdw-1:MS%jedw), &
-                           intent(out) :: Datv !< The open meridional face area [H L ~> m2 or kg m-1].
+  type(RealArray_t), intent(inout) :: Datu_a !< The open zonal face area [H L ~> m2 or kg m-1].
+  type(RealArray_t), intent(inout) :: Datv_a !< The open meridional face area [H L ~> m2 or kg m-1].
   type(ocean_grid_type),   intent(in)  :: G    !< The ocean's grid structure.
   type(verticalGrid_type), intent(in)  :: GV   !< The ocean's vertical grid structure.
   type(unit_scale_type),   intent(in)  :: US   !< A dimensional unit scaling type
@@ -5623,9 +5649,14 @@ subroutine find_face_areas(Datu, Datv, G, GV, US, CS, MS, halo, eta, add_max)
                                                !! to overestimate the external wave speed) [Z ~> m].
 
   ! Local variables
+  real, dimension(:,:), contiguous, pointer :: Datu, Datv
   real :: H1, H2      ! Temporary total thicknesses [H ~> m or kg m-2].
   real :: Z_to_H      ! A local conversion factor [H Z-1 ~> nondim or kg m-3]
   integer :: i, j, is, ie, js, je, hs
+
+  call Datu_a%view(Datu)
+  call Datv_a%view(Datv)
+
   is = G%isc ; ie = G%iec ; js = G%jsc ; je = G%jec
   hs = max(halo,0)
 
@@ -5794,6 +5825,7 @@ subroutine barotropic_init(u, v, h, Time, G, GV, US, param_file, diag, CS, &
 # include "version_variable.h"
   ! Local variables
   character(len=40)  :: mdl = "MOM_barotropic"  ! This module's name.
+  type(RealArray_t) :: Datu_a, Datv_a
   real :: Datu(SZIBS_(G),SZJ_(G))   ! Zonal open face area [H L ~> m2 or kg m-1].
   real :: Datv(SZI_(G),SZJBS_(G))   ! Meridional open face area [H L ~> m2 or kg m-1].
   real :: gtot_estimate ! Summed GV%g_prime [L2 H-1 T-2 ~> m s-2 or m4 kg-1 s-2], to give an
@@ -6742,7 +6774,13 @@ subroutine barotropic_init(u, v, h, Time, G, GV, US, param_file, diag, CS, &
     enddo ; enddo
   endif
 
-  call find_face_areas(Datu, Datv, G, GV, US, CS, MS, 1)
+  call Datu_a%alloc(lb=LBOUND(Datu), ub=UBOUND(Datu), source=Datu)
+  call Datv_a%alloc(lb=LBOUND(Datv), ub=UBOUND(Datv), source=Datv)
+  call find_face_areas(Datu_a, Datv_a, G, GV, US, CS, MS, 1)
+  call Datu_a%copy2F(Datu)
+  call Datv_a%copy2F(Datv)
+  call Datu_a%free()
+  call Datv_a%free()
   if ((CS%bound_BT_corr) .and. .not.(use_BT_Cont_type .and. CS%BT_cont_bounds)) then
     ! This is not used in most test cases.  Were it ever to become more widely used, consider
     ! replacing maxvel with min(G%dxT(i,j),G%dyT(i,j)) * (CS%maxCFL_BT_cont*Idt) .
