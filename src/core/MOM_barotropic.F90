@@ -2841,6 +2841,7 @@ subroutine btstep_timeloop(eta_a, ubt_a, vbt_a, uhbt0_a, Datu_a, BTCL_u, vhbt0_a
   type(RealArray_t) :: ubt_int_a, ubt_int_prev_a, uhbt_int_a, uhbt_int_prev_a
   type(RealArray_t) :: vhbt_a, vbt_trans_a, vbt_prev_a
   type(RealArray_t) :: vbt_int_a, vbt_int_prev_a, vhbt_int_a, vhbt_int_prev_a
+  type(RealArray_t) :: PFu_a, PFv_a, eta_pred_a, p_surf_dyn_a
 
   call eta_a%view(eta)
   call ubt_a%view(ubt)
@@ -3094,8 +3095,19 @@ subroutine btstep_timeloop(eta_a, ubt_a, vbt_a, uhbt0_a, Datu_a, BTCL_u, vhbt0_a
 
     ! Use the change in eta to determine an additional divergence damping due to the ice strength.
     if (CS%dynamic_psurf) then
-      call btloop_add_dyn_PF(PFu, PFv, eta_pred, eta, dyn_coef_eta, p_surf_dyn, &
+      call PFu_a%alloc(lb=LBOUND(PFu), ub=UBOUND(PFu), source=PFu)
+      call PFv_a%alloc(lb=LBOUND(PFv), ub=UBOUND(PFv), source=PFv)
+      call eta_pred_a%alloc(lb=LBOUND(eta_pred), ub=UBOUND(eta_pred), source=eta_pred)
+      call p_surf_dyn_a%alloc(lb=LBOUND(p_surf_dyn), ub=UBOUND(p_surf_dyn), source=p_surf_dyn)
+      call btloop_add_dyn_PF(PFu_a, PFv_a, eta_pred_a, eta_a, dyn_coef_eta_a, p_surf_dyn_a, &
                              isv, iev, jsv, jev, v_first, G, US, CS)
+      call PFu_a%copy2F(PFu)
+      call PFv_a%copy2F(PFv)
+      call p_surf_dyn_a%copy2F(p_surf_dyn)
+      call PFu_a%free()
+      call PFv_a%free()
+      call eta_pred_a%free()
+      call p_surf_dyn_a%free()
     endif
 
     if (v_first) then
@@ -3783,25 +3795,25 @@ end subroutine btloop_find_PF
 
 !> This routine adds a dynamic pressure force based on the temporal changes in the predicted value
 !! of eta, perhaps as an effective divergence damping to emulate the rigidity of an ice-sheet.
-subroutine btloop_add_dyn_PF(PFu, PFv, eta_pred, eta, dyn_coef_eta, p_surf_dyn, &
+subroutine btloop_add_dyn_PF(PFu_a, PFv_a, eta_pred_a, eta_a, dyn_coef_eta_a, p_surf_dyn_a, &
                              isv, iev, jsv, jev, v_first, G, US, CS)
   type(ocean_grid_type),   intent(inout) :: G     !< The ocean's grid structure.
   type(barotropic_CS),     intent(inout) :: CS    !< Barotropic control structure
-  real, dimension(SZIBW_(CS),SZJW_(CS)), intent(inout) :: &
-    PFu           !< The anomalous zonal pressure force acceleration [L T-2 ~> m s-2].
-  real, dimension(SZIW_(CS),SZJBW_(CS)), intent(inout) :: &
-    PFv           !< The meridional pressure force acceleration [L T-2 ~> m s-2].
-  real, dimension(SZIW_(CS),SZJW_(CS)), intent(in) :: &
-    eta_pred      !< The updated eta field (either SSH anomaly or column mass anomaly) that is
+  type(RealArray_t), intent(inout) :: &
+    PFu_a         !< The anomalous zonal pressure force acceleration [L T-2 ~> m s-2].
+  type(RealArray_t), intent(inout) :: &
+    PFv_a         !< The meridional pressure force acceleration [L T-2 ~> m s-2].
+  type(RealArray_t), intent(in) :: &
+    eta_pred_a    !< The updated eta field (either SSH anomaly or column mass anomaly) that is
                   !! used to estimate the divergence that is to be damped [H ~> m or kg m-2].
-  real, dimension(SZIW_(CS),SZJW_(CS)), intent(in) :: &
-    eta           !< The previous eta field (either SSH anomaly or column mass anomaly) that is
+  type(RealArray_t), intent(in) :: &
+    eta_a         !< The previous eta field (either SSH anomaly or column mass anomaly) that is
                   !! used to estimate the divergence that is to be damped [H ~> m or kg m-2].
-  real, dimension(SZIW_(CS),SZJW_(CS)), intent(in) :: &
-    dyn_coef_eta  !< The coefficient relating the changes in eta to the dynamic surface pressure
+  type(RealArray_t), intent(in) :: &
+    dyn_coef_eta_a !< The coefficient relating the changes in eta to the dynamic surface pressure
                   !! under rigid ice [L2 T-2 H-1 ~> m s-2 or m4 s-2 kg-1].
-  real, dimension(SZIW_(CS),SZJW_(CS)), intent(inout) :: &
-    p_surf_dyn    !< A dynamic surface pressure under rigid ice [L2 T-2 ~> m2 s-2].
+  type(RealArray_t), intent(inout) :: &
+    p_surf_dyn_a  !< A dynamic surface pressure under rigid ice [L2 T-2 ~> m2 s-2].
   integer, intent(in)  :: isv         !< The starting i-index of eta being set in ths loop
   integer, intent(in)  :: iev         !< The ending i-index of eta_pred being set in ths loop
   integer, intent(in)  :: jsv         !< The starting j-index of eta_pred being set in ths loop
@@ -3810,7 +3822,15 @@ subroutine btloop_add_dyn_PF(PFu, PFv, eta_pred, eta, dyn_coef_eta, p_surf_dyn, 
   type(unit_scale_type),   intent(in)    :: US    !< A dimensional unit scaling type
 
   ! Local variables
+  real, dimension(:,:), contiguous, pointer :: PFu, PFv, eta_pred, eta, dyn_coef_eta, p_surf_dyn
   integer :: i, j, js_u, je_u, is_v, ie_v
+
+  call PFu_a%view(PFu)
+  call PFv_a%view(PFv)
+  call eta_pred_a%view(eta_pred)
+  call eta_a%view(eta)
+  call dyn_coef_eta_a%view(dyn_coef_eta)
+  call p_surf_dyn_a%view(p_surf_dyn)
 
   ! Ensure that the extra points used for the temporally staggered Coriolis terms are updated.
   if (v_first) then
