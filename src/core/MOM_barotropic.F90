@@ -3103,15 +3103,23 @@ subroutine btstep_timeloop(eta_a, ubt_a, vbt_a, uhbt0_a, Datu_a, BTCL_u, vhbt0_a
     v_first = (MOD(n+G%first_direction,2)==1)
 
     ! Determine the pressure force accelerations due to the updated eta anomalies.
+    call PFu_a%alloc(lb=LBOUND(PFu), ub=UBOUND(PFu), source=PFu)
+    call PFv_a%alloc(lb=LBOUND(PFv), ub=UBOUND(PFv), source=PFv)
     if (CS%BT_project_velocity) then
-      call btloop_find_PF(PFu, PFv, isv, iev, jsv, jev, eta, eta_PF, &
-                          gtot_N, gtot_S, gtot_E, gtot_W, dgeo_de, find_etaav, &
-                          wt_accel2(n), eta_sum, v_first, G, US, CS)
+      call btloop_find_PF(PFu_a, PFv_a, isv, iev, jsv, jev, eta_a, eta_PF_a, &
+                          gtot_N_a, gtot_S_a, gtot_E_a, gtot_W_a, dgeo_de, find_etaav, &
+                          wt_accel2(n), eta_sum_a, v_first, G, US, CS)
     else
-      call btloop_find_PF(PFu, PFv, isv, iev, jsv, jev, eta_pred, eta_PF, &
-                          gtot_N, gtot_S, gtot_E, gtot_W, dgeo_de, find_etaav, &
-                          wt_accel2(n), eta_sum, v_first, G, US, CS)
+      call eta_pred_a%alloc(lb=LBOUND(eta_pred), ub=UBOUND(eta_pred), source=eta_pred)
+      call btloop_find_PF(PFu_a, PFv_a, isv, iev, jsv, jev, eta_pred_a, eta_PF_a, &
+                          gtot_N_a, gtot_S_a, gtot_E_a, gtot_W_a, dgeo_de, find_etaav, &
+                          wt_accel2(n), eta_sum_a, v_first, G, US, CS)
+      call eta_pred_a%free()
     endif
+    call PFu_a%copy2F(PFu)
+    call PFv_a%copy2F(PFv)
+    call PFu_a%free()
+    call PFv_a%free()
 
     ! Use the change in eta to determine an additional divergence damping due to the ice strength.
     if (CS%dynamic_psurf) then
@@ -3751,44 +3759,44 @@ subroutine btloop_eta_predictor(n, dtbt, ubt_a, vbt_a, eta_a, ubt_int_a, vbt_int
 
 end subroutine btloop_eta_predictor
 
-subroutine btloop_find_PF(PFu, PFv, isv, iev, jsv, jev, eta_PF_BT, eta_PF, &
-                          gtot_N, gtot_S, gtot_E, gtot_W, dgeo_de, find_etaav, &
-                          wt_accel2_n, eta_sum, v_first, G, US, CS)
+subroutine btloop_find_PF(PFu_a, PFv_a, isv, iev, jsv, jev, eta_PF_BT_a, eta_PF_a, &
+                          gtot_N_a, gtot_S_a, gtot_E_a, gtot_W_a, dgeo_de, find_etaav, &
+                          wt_accel2_n, eta_sum_a, v_first, G, US, CS)
   type(ocean_grid_type),   intent(inout) :: G     !< The ocean's grid structure.
   type(barotropic_CS),     intent(inout) :: CS    !< Barotropic control structure
-  real, dimension(SZIBW_(CS),SZJW_(CS)), intent(inout) :: &
-    PFu           !< The anomalous zonal pressure force acceleration [L T-2 ~> m s-2].
-  real, dimension(SZIW_(CS),SZJBW_(CS)), intent(inout) :: &
-    PFv           !< The meridional pressure force acceleration [L T-2 ~> m s-2].
+  type(RealArray_t), intent(inout) :: &
+    PFu_a         !< The anomalous zonal pressure force acceleration [L T-2 ~> m s-2].
+  type(RealArray_t), intent(inout) :: &
+    PFv_a         !< The meridional pressure force acceleration [L T-2 ~> m s-2].
   integer, intent(in)  :: isv         !< The starting i-index of eta being set in ths loop
   integer, intent(in)  :: iev         !< The ending i-index of eta_pred being set in ths loop
   integer, intent(in)  :: jsv         !< The starting j-index of eta_pred being set in ths loop
   integer, intent(in)  :: jev         !< The ending j-index of eta_pred being set in ths loop
-  real, dimension(SZIW_(CS),SZJW_(CS)), intent(in) :: &
-    eta_PF_BT     !< The eta array (either the SSH anomaly or column mass anomaly) that
+  type(RealArray_t), intent(in) :: &
+    eta_PF_BT_a   !< The eta array (either the SSH anomaly or column mass anomaly) that
                   !! determines the barotropic pressure force [H ~> m or kg m-2]
-  real, dimension(SZIW_(CS),SZJW_(CS)), intent(in) :: &
-    eta_PF        !< The input 2-D eta field (either SSH anomaly or column mass anomaly)
+  type(RealArray_t), intent(in) :: &
+    eta_PF_a      !< The input 2-D eta field (either SSH anomaly or column mass anomaly)
                   !! that was used to calculate the input pressure gradient
                   !! accelerations [H ~> m or kg m-2].
-  real, dimension(SZIW_(CS),SZJW_(CS)), intent(in) :: &
-    gtot_N        !< The effective total reduced gravity used to relate free surface height
+  type(RealArray_t), intent(in) :: &
+    gtot_N_a      !< The effective total reduced gravity used to relate free surface height
                   !! deviations to pressure forces (including GFS and baroclinic contributions)
                   !! in the barotropic momentum equations half a grid-point to the north of a
                   !! thickness point [L2 H-1 T-2 ~> m s-2 or m4 kg-1 s-2].
-  real, dimension(SZIW_(CS),SZJW_(CS)), intent(in) :: &
-    gtot_S        !< The effective total reduced gravity used to relate free surface height
+  type(RealArray_t), intent(in) :: &
+    gtot_S_a      !< The effective total reduced gravity used to relate free surface height
                   !! deviations to pressure forces (including GFS and baroclinic contributions)
                   !! in the barotropic momentum equations half a grid-point to the south of a
                   !! thickness point [L2 H-1 T-2 ~> m s-2 or m4 kg-1 s-2].
                   !! (See Hallberg, J Comp Phys 1997 for a discussion of gtot_E and gtot_W.)
-  real, dimension(SZIW_(CS),SZJW_(CS)), intent(in) :: &
-    gtot_E        !< The effective total reduced gravity used to relate free surface height
+  type(RealArray_t), intent(in) :: &
+    gtot_E_a      !< The effective total reduced gravity used to relate free surface height
                   !! deviations to pressure forces (including GFS and baroclinic contributions)
                   !! in the barotropic momentum equations half a grid-point to the east of a
                   !! thickness point [L2 H-1 T-2 ~> m s-2 or m4 kg-1 s-2].
-  real, dimension(SZIW_(CS),SZJW_(CS)), intent(in) :: &
-    gtot_W        !< The effective total reduced gravity used to relate free surface height
+  type(RealArray_t), intent(in) :: &
+    gtot_W_a      !< The effective total reduced gravity used to relate free surface height
                   !! deviations to pressure forces (including GFS and baroclinic contributions)
                   !! in the barotropic momentum equations half a grid-point to the west of a
                   !! thickness point [L2 H-1 T-2 ~> m s-2 or m4 kg-1 s-2].
@@ -3798,13 +3806,25 @@ subroutine btloop_find_PF(PFu, PFv, isv, iev, jsv, jev, eta_PF_BT, eta_PF, &
                   !! may be made larger than the physical  problem would suggest.
   logical, intent(in) :: find_etaav !< If true, diagnose the time mean value of eta
   real,    intent(in) :: wt_accel2_n !< The weighting value of wt_accel2 at step n.
-  real, dimension(SZIW_(CS),SZJW_(CS)), intent(inout) :: &
-    eta_sum       !< A weighted running sum of eta summed across the timesteps [H ~> m or kg m-2]
+  type(RealArray_t), intent(inout) :: &
+    eta_sum_a     !< A weighted running sum of eta summed across the timesteps [H ~> m or kg m-2]
   logical, intent(in) :: v_first !< If true, update the v-velocity first with the present loop iteration
   type(unit_scale_type),   intent(in)    :: US    !< A dimensional unit scaling type
 
   ! Local variables
+  real, dimension(:,:), contiguous, pointer :: PFu, PFv, eta_PF_BT, eta_PF
+  real, dimension(:,:), contiguous, pointer :: gtot_N, gtot_S, gtot_E, gtot_W, eta_sum
   integer :: i, j, js_u, je_u, is_v, ie_v
+
+  call PFu_a%view(PFu)
+  call PFv_a%view(PFv)
+  call eta_PF_BT_a%view(eta_PF_BT)
+  call eta_PF_a%view(eta_PF)
+  call gtot_N_a%view(gtot_N)
+  call gtot_S_a%view(gtot_S)
+  call gtot_E_a%view(gtot_E)
+  call gtot_W_a%view(gtot_W)
+  call eta_sum_a%view(eta_sum)
 
   ! Ensure that the extra points used for the temporally staggered Coriolis terms are updated.
   if (v_first) then
