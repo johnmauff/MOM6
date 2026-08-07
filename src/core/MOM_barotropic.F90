@@ -3067,9 +3067,29 @@ subroutine btstep_timeloop(eta_a, ubt_a, vbt_a, uhbt0_a, Datu_a, BTCL_u, vhbt0_a
 
     if (CS%dynamic_psurf .or. (.not.CS%BT_project_velocity)) then
       ! Estimate the change in the free surface height.
-      call btloop_eta_predictor(n, dtbt, ubt, vbt, eta, ubt_int, vbt_int, uhbt, vhbt, uhbt0, vhbt0, &
-                        uhbt_int, vhbt_int, BTCL_u, BTCL_v, Datu, Datv, eta_IC, eta_src, eta_pred, &
-                        isv, iev, jsv, jev, integral_BT_cont, use_BT_cont, G, US, CS)
+      call ubt_int_a%alloc(lb=LBOUND(ubt_int), ub=UBOUND(ubt_int), source=ubt_int)
+      call vbt_int_a%alloc(lb=LBOUND(vbt_int), ub=UBOUND(vbt_int), source=vbt_int)
+      call uhbt_a%alloc(lb=LBOUND(uhbt), ub=UBOUND(uhbt), source=uhbt)
+      call vhbt_a%alloc(lb=LBOUND(vhbt), ub=UBOUND(vhbt), source=vhbt)
+      call uhbt_int_a%alloc(lb=LBOUND(uhbt_int), ub=UBOUND(uhbt_int), source=uhbt_int)
+      call vhbt_int_a%alloc(lb=LBOUND(vhbt_int), ub=UBOUND(vhbt_int), source=vhbt_int)
+      call eta_pred_a%alloc(lb=LBOUND(eta_pred), ub=UBOUND(eta_pred), source=eta_pred)
+      call btloop_eta_predictor(n, dtbt, ubt_a, vbt_a, eta_a, ubt_int_a, vbt_int_a, uhbt_a, &
+                        vhbt_a, uhbt0_a, vhbt0_a, uhbt_int_a, vhbt_int_a, BTCL_u, BTCL_v, &
+                        Datu_a, Datv_a, eta_IC_a, eta_src_a, eta_pred_a, isv, iev, jsv, jev, &
+                        integral_BT_cont, use_BT_cont, G, US, CS)
+      call uhbt_a%copy2F(uhbt)
+      call vhbt_a%copy2F(vhbt)
+      call uhbt_int_a%copy2F(uhbt_int)
+      call vhbt_int_a%copy2F(vhbt_int)
+      call eta_pred_a%copy2F(eta_pred)
+      call ubt_int_a%free()
+      call vbt_int_a%free()
+      call uhbt_a%free()
+      call vhbt_a%free()
+      call uhbt_int_a%free()
+      call vhbt_int_a%free()
+      call eta_pred_a%free()
     endif
 
     if (interp_eta_PF) then
@@ -3614,57 +3634,57 @@ end subroutine truncate_velocities
 
 
 !> A routine to set eta_pred and the running time integral of uhbt and vhbt.
-subroutine btloop_eta_predictor(n, dtbt, ubt, vbt, eta, ubt_int, vbt_int, uhbt, vhbt, uhbt0, vhbt0, &
-                        uhbt_int, vhbt_int, BTCL_u, BTCL_v, Datu, Datv, &
-                        eta_IC, eta_src, eta_pred, isv, iev, jsv, jev, &
+subroutine btloop_eta_predictor(n, dtbt, ubt_a, vbt_a, eta_a, ubt_int_a, vbt_int_a, uhbt_a, &
+                        vhbt_a, uhbt0_a, vhbt0_a, uhbt_int_a, vhbt_int_a, BTCL_u, BTCL_v, &
+                        Datu_a, Datv_a, eta_IC_a, eta_src_a, eta_pred_a, isv, iev, jsv, jev, &
                         integral_BT_cont, use_BT_cont, G, US, CS)
   type(ocean_grid_type), intent(in)  :: G     !< The ocean's grid structure
   type(barotropic_CS),   intent(in)  :: CS    !< Barotropic control structure
   integer,               intent(in)  :: n     !< The current step in loop of timesteps
   real,                  intent(in)  :: dtbt  !< The barotropic time step [T ~> s]
-  real, dimension(SZIBW_(CS),SZJW_(CS)), intent(in) :: &
-    ubt           !< The zonal barotropic velocity [L T-1 ~> m s-1].
-  real, dimension(SZIW_(CS),SZJBW_(CS)), intent(in) :: &
-    vbt           !< The zonal barotropic velocity [L T-1 ~> m s-1].
-  real, target, dimension(SZIW_(CS),SZJW_(CS)), intent(in) :: &
-    eta           !< The barotropic free surface height anomaly or column mass
+  type(RealArray_t), intent(in) :: &
+    ubt_a         !< The zonal barotropic velocity [L T-1 ~> m s-1].
+  type(RealArray_t), intent(in) :: &
+    vbt_a         !< The zonal barotropic velocity [L T-1 ~> m s-1].
+  type(RealArray_t), target, intent(in) :: &
+    eta_a         !< The barotropic free surface height anomaly or column mass
                   !! anomaly [H ~> m or kg m-2]
-  real, dimension(SZIBW_(CS),SZJW_(CS)), intent(in) :: &
-    ubt_int       !< The running time integral of ubt over the time steps [L ~> m].
-  real, dimension(SZIW_(CS),SZJBW_(CS)), intent(in) :: &
-    vbt_int       !< The running time integral of vbt over the time steps [L ~> m].
-  real, dimension(SZIBW_(CS),SZJW_(CS)), intent(in) :: &
-    uhbt0         !< The difference between the sum of the layer zonal thickness
+  type(RealArray_t), intent(in) :: &
+    ubt_int_a     !< The running time integral of ubt over the time steps [L ~> m].
+  type(RealArray_t), intent(in) :: &
+    vbt_int_a     !< The running time integral of vbt over the time steps [L ~> m].
+  type(RealArray_t), intent(in) :: &
+    uhbt0_a       !< The difference between the sum of the layer zonal thickness
                   !! fluxes and the barotropic thickness flux using the same
                   !! velocity [H L2 T-1 ~> m3 s-1 or kg s-1].
-  real, dimension(SZIW_(CS),SZJBW_(CS)), intent(in) :: &
-    vhbt0         !< The difference between the sum of the layer meridional
+  type(RealArray_t), intent(in) :: &
+    vhbt0_a       !< The difference between the sum of the layer meridional
                   !! thickness fluxes and the barotropic thickness flux using
                   !! the same velocities [H L2 T-1 ~> m3 s-1 or kg s-1].
   type(local_BT_cont_u_type), dimension(SZIBW_(CS),SZJW_(CS)), intent(in) :: &
     BTCL_u        !< A repackaged version of the u-point information in BT_cont.
   type(local_BT_cont_v_type), dimension(SZIW_(CS),SZJBW_(CS)), intent(in) :: &
     BTCL_v        !< A repackaged version of the v-point information in BT_cont.
-  real, dimension(SZIBW_(CS),SZJW_(CS)), intent(in) :: &
-    Datu          !< Basin depth at u-velocity grid points times the y-grid
+  type(RealArray_t), intent(in) :: &
+    Datu_a        !< Basin depth at u-velocity grid points times the y-grid
                   !! spacing [H L ~> m2 or kg m-1].
-  real, dimension(SZIW_(CS),SZJBW_(CS)), intent(in) :: &
-    Datv          !< Basin depth at v-velocity grid points times the x-grid
+  type(RealArray_t), intent(in) :: &
+    Datv_a        !< Basin depth at v-velocity grid points times the x-grid
                   !! spacing [H L ~> m2 or kg m-1].
-  real, dimension(SZIW_(CS),SZJW_(CS)), intent(in) :: &
-    eta_IC        !< A local copy of the initial 2-D eta field (eta_in) [H ~> m or kg m-2]
-  real, dimension(SZIW_(CS),SZJW_(CS)), intent(in) :: &
-    eta_src       !< The source of eta per barotropic timestep [H ~> m or kg m-2].
-  real, dimension(SZIBW_(CS),SZJW_(CS)), intent(inout) :: &
-    uhbt          !< The zonal barotropic thickness fluxes [H L2 T-1 ~> m3 s-1 or kg s-1].
-  real, dimension(SZIW_(CS),SZJBW_(CS)), intent(inout) :: &
-    vhbt          !< The meridional barotropic thickness fluxes [H L2 T-1 ~> m3 s-1 or kg s-1].
-  real, dimension(SZIBW_(CS),SZJW_(CS)), intent(inout) :: &
-    uhbt_int      !< The running time integral of uhbt over the time steps [H L2 ~> m3 or kg].
-  real, dimension(SZIW_(CS),SZJBW_(CS)), intent(inout) :: &
-    vhbt_int      !< The running time integral of vhbt over the time steps [H L2 ~> m3 or kg].
-  real, target, dimension(SZIW_(CS),SZJW_(CS)), intent(inout) :: &
-    eta_pred      !< A predictor value of eta [H ~> m or kg m-2] like eta.
+  type(RealArray_t), intent(in) :: &
+    eta_IC_a      !< A local copy of the initial 2-D eta field (eta_in) [H ~> m or kg m-2]
+  type(RealArray_t), intent(in) :: &
+    eta_src_a     !< The source of eta per barotropic timestep [H ~> m or kg m-2].
+  type(RealArray_t), intent(inout) :: &
+    uhbt_a        !< The zonal barotropic thickness fluxes [H L2 T-1 ~> m3 s-1 or kg s-1].
+  type(RealArray_t), intent(inout) :: &
+    vhbt_a        !< The meridional barotropic thickness fluxes [H L2 T-1 ~> m3 s-1 or kg s-1].
+  type(RealArray_t), intent(inout) :: &
+    uhbt_int_a    !< The running time integral of uhbt over the time steps [H L2 ~> m3 or kg].
+  type(RealArray_t), intent(inout) :: &
+    vhbt_int_a    !< The running time integral of vhbt over the time steps [H L2 ~> m3 or kg].
+  type(RealArray_t), target, intent(inout) :: &
+    eta_pred_a    !< A predictor value of eta [H ~> m or kg m-2] like eta.
   integer, intent(in)  :: isv         !< The starting i-index of eta_pred to calculate
   integer, intent(in)  :: iev         !< The ending i-index of eta_pred to calculate
   integer, intent(in)  :: jsv         !< The starting j-index of eta_pred to calculate
@@ -3675,7 +3695,27 @@ subroutine btloop_eta_predictor(n, dtbt, ubt, vbt, eta, ubt_int, vbt_int, uhbt, 
                                       !! barotropic transports as a function of the barotropic velocities.
   type(unit_scale_type), intent(in)  :: US  !< A dimensional unit scaling type
 
+  real, dimension(:,:), contiguous, pointer :: ubt, vbt, eta, ubt_int, vbt_int
+  real, dimension(:,:), contiguous, pointer :: uhbt0, vhbt0, Datu, Datv, eta_IC, eta_src
+  real, dimension(:,:), contiguous, pointer :: uhbt, vhbt, uhbt_int, vhbt_int, eta_pred
   integer :: i, j
+
+  call ubt_a%view(ubt)
+  call vbt_a%view(vbt)
+  call eta_a%view(eta)
+  call ubt_int_a%view(ubt_int)
+  call vbt_int_a%view(vbt_int)
+  call uhbt0_a%view(uhbt0)
+  call vhbt0_a%view(vhbt0)
+  call Datu_a%view(Datu)
+  call Datv_a%view(Datv)
+  call eta_IC_a%view(eta_IC)
+  call eta_src_a%view(eta_src)
+  call uhbt_a%view(uhbt)
+  call vhbt_a%view(vhbt)
+  call uhbt_int_a%view(uhbt_int)
+  call vhbt_int_a%view(vhbt_int)
+  call eta_pred_a%view(eta_pred)
 
   if (integral_BT_cont) then
     do concurrent (j=jsv-1:jev+1, I=isv-2:iev+1)
