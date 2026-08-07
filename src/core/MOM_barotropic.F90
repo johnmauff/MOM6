@@ -656,6 +656,7 @@ subroutine btstep(U_in, V_in, eta_in, dt, bc_accel_u, bc_accel_v, forces, pbce, 
   real, dimension(:,:), contiguous, pointer :: etaav ! The free surface height or column mass
                   ! averaged over the barotropic integration [H ~> m or kg m-2].
   type(RealArray_t) :: ubt_a, uhbt_a, vbt_a, vhbt_a
+  type(RealArray_t) :: q_a, DCor_u_a, DCor_v_a, f_4_u_a, f_4_v_a
   real, dimension(SZIB_(G),SZJ_(G)) :: Drag_u
                   ! The zonal acceleration due to frequency-dependent drag [L T-2 ~> m s-2]
   real, dimension(SZI_(G),SZJB_(G)) :: Drag_v
@@ -1544,7 +1545,19 @@ subroutine btstep(U_in, V_in, eta_in, dt, bc_accel_u, bc_accel_v, forces, pbce, 
   endif
 
   ! Determine the weighted Coriolis parameters for the neighboring velocities.
-  call btstep_find_Cor(q, DCor_u, DCor_v, f_4_u, f_4_v, isvf, ievf, jsvf, jevf, CS)
+  call q_a%alloc(lb=LBOUND(q), ub=UBOUND(q), source=q)
+  call DCor_u_a%alloc(lb=LBOUND(DCor_u), ub=UBOUND(DCor_u), source=DCor_u)
+  call DCor_v_a%alloc(lb=LBOUND(DCor_v), ub=UBOUND(DCor_v), source=DCor_v)
+  call f_4_u_a%alloc(lb=LBOUND(f_4_u), ub=UBOUND(f_4_u), source=f_4_u)
+  call f_4_v_a%alloc(lb=LBOUND(f_4_v), ub=UBOUND(f_4_v), source=f_4_v)
+  call btstep_find_Cor(q_a, DCor_u_a, DCor_v_a, f_4_u_a, f_4_v_a, isvf, ievf, jsvf, jevf, CS)
+  call f_4_u_a%copy2F(f_4_u)
+  call f_4_v_a%copy2F(f_4_v)
+  call q_a%free()
+  call DCor_u_a%free()
+  call DCor_v_a%free()
+  call f_4_u_a%free()
+  call f_4_v_a%free()
 
 ! Complete the previously initiated message passing.
   if (id_clock_calc_pre > 0) call cpu_clock_end(id_clock_calc_pre)
@@ -3167,23 +3180,25 @@ end subroutine btstep_timeloop
 
 
 !> Find the Coriolis force terms _zon and _mer.
-subroutine btstep_find_Cor(q, DCor_u, DCor_v, f_4_u, f_4_v, isvf, ievf, jsvf, jevf, CS)
+subroutine btstep_find_Cor(q_a, DCor_u_a, DCor_v_a, f_4_u_a, f_4_v_a, isvf, ievf, jsvf, jevf, CS)
   type(barotropic_CS), intent(inout) :: CS      !< Barotropic control structure
-  real, intent(in) :: q(SZIBW_(CS),SZJBW_(CS))  !< A pseudo potential vorticity [T-1 Z-1 ~> s-1 m-1]
+  type(RealArray_t), intent(in) :: q_a !< A pseudo potential vorticity [T-1 Z-1 ~> s-1 m-1]
                   !! or [T-1 H-1 ~> s-1 m-1 or m2 s-1 kg-1]
-  real, dimension(SZIBW_(CS),SZJW_(CS)), intent(in) :: &
-    DCor_u        !< An averaged depth or total thickness at u points [Z ~> m] or [H ~> m or kg m-2].
-  real, dimension(SZIW_(CS),SZJBW_(CS)), intent(in) :: &
-    DCor_v        !< An averaged depth or total thickness at v points [Z ~> m] or [H ~> m or kg m-2].
-  real, dimension(4,SZIBW_(CS),SZJW_(CS)), intent(inout) :: &
-    f_4_u         !< The terms giving the contribution to the Coriolis acceleration at a zonal
+  type(RealArray_t), intent(in) :: &
+    DCor_u_a      !< An averaged depth or total thickness at u points [Z ~> m]
+                  !! or [H ~> m or kg m-2].
+  type(RealArray_t), intent(in) :: &
+    DCor_v_a      !< An averaged depth or total thickness at v points [Z ~> m]
+                  !! or [H ~> m or kg m-2].
+  type(RealArray_t), intent(inout) :: &
+    f_4_u_a       !< The terms giving the contribution to the Coriolis acceleration at a zonal
                   !! velocity point from the neighboring meridional velocity anomalies [T-1 ~> s-1].
                   !! These are the products of thicknesses at v points and appropriately staggered
                   !! averaged pseudo potential vorticities, but with sufficiently smooth topography
                   !! they are approximately f / 4.  The 4 values on the innermost loop are for
                   !! v-velocities to the southwest, southeast, northwest and northeast.
-  real, dimension(4,SZIW_(CS),SZJBW_(CS)), intent(inout) :: &
-    f_4_v         !< The terms giving the contribution to the Coriolis acceleration at a meridional
+  type(RealArray_t), intent(inout) :: &
+    f_4_v_a       !< The terms giving the contribution to the Coriolis acceleration at a meridional
                   !! velocity point from the neighboring meridional velocity anomalies [T-1 ~> s-1].
                   !! These are the products of thicknesses at u points and appropriately staggered
                   !! averaged pseudo potential vorticities, but with sufficiently smooth topography
@@ -3194,8 +3209,16 @@ subroutine btstep_find_Cor(q, DCor_u, DCor_v, f_4_u, f_4_v, isvf, ievf, jsvf, je
   integer, intent(in) :: jsvf  !< The starting j-index of the largest valid range for tracer points
   integer, intent(in) :: jevf  !< The ending j-index of the largest valid range for tracer points
 
+  real, dimension(:,:), contiguous, pointer :: q, DCor_u, DCor_v
+  real, dimension(:,:,:), contiguous, pointer :: f_4_u, f_4_v
   ! real :: C1_3 ! One third [nondim]
   integer :: i, j
+
+  call q_a%view(q)
+  call DCor_u_a%view(DCor_u)
+  call DCor_v_a%view(DCor_v)
+  call f_4_u_a%view(f_4_u)
+  call f_4_v_a%view(f_4_v)
 
   if (CS%Sadourny) then
     do concurrent (J=jsvf-1:jevf, i=isvf-1:ievf+1)
