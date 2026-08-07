@@ -18,7 +18,7 @@ use MOM_unit_scaling, only : unit_scale_type
 use MOM_variables, only : BT_cont_type, BT_cont_C, porous_barrier_type
 use MOM_verticalGrid, only : verticalGrid_type
 
-use array_mod, only : RealArray_t, RealArray_c, LogicalArray_t
+use array_mod, only : RealArray_t, RealArray_c, LogicalArray_t, LogicalArray_c
 use box_mod, only : Box_t, Box_c
 use iso_c_binding, only : c_double, c_int, c_ptr, c_loc, c_bool, c_null_char, c_null_ptr
 use, intrinsic :: iso_fortran_env, only : int64
@@ -1105,7 +1105,7 @@ end subroutine restore_bt_cont
 !! Not a type-bound procedure: RealArray_t%to_c() only exists under the TIM infra layer (it is
 !! commented out entirely in the FMS2 infra's array_mod.F90), so this whole function -- like every
 !! other %to_c() call in this file -- must stay outside BT_cont_container_type's unconditionally
-!! compiled `contains` block, guarded by #ifdef _TIM instead.
+!! compiled `contains` block, guarded by the _TIM preprocessor conditional instead.
 function BT_cont_container_to_c(BT_cont_a) result(cdesc)
   type(BT_cont_container_type), intent(in) :: BT_cont_a !< The container to convert
   type(BT_cont_C) :: cdesc                              !< Resulting bind(C) structure
