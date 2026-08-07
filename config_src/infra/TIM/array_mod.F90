@@ -162,6 +162,9 @@ module array_mod
      generic   :: to_c => to_c_Logical           !< Generic interface for function to_c
      generic   :: from_c => from_c_Logical       !< Generic interface for subroutine from_c
      generic   :: free => freeLogical            !< Generic interface for deallocate
+     procedure :: free_c => freeShadowLogical    !< Deallocates only the %to_c() shadow buffer
+     procedure :: write_binary => write_binaryLogical !< write variable to a binary file
+     procedure :: read_binary  => read_binaryLogical  !< read variable from a binary file
   end type LogicalArray_t
 
 contains
@@ -267,6 +270,111 @@ subroutine read_binary(this, unit)
 
 end subroutine read_binary
 
+!< Write a LogicalArray_t variable to a binary file. Mirrors write_binary (RealArray_t) exactly,
+!! but for a logical payload; unrelated to the %to_c()/data_c shadow buffer used for the AMReX
+!! bridge -- this writes %data directly, and works identically under either infra layer.
+subroutine write_binaryLogical(this, unit)
+  class(LogicalArray_t), intent(in) :: this  !< The LogicalArray_t variable to write to disk
+  integer,               intent(in) :: unit  !< The file unit
+
+  integer :: i
+  integer :: n
+
+  ! --- Null case ---
+  if (.not. associated(this%data)) then
+    write(unit) -1   ! rank = -1 signals null
+    return
+  endif
+
+  ! --- Rank ---
+  n = this%rank
+  write(unit) n
+
+  ! --- Write shape ---
+  do i=1,n
+    write(unit) this%shape(i)
+  enddo
+
+  ! --- Write bounds ---
+  do i=1,n
+    write(unit) this%lb(i)
+    write(unit) this%ub(i)
+  enddo
+
+  ! --- Write data size ---
+  write(unit) size(this%data)
+
+  ! --- Write payload ---
+  write(unit) this%data
+
+end subroutine write_binaryLogical
+
+!< Read a LogicalArray_t variable from a binary file. Mirrors read_binary (RealArray_t) exactly,
+!! but for a logical payload.
+subroutine read_binaryLogical(this, unit)
+  class(LogicalArray_t), intent(inout) :: this !< The LogicalArray_t variable to read from a
+                                                !! binary file
+  integer,               intent(in)    :: unit !< The file unit
+
+  integer :: i
+  integer :: n
+  integer :: total_size
+
+  ! --- Read rank ---
+  read(unit) n
+
+  ! --- Null case ---
+  if (n == -1) then
+    if (associated(this%data)) deallocate(this%data)
+    if (associated(this%shape)) deallocate(this%shape)
+    if (associated(this%lb)) deallocate(this%lb)
+    if (associated(this%ub)) deallocate(this%ub)
+
+    nullify(this%data)
+    nullify(this%shape)
+    nullify(this%lb)
+    nullify(this%ub)
+    this%rank = 0
+    return
+  endif
+
+  this%rank = n
+
+  ! --- Clean old allocations ---
+  if (associated(this%shape)) deallocate(this%shape)
+  if (associated(this%lb)) deallocate(this%lb)
+  if (associated(this%ub)) deallocate(this%ub)
+  if (associated(this%data)) deallocate(this%data)
+
+  ! --- Allocate metadata ---
+  allocate(this%shape(n))
+  allocate(this%lb(n))
+  allocate(this%ub(n))
+
+  ! --- Read shape ---
+  do i=1,n
+    read(unit) this%shape(i)
+  enddo
+
+  ! --- Read bounds ---
+  do i=1,n
+    read(unit) this%lb(i)
+    read(unit) this%ub(i)
+  enddo
+
+  ! --- Read data size ---
+  read(unit) total_size
+
+  ! --- Allocate and read data ---
+  if (total_size > 0) then
+    allocate(this%data(total_size))
+    read(unit) this%data
+  else
+    nullify(this%data)
+  endif
+
+end subroutine read_binaryLogical
+
 !< Function to convert a Fortran structure to a C structure. Null-safe:
 !! an unallocated container (e.g. an absent optional) converts to a
 !! cdesc with every pointer null and rank=0, rather than dereferencing
@@ -362,6 +470,16 @@ subroutine from_c_Logical(this)
     this%data(i) = (this%data_c(i) /= 0)
   enddo
 end subroutine from_c_Logical
+
+!< Deallocates only the integer-encoded (0/1) shadow buffer built by to_c_Logical, leaving %data
+!! untouched. Safe to call on a shallow copy of a LogicalArray_t (e.g. `local = do_I_a`) whose
+!! %data pointer aliases another container's target -- unlike %free(), which would deallocate
+!! that shared target through %data and leave the original container's pointer dangling.
+subroutine freeShadowLogical(this)
+  class(LogicalArray_t), intent(inout) :: this !< The container whose shadow buffer will be freed
+
+  if (associated(this%data_c)) call amrex_deallocate(this%data_c)
+end subroutine freeShadowLogical
 
 !< Allocate memory for a RealArray_t container
 subroutine allocReal(this, dims,lb,ub,source)
