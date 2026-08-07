@@ -596,6 +596,18 @@ type, public :: cont_loop_bounds_type ; private
   !>@}
 end type cont_loop_bounds_type
 
+!> A container-based shadow of BT_cont_type, used only within the continuity() call tree so that
+!! its effective-open-face-area fields can be bridge-ready without converting the shared
+!! BT_cont_type itself (which is also used directly by MOM_barotropic.F90).
+type, public :: BT_cont_container_type ; private
+  type(RealArray_t) :: FA_u_EE_a, FA_u_E0_a, FA_u_W0_a, FA_u_WW_a, uBT_WW_a, uBT_EE_a
+  type(RealArray_t) :: FA_v_NN_a, FA_v_N0_a, FA_v_S0_a, FA_v_SS_a, vBT_SS_a, vBT_NN_a
+  type(RealArray_t) :: h_u_a, h_v_a
+contains
+  procedure, public :: build_from => BT_cont_container_build_from
+  procedure, public :: copy_back  => BT_cont_container_copy_back
+end type BT_cont_container_type
+
 !> Finds the thickness fluxes from the continuity solver or their vertical sum without
 !! actually updating the layer thicknesses.
 interface continuity_fluxes
@@ -603,6 +615,71 @@ interface continuity_fluxes
 end interface continuity_fluxes
 
 contains
+
+!> Builds a BT_cont_container_type by allocating and copying in each field from a real
+!! BT_cont_type. The FA_*/uBT_*/vBT_* fields are always allocated together in BT_cont_type (see
+!! alloc_BT_cont_type); h_u/h_v are allocated together only if requested at init time, and are
+!! left unassociated here (and therefore null-safe downstream) when absent.
+subroutine BT_cont_container_build_from(this, BT_cont)
+  class(BT_cont_container_type), intent(inout) :: this    !< The container to build
+  type(BT_cont_type),            intent(in)    :: BT_cont !< The real structure to copy in from
+
+  call this%FA_u_EE_a%alloc(lb=LBOUND(BT_cont%FA_u_EE), ub=UBOUND(BT_cont%FA_u_EE), &
+                            source=BT_cont%FA_u_EE)
+  call this%FA_u_E0_a%alloc(lb=LBOUND(BT_cont%FA_u_E0), ub=UBOUND(BT_cont%FA_u_E0), &
+                            source=BT_cont%FA_u_E0)
+  call this%FA_u_W0_a%alloc(lb=LBOUND(BT_cont%FA_u_W0), ub=UBOUND(BT_cont%FA_u_W0), &
+                            source=BT_cont%FA_u_W0)
+  call this%FA_u_WW_a%alloc(lb=LBOUND(BT_cont%FA_u_WW), ub=UBOUND(BT_cont%FA_u_WW), &
+                            source=BT_cont%FA_u_WW)
+  call this%uBT_WW_a%alloc(lb=LBOUND(BT_cont%uBT_WW), ub=UBOUND(BT_cont%uBT_WW), &
+                           source=BT_cont%uBT_WW)
+  call this%uBT_EE_a%alloc(lb=LBOUND(BT_cont%uBT_EE), ub=UBOUND(BT_cont%uBT_EE), &
+                           source=BT_cont%uBT_EE)
+
+  call this%FA_v_NN_a%alloc(lb=LBOUND(BT_cont%FA_v_NN), ub=UBOUND(BT_cont%FA_v_NN), &
+                            source=BT_cont%FA_v_NN)
+  call this%FA_v_N0_a%alloc(lb=LBOUND(BT_cont%FA_v_N0), ub=UBOUND(BT_cont%FA_v_N0), &
+                            source=BT_cont%FA_v_N0)
+  call this%FA_v_S0_a%alloc(lb=LBOUND(BT_cont%FA_v_S0), ub=UBOUND(BT_cont%FA_v_S0), &
+                            source=BT_cont%FA_v_S0)
+  call this%FA_v_SS_a%alloc(lb=LBOUND(BT_cont%FA_v_SS), ub=UBOUND(BT_cont%FA_v_SS), &
+                            source=BT_cont%FA_v_SS)
+  call this%vBT_SS_a%alloc(lb=LBOUND(BT_cont%vBT_SS), ub=UBOUND(BT_cont%vBT_SS), &
+                           source=BT_cont%vBT_SS)
+  call this%vBT_NN_a%alloc(lb=LBOUND(BT_cont%vBT_NN), ub=UBOUND(BT_cont%vBT_NN), &
+                           source=BT_cont%vBT_NN)
+
+  if (allocated(BT_cont%h_u)) then
+    call this%h_u_a%alloc(lb=LBOUND(BT_cont%h_u), ub=UBOUND(BT_cont%h_u), source=BT_cont%h_u)
+    call this%h_v_a%alloc(lb=LBOUND(BT_cont%h_v), ub=UBOUND(BT_cont%h_v), source=BT_cont%h_v)
+  endif
+end subroutine BT_cont_container_build_from
+
+!> Copies a BT_cont_container_type's fields back into a real BT_cont_type and frees the container.
+subroutine BT_cont_container_copy_back(this, BT_cont)
+  class(BT_cont_container_type), intent(inout) :: this    !< The container to copy back and free
+  type(BT_cont_type),            intent(inout) :: BT_cont !< The real structure to copy into
+
+  call this%FA_u_EE_a%copy2F(BT_cont%FA_u_EE) ; call this%FA_u_EE_a%free()
+  call this%FA_u_E0_a%copy2F(BT_cont%FA_u_E0) ; call this%FA_u_E0_a%free()
+  call this%FA_u_W0_a%copy2F(BT_cont%FA_u_W0) ; call this%FA_u_W0_a%free()
+  call this%FA_u_WW_a%copy2F(BT_cont%FA_u_WW) ; call this%FA_u_WW_a%free()
+  call this%uBT_WW_a%copy2F(BT_cont%uBT_WW)   ; call this%uBT_WW_a%free()
+  call this%uBT_EE_a%copy2F(BT_cont%uBT_EE)   ; call this%uBT_EE_a%free()
+
+  call this%FA_v_NN_a%copy2F(BT_cont%FA_v_NN) ; call this%FA_v_NN_a%free()
+  call this%FA_v_N0_a%copy2F(BT_cont%FA_v_N0) ; call this%FA_v_N0_a%free()
+  call this%FA_v_S0_a%copy2F(BT_cont%FA_v_S0) ; call this%FA_v_S0_a%free()
+  call this%FA_v_SS_a%copy2F(BT_cont%FA_v_SS) ; call this%FA_v_SS_a%free()
+  call this%vBT_SS_a%copy2F(BT_cont%vBT_SS)   ; call this%vBT_SS_a%free()
+  call this%vBT_NN_a%copy2F(BT_cont%vBT_NN)   ; call this%vBT_NN_a%free()
+
+  if (this%h_u_a%associated()) then
+    call this%h_u_a%copy2F(BT_cont%h_u) ; call this%h_u_a%free()
+    call this%h_v_a%copy2F(BT_cont%h_v) ; call this%h_v_a%free()
+  endif
+end subroutine BT_cont_container_copy_back
 
 !> Time steps the layer thicknesses, using a monotonically limit, directionally split PPM scheme,
 !! based on Lin (1994).
