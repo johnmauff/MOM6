@@ -3028,7 +3028,7 @@ subroutine btstep_timeloop(eta_a, ubt_a, vbt_a, uhbt0_a, Datu_a, BTCL_u, vhbt0_a
   ! The following loop contains all of the time steps.
   isv = is ; iev = ie ; jsv = js ; jev = je
   do n=1,nstep+nfilter
-    if (CS%clip_velocity) call truncate_velocities(ubt, vbt, dt, G, CS, isv, iev, jsv, jev)
+    if (CS%clip_velocity) call truncate_velocities(ubt_a, vbt_a, dt, G, CS, isv, iev, jsv, jev)
 
     ! Update the range of valid points, either by doing a halo update or by marching inward.
     if ((iev - stencil < ie) .or. (jev - stencil < je)) then
@@ -3627,18 +3627,22 @@ end subroutine btstep_find_Cor
 
 !> Do a CFL-based truncation of any excessively large batotropic velocities.
 !! This should only be used as desperate debugging measure.
-subroutine truncate_velocities(ubt, vbt, dt, G, CS, isv, iev, jsv, jev)
+subroutine truncate_velocities(ubt_a, vbt_a, dt, G, CS, isv, iev, jsv, jev)
   type(ocean_grid_type), intent(inout) :: G  !< The ocean's grid structure.
   type(barotropic_CS),   intent(inout) :: CS !< Barotropic control structure
-  real,    intent(inout) :: ubt(SZIBW_(CS),SZJW_(CS)) !< The zonal barotropic velocity [L T-1 ~> m s-1]
-  real,    intent(inout) :: vbt(SZIW_(CS),SZJBW_(CS)) !< The meridional barotropic velocity [L T-1 ~> m s-1]
+  type(RealArray_t), intent(inout) :: ubt_a !< The zonal barotropic velocity [L T-1 ~> m s-1]
+  type(RealArray_t), intent(inout) :: vbt_a !< The meridional barotropic velocity [L T-1 ~> m s-1]
   real,    intent(in)    :: dt  !< The time increment to integrate over [T ~> s].
   integer, intent(in)    :: isv !< The starting valid tracer array i-index that is being worked on
   integer, intent(in)    :: iev !< The ending valid tracer array i-index that is being worked on
   integer, intent(in)    :: jsv !< The starting valid tracer array j-index that is being worked on
   integer, intent(in)    :: jev !< The ending valid tracer array j-index being that is worked on
 
+  real, dimension(:,:), contiguous, pointer :: ubt, vbt
   integer :: i, j
+
+  call ubt_a%view(ubt)
+  call vbt_a%view(vbt)
 
   if (CS%clip_velocity) then
     do concurrent (j=jsv:jev, I=isv-1:iev)
