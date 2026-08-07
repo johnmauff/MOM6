@@ -2837,6 +2837,8 @@ subroutine btstep_timeloop(eta_a, ubt_a, vbt_a, uhbt0_a, Datu_a, BTCL_u, vhbt0_a
   integer :: debug_halo ! The halo size to use for debugging checksums
   integer :: isd, ied, jsd, jed, IsdB, IedB, JsdB, JedB
   logical :: submerged(SZIW_(CS),SZJW_(CS)), eta_is_submerged
+  type(RealArray_t) :: uhbt_a, ubt_trans_a, ubt_prev_a
+  type(RealArray_t) :: ubt_int_a, ubt_int_prev_a, uhbt_int_a, uhbt_int_prev_a
 
   call eta_a%view(eta)
   call ubt_a%view(ubt)
@@ -3209,9 +3211,30 @@ subroutine btstep_timeloop(eta_a, ubt_a, vbt_a, uhbt0_a, Datu_a, BTCL_u, vhbt0_a
     ! Apply open boundary condition considerations to revise the updated velocities and transports.
     if (CS%BT_OBC%u_OBCs_on_PE) then
       !$omp target update from(ubt, uhbt, ubt_trans, eta, SpV_col_avg, ubt_prev, Datu, BTCL_u, uhbt0)
-      call apply_u_velocity_OBCs(ubt, uhbt, ubt_trans, eta, SpV_col_avg, ubt_prev, BT_OBC, &
-             G, MS, GV, US, CS, iev-ie, dtbt, CS%bebt, use_BT_cont, integral_BT_cont, n*dtbt, &
-             Datu, BTCL_u, uhbt0, ubt_int, ubt_int_prev, uhbt_int, uhbt_int_prev)
+      call uhbt_a%alloc(lb=LBOUND(uhbt), ub=UBOUND(uhbt), source=uhbt)
+      call ubt_trans_a%alloc(lb=LBOUND(ubt_trans), ub=UBOUND(ubt_trans), source=ubt_trans)
+      call ubt_prev_a%alloc(lb=LBOUND(ubt_prev), ub=UBOUND(ubt_prev), source=ubt_prev)
+      call ubt_int_a%alloc(lb=LBOUND(ubt_int), ub=UBOUND(ubt_int), source=ubt_int)
+      call ubt_int_prev_a%alloc(lb=LBOUND(ubt_int_prev), ub=UBOUND(ubt_int_prev), &
+                                source=ubt_int_prev)
+      call uhbt_int_a%alloc(lb=LBOUND(uhbt_int), ub=UBOUND(uhbt_int), source=uhbt_int)
+      call uhbt_int_prev_a%alloc(lb=LBOUND(uhbt_int_prev), ub=UBOUND(uhbt_int_prev), &
+                                 source=uhbt_int_prev)
+      call apply_u_velocity_OBCs(ubt_a, uhbt_a, ubt_trans_a, eta_a, SpV_col_avg_a, ubt_prev_a, &
+             BT_OBC, G, MS, GV, US, CS, iev-ie, dtbt, CS%bebt, use_BT_cont, integral_BT_cont, &
+             n*dtbt, Datu_a, BTCL_u, uhbt0_a, ubt_int_a, ubt_int_prev_a, uhbt_int_a, &
+             uhbt_int_prev_a)
+      call uhbt_a%copy2F(uhbt)
+      call ubt_trans_a%copy2F(ubt_trans)
+      call ubt_int_a%copy2F(ubt_int)
+      call uhbt_int_a%copy2F(uhbt_int)
+      call uhbt_a%free()
+      call ubt_trans_a%free()
+      call ubt_prev_a%free()
+      call ubt_int_a%free()
+      call ubt_int_prev_a%free()
+      call uhbt_int_a%free()
+      call uhbt_int_prev_a%free()
       !$omp target update to(ubt, uhbt, ubt_trans)
     endif
 
@@ -4250,22 +4273,24 @@ end subroutine set_dtbt
 
 !> This subroutine applies the open boundary conditions on barotropic zonal
 !! velocities and mass transports, as developed by Mehmet Ilicak.
-subroutine apply_u_velocity_OBCs(ubt, uhbt, ubt_trans, eta, SpV_avg, ubt_old, BT_OBC, G, MS, &
-                               GV, US, CS, halo, dtbt, bebt, use_BT_cont, integral_BT_cont, dt_elapsed, &
-                              Datu, BTCL_u, uhbt0, ubt_int, ubt_int_prev, uhbt_int, uhbt_int_prev)
+subroutine apply_u_velocity_OBCs(ubt_a, uhbt_a, ubt_trans_a, eta_a, SpV_avg_a, ubt_old_a, &
+                               BT_OBC, G, MS, GV, US, CS, halo, dtbt, bebt, use_BT_cont, &
+                               integral_BT_cont, dt_elapsed, Datu_a, BTCL_u, uhbt0_a, &
+                               ubt_int_a, ubt_int_prev_a, uhbt_int_a, uhbt_int_prev_a)
   type(ocean_grid_type),                 intent(in)    :: G       !< The ocean's grid structure.
   type(memory_size_type),                intent(in)    :: MS      !< A type that describes the memory sizes of
                                                                   !! the argument arrays.
-  real, dimension(SZIBW_(MS),SZJW_(MS)), intent(inout) :: ubt     !< the zonal barotropic velocity [L T-1 ~> m s-1].
-  real, dimension(SZIBW_(MS),SZJW_(MS)), intent(inout) :: uhbt    !< the zonal barotropic transport
-                                                                  !! [H L2 T-1 ~> m3 s-1 or kg s-1].
-  real, dimension(SZIBW_(MS),SZJW_(MS)), intent(inout) :: ubt_trans !< The zonal barotropic velocity used in
-                                                                  !! transport [L T-1 ~> m s-1].
-  real, dimension(SZIW_(MS),SZJW_(MS)),  intent(in)    :: eta     !< The barotropic free surface height anomaly or
-                                                                  !! column mass anomaly [H ~> m or kg m-2].
-  real, dimension(SZIW_(MS),SZJW_(MS)),  intent(in)    :: SpV_avg !< The column average specific volume [R-1 ~> m3 kg-1]
-  real, dimension(SZIBW_(MS),SZJW_(MS)), intent(in)    :: ubt_old !< The starting value of ubt in a barotropic
-                                                                  !! step [L T-1 ~> m s-1].
+  type(RealArray_t), intent(inout) :: ubt_a       !< the zonal barotropic velocity [L T-1 ~> m s-1].
+  type(RealArray_t), intent(inout) :: uhbt_a      !< the zonal barotropic transport
+                                                  !! [H L2 T-1 ~> m3 s-1 or kg s-1].
+  type(RealArray_t), intent(inout) :: ubt_trans_a !< The zonal barotropic velocity used in
+                                                  !! transport [L T-1 ~> m s-1].
+  type(RealArray_t), intent(in)    :: eta_a       !< The barotropic free surface height anomaly or
+                                                  !! column mass anomaly [H ~> m or kg m-2].
+  type(RealArray_t), intent(in)    :: SpV_avg_a   !< The column average specific volume
+                                                  !! [R-1 ~> m3 kg-1]
+  type(RealArray_t), intent(in)    :: ubt_old_a   !< The starting value of ubt in a barotropic
+                                                  !! step [L T-1 ~> m s-1].
   type(BT_OBC_type),                     intent(in)    :: BT_OBC  !< A structure with the private barotropic arrays
                                                                   !! related to the open boundary conditions,
                                                                   !! set by set_up_BT_OBC.
@@ -4283,26 +4308,30 @@ subroutine apply_u_velocity_OBCs(ubt, uhbt, ubt_trans, eta, SpV_avg, ubt_old, BT
                                                                   !! using the time-integrated barotropic velocity.
   real,                                  intent(in)    :: dt_elapsed !< The amount of time in the barotropic stepping
                                                                   !! that will have elapsed [T ~> s].
-  real, dimension(SZIBW_(MS),SZJW_(MS)), intent(in)    :: Datu    !< A fixed estimate of the face areas at u points
-                                                                  !! [H L ~> m2 or kg m-1].
+  type(RealArray_t), intent(in)    :: Datu_a      !< A fixed estimate of the face areas at u points
+                                                  !! [H L ~> m2 or kg m-1].
   type(local_BT_cont_u_type), dimension(SZIBW_(MS),SZJW_(MS)), intent(in) :: BTCL_u !< Structure of information used
                                                                   !! for a dynamic estimate of the face areas at
                                                                   !! u-points.
-  real, dimension(SZIBW_(MS),SZJW_(MS)), intent(in)    :: uhbt0   !< A correction to the zonal transport so that
-                                                                  !! the barotropic functions agree with the sum
-                                                                  !! of the layer transports
-                                                                  !! [H L2 T-1 ~> m3 s-1 or kg s-1].
-  real, dimension(SZIBW_(MS),SZJW_(MS)), intent(inout) :: ubt_int !< The time-integrated zonal barotropic
-                                                                  !! velocity after this update [L T-1 ~> m s-1]
-  real, dimension(SZIBW_(MS),SZJW_(MS)), intent(in)    :: ubt_int_prev  !< The time-integrated zonal barotropic
-                                                                  !! velocity before this update [L T-1 ~> m s-1]
-  real, dimension(SZIBW_(MS),SZJW_(MS)), intent(inout) :: uhbt_int !< The time-integrated zonal barotropic transport
-                                                                  !! after this update [H L2 T-1 ~> m3 s-1 or kg s-1]
-  real, dimension(SZIBW_(MS),SZJW_(MS)), intent(in)    :: uhbt_int_prev !< The time-integrated zonal barotropic
-                                                                  !! transport before this update
-                                                                  !! [H L2 T-1 ~> m3 s-1 or kg s-1]
+  type(RealArray_t), intent(in)    :: uhbt0_a     !< A correction to the zonal transport so that
+                                                  !! the barotropic functions agree with the sum
+                                                  !! of the layer transports
+                                                  !! [H L2 T-1 ~> m3 s-1 or kg s-1].
+  type(RealArray_t), intent(inout) :: ubt_int_a   !< The time-integrated zonal barotropic
+                                                  !! velocity after this update [L T-1 ~> m s-1]
+  type(RealArray_t), intent(in)    :: ubt_int_prev_a !< The time-integrated zonal barotropic
+                                                  !! velocity before this update [L T-1 ~> m s-1]
+  type(RealArray_t), intent(inout) :: uhbt_int_a  !< The time-integrated zonal barotropic transport
+                                                  !! after this update
+                                                  !! [H L2 T-1 ~> m3 s-1 or kg s-1]
+  type(RealArray_t), intent(in)    :: uhbt_int_prev_a !< The time-integrated zonal barotropic
+                                                  !! transport before this update
+                                                  !! [H L2 T-1 ~> m3 s-1 or kg s-1]
 
   ! Local variables
+  real, dimension(:,:), contiguous, pointer :: ubt, uhbt, ubt_trans, eta, SpV_avg, ubt_old
+  real, dimension(:,:), contiguous, pointer :: Datu, uhbt0, ubt_int, ubt_int_prev
+  real, dimension(:,:), contiguous, pointer :: uhbt_int, uhbt_int_prev
   real :: vel_prev    ! The previous velocity [L T-1 ~> m s-1].
   real :: cfl         ! The CFL number at the point in question [nondim]
   real :: u_inlet     ! The zonal inflow velocity [L T-1 ~> m s-1]
@@ -4312,6 +4341,19 @@ subroutine apply_u_velocity_OBCs(ubt, uhbt, ubt_trans, eta, SpV_avg, ubt_old, BT
   real :: ssh_2       ! The sea surface height in the next cell inward from the OBC face [Z ~> m]
   real :: Idtbt       ! The inverse of the barotropic time step [T-1 ~> s-1]
   integer :: i, j, Is_u, Ie_u, js, je
+
+  call ubt_a%view(ubt)
+  call uhbt_a%view(uhbt)
+  call ubt_trans_a%view(ubt_trans)
+  call eta_a%view(eta)
+  call SpV_avg_a%view(SpV_avg)
+  call ubt_old_a%view(ubt_old)
+  call Datu_a%view(Datu)
+  call uhbt0_a%view(uhbt0)
+  call ubt_int_a%view(ubt_int)
+  call ubt_int_prev_a%view(ubt_int_prev)
+  call uhbt_int_a%view(uhbt_int)
+  call uhbt_int_prev_a%view(uhbt_int_prev)
 
   if (.not.BT_OBC%u_OBCs_on_PE) return
 
