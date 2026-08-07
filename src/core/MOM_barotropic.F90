@@ -655,6 +655,7 @@ subroutine btstep(U_in, V_in, eta_in, dt, bc_accel_u, bc_accel_v, forces, pbce, 
                   ! Filtered velocities from the output of streaming filters [L T-1 ~> m s-1]
   real, dimension(:,:), contiguous, pointer :: etaav ! The free surface height or column mass
                   ! averaged over the barotropic integration [H ~> m or kg m-2].
+  type(RealArray_t) :: ubt_a, uhbt_a, vbt_a, vhbt_a
   real, dimension(SZIB_(G),SZJ_(G)) :: Drag_u
                   ! The zonal acceleration due to frequency-dependent drag [L T-2 ~> m s-2]
   real, dimension(SZI_(G),SZJB_(G)) :: Drag_v
@@ -1291,13 +1292,21 @@ subroutine btstep(U_in, V_in, eta_in, dt, bc_accel_u, bc_accel_v, forces, pbce, 
       if (id_clock_pass_pre > 0) call cpu_clock_end(id_clock_pass_pre)
       if (id_clock_calc_pre > 0) call cpu_clock_begin(id_clock_calc_pre)
       !$omp target update from(BTCL_u, BTCL_v)
+      call ubt_a%alloc(lb=LBOUND(ubt), ub=UBOUND(ubt), source=ubt)
+      call uhbt_a%alloc(lb=LBOUND(uhbt), ub=UBOUND(uhbt), source=uhbt)
+      call vbt_a%alloc(lb=LBOUND(vbt), ub=UBOUND(vbt), source=vbt)
+      call vhbt_a%alloc(lb=LBOUND(vhbt), ub=UBOUND(vhbt), source=vhbt)
       if (integral_BT_cont) then
-        call adjust_local_BT_cont_types(ubt, uhbt, vbt, vhbt, BTCL_u, BTCL_v, &
+        call adjust_local_BT_cont_types(ubt_a, uhbt_a, vbt_a, vhbt_a, BTCL_u, BTCL_v, &
                                         G, US, MS, 1+ievf-ie, dt_baroclinic=dt)
       else
-        call adjust_local_BT_cont_types(ubt, uhbt, vbt, vhbt, BTCL_u, BTCL_v, &
+        call adjust_local_BT_cont_types(ubt_a, uhbt_a, vbt_a, vhbt_a, BTCL_u, BTCL_v, &
                                         G, US, MS, 1+ievf-ie)
       endif
+      call ubt_a%free()
+      call uhbt_a%free()
+      call vbt_a%free()
+      call vhbt_a%free()
       !$omp target update to(BTCL_u, BTCL_v)
     endif
     if (integral_BT_cont) then
@@ -5366,19 +5375,17 @@ end subroutine set_local_BT_cont_types
 !! translating velocities into transports to match the initial values of velocities and
 !! summed transports when the velocities are larger than the first guesses of the cubic
 !! transition velocities used to set up the local_BT_cont types.
-subroutine adjust_local_BT_cont_types(ubt, uhbt, vbt, vhbt, BTCL_u, BTCL_v, &
+subroutine adjust_local_BT_cont_types(ubt_a, uhbt_a, vbt_a, vhbt_a, BTCL_u, BTCL_v, &
                                       G, US, MS, halo, dt_baroclinic)
   type(memory_size_type), intent(in)  :: MS   !< A type that describes the memory sizes of the argument arrays.
-  real, dimension(SZIBW_(MS),SZJW_(MS)), &
-                          intent(in)  :: ubt  !< The linearization zonal barotropic velocity [L T-1 ~> m s-1].
-  real, dimension(SZIBW_(MS),SZJW_(MS)), &
-                          intent(in)  :: uhbt !< The linearization zonal barotropic transport
-                                              !! [H L2 T-1 ~> m3 s-1 or kg s-1].
-  real, dimension(SZIW_(MS),SZJBW_(MS)), &
-                          intent(in)  :: vbt  !< The linearization meridional barotropic velocity [L T-1 ~> m s-1].
-  real, dimension(SZIW_(MS),SZJBW_(MS)), &
-                          intent(in)  :: vhbt !< The linearization meridional barotropic transport
-                                              !! [H L2 T-1 ~> m3 s-1 or kg s-1].
+  type(RealArray_t),      intent(in)  :: ubt_a  !< The linearization zonal barotropic velocity
+                                                !! [L T-1 ~> m s-1].
+  type(RealArray_t),      intent(in)  :: uhbt_a !< The linearization zonal barotropic transport
+                                                !! [H L2 T-1 ~> m3 s-1 or kg s-1].
+  type(RealArray_t),      intent(in)  :: vbt_a  !< The linearization meridional barotropic velocity
+                                                !! [L T-1 ~> m s-1].
+  type(RealArray_t),      intent(in)  :: vhbt_a !< The linearization meridional barotropic transport
+                                                !! [H L2 T-1 ~> m3 s-1 or kg s-1].
   type(local_BT_cont_u_type), dimension(SZIBW_(MS),SZJW_(MS)), &
                           intent(out) :: BTCL_u !< A structure with the u information from BT_cont.
   type(local_BT_cont_v_type), dimension(SZIW_(MS),SZJBW_(MS)), &
@@ -5390,9 +5397,15 @@ subroutine adjust_local_BT_cont_types(ubt, uhbt, vbt, vhbt, BTCL_u, BTCL_v, &
                                                        !! provided if INTEGRAL_BT_CONTINUITY is true.
 
   ! Local variables
+  real, dimension(:,:), contiguous, pointer :: ubt, uhbt, vbt, vhbt
   real :: dt ! The baroclinic timestep [T ~> s] or 1.0 [nondim]
   real, parameter :: C1_3 = 1.0/3.0  ! [nondim]
   integer :: i, j, is, ie, js, je, hs
+
+  call ubt_a%view(ubt)
+  call uhbt_a%view(uhbt)
+  call vbt_a%view(vbt)
+  call vhbt_a%view(vhbt)
 
   is = G%isc ; ie = G%iec ; js = G%jsc ; je = G%jec
   hs = max(halo,0)
