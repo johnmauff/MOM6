@@ -1098,7 +1098,6 @@ subroutine restore_bt_cont(rec, name, BT_cont_a)
   call BT_cont_a%read_binary(rec%unit_bin)
 end subroutine restore_bt_cont
 
-#ifdef _TIM
 !> Converts a BT_cont_container_type to its bind(C) mirror by delegating to each field's own
 !! null-safe %to_c() -- an unassociated field (e.g. h_u_a/h_v_a when the real BT_cont_type never
 !! allocated them) converts to a rank-0/all-null RealArray_C with no extra logic needed here.
@@ -1106,6 +1105,7 @@ end subroutine restore_bt_cont
 !! commented out entirely in the FMS2 infra's array_mod.F90), so this whole function -- like every
 !! other %to_c() call in this file -- must stay outside BT_cont_container_type's unconditionally
 !! compiled `contains` block, guarded by the _TIM preprocessor conditional instead.
+#ifdef _TIM
 function BT_cont_container_to_c(BT_cont_a) result(cdesc)
   type(BT_cont_container_type), intent(in) :: BT_cont_a !< The container to convert
   type(BT_cont_C) :: cdesc                              !< Resulting bind(C) structure
