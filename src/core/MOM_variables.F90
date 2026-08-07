@@ -6,6 +6,7 @@
 module MOM_variables
 
 use MOM_array_transform, only : rotate_array, rotate_vector
+use array_mod, only : RealArray_C
 use MOM_coupler_types, only : coupler_1d_bc_type, coupler_2d_bc_type
 use MOM_coupler_types, only : coupler_type_spawn, coupler_type_destructor, coupler_type_initialized
 use MOM_coupler_types, only : coupler_type_copy_data
@@ -25,6 +26,7 @@ implicit none ; private
 public allocate_surface_state, deallocate_surface_state, MOM_thermovar_chksum
 public ocean_grid_type, alloc_BT_cont_type, dealloc_BT_cont_type
 public rotate_surface_state
+public BT_cont_C
 
 ! A note on unit descriptions in comments: MOM6 uses units that can be rescaled for dimensional
 ! consistency testing. These are noted in comments with units like Z, H, L, and T, along with
@@ -350,6 +352,29 @@ type, public :: BT_cont_type
   type(group_pass_type) :: pass_polarity_BT !< Structure for polarity group halo updates
   type(group_pass_type) :: pass_FA_uv !< Structure for face area group halo updates
 end type BT_cont_type
+
+!> bind(C) mirror of BT_cont_type's 14 real fields, one RealArray_C per field (in the same order
+!! as BT_cont_type itself). Lives here, next to BT_cont_type, rather than in a container-mirror
+!! type's own module -- it is not itself a container mirror of a Fortran container type, but a
+!! bridge-boundary mirror of this real, allocatable-field type; currently built and consumed only
+!! by MOM_continuity_PPM.F90 (from its container-based BT_cont_container_type shadow of
+!! BT_cont_type), and expected to be needed by MOM_barotropic.F90 in the future.
+type, bind(C) :: BT_cont_C
+  type(RealArray_C) :: FA_u_EE !< See BT_cont_type%FA_u_EE.
+  type(RealArray_C) :: FA_u_E0 !< See BT_cont_type%FA_u_E0.
+  type(RealArray_C) :: FA_u_W0 !< See BT_cont_type%FA_u_W0.
+  type(RealArray_C) :: FA_u_WW !< See BT_cont_type%FA_u_WW.
+  type(RealArray_C) :: uBT_WW  !< See BT_cont_type%uBT_WW.
+  type(RealArray_C) :: uBT_EE  !< See BT_cont_type%uBT_EE.
+  type(RealArray_C) :: FA_v_NN !< See BT_cont_type%FA_v_NN.
+  type(RealArray_C) :: FA_v_N0 !< See BT_cont_type%FA_v_N0.
+  type(RealArray_C) :: FA_v_S0 !< See BT_cont_type%FA_v_S0.
+  type(RealArray_C) :: FA_v_SS !< See BT_cont_type%FA_v_SS.
+  type(RealArray_C) :: vBT_SS  !< See BT_cont_type%vBT_SS.
+  type(RealArray_C) :: vBT_NN  !< See BT_cont_type%vBT_NN.
+  type(RealArray_C) :: h_u     !< See BT_cont_type%h_u.
+  type(RealArray_C) :: h_v     !< See BT_cont_type%h_v.
+end type BT_cont_C
 
 !> Container for grids modifying cell metric at porous barriers
 type, public :: porous_barrier_type

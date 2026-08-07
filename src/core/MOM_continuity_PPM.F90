@@ -15,7 +15,7 @@ use MOM_grid, only : ocean_grid_type
 use MOM_open_boundary, only : ocean_OBC_type, OBC_segment_type, OBC_NONE
 use MOM_open_boundary, only : OBC_DIRECTION_E, OBC_DIRECTION_W, OBC_DIRECTION_N, OBC_DIRECTION_S
 use MOM_unit_scaling, only : unit_scale_type
-use MOM_variables, only : BT_cont_type, porous_barrier_type
+use MOM_variables, only : BT_cont_type, BT_cont_C, porous_barrier_type
 use MOM_verticalGrid, only : verticalGrid_type
 
 use array_mod, only : RealArray_t, RealArray_c, LogicalArray_t
@@ -546,7 +546,7 @@ implicit none ; private
       use iso_c_binding, only : c_double, c_bool, c_ptr
       use array_mod, only : RealArray_c
       use box_mod,   only : Box_c
-      use MOM_continuity_PPM, only : BT_cont_C
+      use MOM_variables, only : BT_cont_C
       implicit none
 
       type(Box_C),       intent(in)        :: bx     !< Iteration box for continuity solver
@@ -629,7 +629,7 @@ implicit none ; private
       use iso_c_binding, only : c_double, c_bool, c_ptr
       use array_mod, only : RealArray_c
       use box_mod,   only : Box_c
-      use MOM_continuity_PPM, only : BT_cont_C
+      use MOM_variables, only : BT_cont_C
       implicit none
 
       type(Box_C),       intent(in)        :: bx     !< Iteration box for continuity solver
@@ -712,7 +712,7 @@ implicit none ; private
       use iso_c_binding, only : c_double, c_bool
       use array_mod, only : RealArray_c, LogicalArray_c
       use box_mod,   only : Box_c
-      use MOM_continuity_PPM, only : BT_cont_C
+      use MOM_variables, only : BT_cont_C
       implicit none
 
       type(Box_C),          intent(in)        :: bx     !< Iteration box for continuity solver
@@ -770,7 +770,7 @@ implicit none ; private
       use iso_c_binding, only : c_double, c_bool
       use array_mod, only : RealArray_c, LogicalArray_c
       use box_mod,   only : Box_c
-      use MOM_continuity_PPM, only : BT_cont_C
+      use MOM_variables, only : BT_cont_C
       implicit none
 
       type(Box_C),          intent(in)        :: bx     !< Iteration box for continuity solver
@@ -932,24 +932,6 @@ contains
   procedure, public :: write_binary => BT_cont_container_write_binary !< Write to a capture file
   procedure, public :: read_binary  => BT_cont_container_read_binary  !< Read from a capture file
 end type BT_cont_container_type
-
-!> bind(C) mirror of BT_cont_container_type, one RealArray_C per field.
-type, bind(C) :: BT_cont_C
-  type(RealArray_C) :: FA_u_EE !< See BT_cont_container_type%FA_u_EE_a.
-  type(RealArray_C) :: FA_u_E0 !< See BT_cont_container_type%FA_u_E0_a.
-  type(RealArray_C) :: FA_u_W0 !< See BT_cont_container_type%FA_u_W0_a.
-  type(RealArray_C) :: FA_u_WW !< See BT_cont_container_type%FA_u_WW_a.
-  type(RealArray_C) :: uBT_WW  !< See BT_cont_container_type%uBT_WW_a.
-  type(RealArray_C) :: uBT_EE  !< See BT_cont_container_type%uBT_EE_a.
-  type(RealArray_C) :: FA_v_NN !< See BT_cont_container_type%FA_v_NN_a.
-  type(RealArray_C) :: FA_v_N0 !< See BT_cont_container_type%FA_v_N0_a.
-  type(RealArray_C) :: FA_v_S0 !< See BT_cont_container_type%FA_v_S0_a.
-  type(RealArray_C) :: FA_v_SS !< See BT_cont_container_type%FA_v_SS_a.
-  type(RealArray_C) :: vBT_SS  !< See BT_cont_container_type%vBT_SS_a.
-  type(RealArray_C) :: vBT_NN  !< See BT_cont_container_type%vBT_NN_a.
-  type(RealArray_C) :: h_u     !< See BT_cont_container_type%h_u_a.
-  type(RealArray_C) :: h_v     !< See BT_cont_container_type%h_v_a.
-end type BT_cont_C
 
 !> Finds the thickness fluxes from the continuity solver or their vertical sum without
 !! actually updating the layer thicknesses.
