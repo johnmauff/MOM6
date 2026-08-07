@@ -2839,6 +2839,8 @@ subroutine btstep_timeloop(eta_a, ubt_a, vbt_a, uhbt0_a, Datu_a, BTCL_u, vhbt0_a
   logical :: submerged(SZIW_(CS),SZJW_(CS)), eta_is_submerged
   type(RealArray_t) :: uhbt_a, ubt_trans_a, ubt_prev_a
   type(RealArray_t) :: ubt_int_a, ubt_int_prev_a, uhbt_int_a, uhbt_int_prev_a
+  type(RealArray_t) :: vhbt_a, vbt_trans_a, vbt_prev_a
+  type(RealArray_t) :: vbt_int_a, vbt_int_prev_a, vhbt_int_a, vhbt_int_prev_a
 
   call eta_a%view(eta)
   call ubt_a%view(ubt)
@@ -3240,9 +3242,30 @@ subroutine btstep_timeloop(eta_a, ubt_a, vbt_a, uhbt0_a, Datu_a, BTCL_u, vhbt0_a
 
     if (CS%BT_OBC%v_OBCs_on_PE) then
       !$omp target update from(vbt, vhbt, vbt_trans, eta, SpV_col_avg, vbt_prev, Datv, BTCL_v, vhbt0)
-      call apply_v_velocity_OBCs(vbt, vhbt, vbt_trans, eta, SpV_col_avg, vbt_prev, BT_OBC, &
-             G, MS, GV, US, CS, iev-ie, dtbt, CS%bebt, use_BT_cont, integral_BT_cont, n*dtbt, &
-             Datv, BTCL_v, vhbt0, vbt_int, vbt_int_prev, vhbt_int, vhbt_int_prev)
+      call vhbt_a%alloc(lb=LBOUND(vhbt), ub=UBOUND(vhbt), source=vhbt)
+      call vbt_trans_a%alloc(lb=LBOUND(vbt_trans), ub=UBOUND(vbt_trans), source=vbt_trans)
+      call vbt_prev_a%alloc(lb=LBOUND(vbt_prev), ub=UBOUND(vbt_prev), source=vbt_prev)
+      call vbt_int_a%alloc(lb=LBOUND(vbt_int), ub=UBOUND(vbt_int), source=vbt_int)
+      call vbt_int_prev_a%alloc(lb=LBOUND(vbt_int_prev), ub=UBOUND(vbt_int_prev), &
+                                source=vbt_int_prev)
+      call vhbt_int_a%alloc(lb=LBOUND(vhbt_int), ub=UBOUND(vhbt_int), source=vhbt_int)
+      call vhbt_int_prev_a%alloc(lb=LBOUND(vhbt_int_prev), ub=UBOUND(vhbt_int_prev), &
+                                 source=vhbt_int_prev)
+      call apply_v_velocity_OBCs(vbt_a, vhbt_a, vbt_trans_a, eta_a, SpV_col_avg_a, vbt_prev_a, &
+             BT_OBC, G, MS, GV, US, CS, iev-ie, dtbt, CS%bebt, use_BT_cont, integral_BT_cont, &
+             n*dtbt, Datv_a, BTCL_v, vhbt0_a, vbt_int_a, vbt_int_prev_a, vhbt_int_a, &
+             vhbt_int_prev_a)
+      call vhbt_a%copy2F(vhbt)
+      call vbt_trans_a%copy2F(vbt_trans)
+      call vbt_int_a%copy2F(vbt_int)
+      call vhbt_int_a%copy2F(vhbt_int)
+      call vhbt_a%free()
+      call vbt_trans_a%free()
+      call vbt_prev_a%free()
+      call vbt_int_a%free()
+      call vbt_int_prev_a%free()
+      call vhbt_int_a%free()
+      call vhbt_int_prev_a%free()
       !$omp target update to(vbt, vhbt, vbt_trans)
     endif
 
@@ -4478,23 +4501,25 @@ end subroutine apply_u_velocity_OBCs
 
 !> This subroutine applies the open boundary conditions on barotropic meridional
 !! velocities and mass transports, as developed by Mehmet Ilicak.
-subroutine apply_v_velocity_OBCs(vbt, vhbt, vbt_trans, eta, SpV_avg, vbt_old, BT_OBC, &
-                               G, MS, GV, US, CS, halo, dtbt, bebt, use_BT_cont, integral_BT_cont, dt_elapsed, &
-                               Datv, BTCL_v, vhbt0, vbt_int, vbt_int_prev, vhbt_int, vhbt_int_prev)
+subroutine apply_v_velocity_OBCs(vbt_a, vhbt_a, vbt_trans_a, eta_a, SpV_avg_a, vbt_old_a, &
+                               BT_OBC, G, MS, GV, US, CS, halo, dtbt, bebt, use_BT_cont, &
+                               integral_BT_cont, dt_elapsed, Datv_a, BTCL_v, vhbt0_a, &
+                               vbt_int_a, vbt_int_prev_a, vhbt_int_a, vhbt_int_prev_a)
   type(ocean_grid_type),                 intent(in)    :: G       !< The ocean's grid structure.
   type(memory_size_type),                intent(in)    :: MS      !< A type that describes the memory sizes of
                                                                   !! the argument arrays.
-  real, dimension(SZIW_(MS),SZJBW_(MS)), intent(inout) :: vbt     !< The meridional barotropic velocity
-                                                                  !! [L T-1 ~> m s-1].
-  real, dimension(SZIW_(MS),SZJBW_(MS)), intent(inout) :: vhbt    !< the meridional barotropic transport
-                                                                  !! [H L2 T-1 ~> m3 s-1 or kg s-1].
-  real, dimension(SZIW_(MS),SZJBW_(MS)), intent(inout) :: vbt_trans !< the meridional BT velocity used in
-                                                                  !! transports [L T-1 ~> m s-1].
-  real, dimension(SZIW_(MS),SZJW_(MS)),  intent(in)    :: eta     !< The barotropic free surface height anomaly or
-                                                                  !! column mass anomaly [H ~> m or kg m-2].
-  real, dimension(SZIW_(MS),SZJW_(MS)),  intent(in)    :: SpV_avg !< The column average specific volume [R-1 ~> m3 kg-1]
-  real, dimension(SZIW_(MS),SZJBW_(MS)), intent(in)    :: vbt_old !< The starting value of vbt in a barotropic
-                                                                  !! step [L T-1 ~> m s-1].
+  type(RealArray_t), intent(inout) :: vbt_a       !< The meridional barotropic velocity
+                                                  !! [L T-1 ~> m s-1].
+  type(RealArray_t), intent(inout) :: vhbt_a      !< the meridional barotropic transport
+                                                  !! [H L2 T-1 ~> m3 s-1 or kg s-1].
+  type(RealArray_t), intent(inout) :: vbt_trans_a !< the meridional BT velocity used in
+                                                  !! transports [L T-1 ~> m s-1].
+  type(RealArray_t), intent(in)    :: eta_a       !< The barotropic free surface height anomaly or
+                                                  !! column mass anomaly [H ~> m or kg m-2].
+  type(RealArray_t), intent(in)    :: SpV_avg_a   !< The column average specific volume
+                                                  !! [R-1 ~> m3 kg-1]
+  type(RealArray_t), intent(in)    :: vbt_old_a   !< The starting value of vbt in a barotropic
+                                                  !! step [L T-1 ~> m s-1].
   type(BT_OBC_type),                     intent(in)    :: BT_OBC  !< A structure with the private barotropic arrays
                                                                   !! related to the open boundary conditions,
                                                                   !! set by set_up_BT_OBC.
@@ -4512,27 +4537,30 @@ subroutine apply_v_velocity_OBCs(vbt, vhbt, vbt_trans, eta, SpV_avg, vbt_old, BT
                                                                   !! using the time-integrated barotropic velocity.
   real,                                  intent(in)    :: dt_elapsed !< The amount of time in the barotropic stepping
                                                                   !! that will have elapsed [T ~> s].
-  real, dimension(SZIW_(MS),SZJBW_(MS)), intent(in)    :: Datv    !< A fixed estimate of the face areas at v points
-                                                                  !! [H L ~> m2 or kg m-1].
+  type(RealArray_t), intent(in)    :: Datv_a      !< A fixed estimate of the face areas at v points
+                                                  !! [H L ~> m2 or kg m-1].
   type(local_BT_cont_v_type), dimension(SZIW_(MS),SZJBW_(MS)), intent(in) :: BTCL_v !< Structure of information used
                                                                   !! for a dynamic estimate of the face areas at
                                                                   !! v-points.
-  real, dimension(SZIW_(MS),SZJBW_(MS)), intent(in)    :: vhbt0   !< A correction to the meridional transport so that
-                                                                  !! the barotropic functions agree with the sum
-                                                                  !! of the layer transports
-                                                                  !! [H L2 T-1 ~> m3 s-1 or kg s-1].
-  real, dimension(SZIW_(MS),SZJBW_(MS)), intent(inout) :: vbt_int !< The time-integrated meridional barotropic
-                                                                  !! velocity after this update [L T-1 ~> m s-1].
-  real, dimension(SZIW_(MS),SZJBW_(MS)), intent(in)    :: vbt_int_prev !< The time-integrated meridional barotropic
-                                                                  !! velocity before this update [L T-1 ~> m s-1].
-  real, dimension(SZIW_(MS),SZJBW_(MS)), intent(inout) :: vhbt_int !< The time-integrated meridional barotropic
-                                                                  !! transport after this update
-                                                                  !! [H L2 T-1 ~> m3 s-1 or kg s-1]
-  real, dimension(SZIW_(MS),SZJBW_(MS)), intent(in)    :: vhbt_int_prev !< The time-integrated meridional barotropic
-                                                                  !! transport before this update
-                                                                  !! [H L2 T-1 ~> m3 s-1 or kg s-1]
+  type(RealArray_t), intent(in)    :: vhbt0_a     !< A correction to the meridional transport
+                                                  !! so that the barotropic functions agree
+                                                  !! with the sum of the layer transports
+                                                  !! [H L2 T-1 ~> m3 s-1 or kg s-1].
+  type(RealArray_t), intent(inout) :: vbt_int_a   !< The time-integrated meridional barotropic
+                                                  !! velocity after this update [L T-1 ~> m s-1].
+  type(RealArray_t), intent(in)    :: vbt_int_prev_a !< The time-integrated meridional barotropic
+                                                  !! velocity before this update [L T-1 ~> m s-1].
+  type(RealArray_t), intent(inout) :: vhbt_int_a  !< The time-integrated meridional barotropic
+                                                  !! transport after this update
+                                                  !! [H L2 T-1 ~> m3 s-1 or kg s-1]
+  type(RealArray_t), intent(in)    :: vhbt_int_prev_a !< The time-integrated meridional barotropic
+                                                  !! transport before this update
+                                                  !! [H L2 T-1 ~> m3 s-1 or kg s-1]
 
   ! Local variables
+  real, dimension(:,:), contiguous, pointer :: vbt, vhbt, vbt_trans, eta, SpV_avg, vbt_old
+  real, dimension(:,:), contiguous, pointer :: Datv, vhbt0, vbt_int, vbt_int_prev
+  real, dimension(:,:), contiguous, pointer :: vhbt_int, vhbt_int_prev
   real :: vel_prev    ! The previous velocity [L T-1 ~> m s-1].
   real :: cfl         ! The CFL number at the point in question [nondim]
   real :: v_inlet     ! The meridional inflow velocity [L T-1 ~> m s-1]
@@ -4542,6 +4570,19 @@ subroutine apply_v_velocity_OBCs(vbt, vhbt, vbt_trans, eta, SpV_avg, vbt_old, BT
   real :: ssh_2       ! The sea surface height in the next cell inward from the OBC face [Z ~> m]
   real :: Idtbt       ! The inverse of the barotropic time step [T-1 ~> s-1]
   integer :: i, j, is, ie, Js_v, Je_v
+
+  call vbt_a%view(vbt)
+  call vhbt_a%view(vhbt)
+  call vbt_trans_a%view(vbt_trans)
+  call eta_a%view(eta)
+  call SpV_avg_a%view(SpV_avg)
+  call vbt_old_a%view(vbt_old)
+  call Datv_a%view(Datv)
+  call vhbt0_a%view(vhbt0)
+  call vbt_int_a%view(vbt_int)
+  call vbt_int_prev_a%view(vbt_int_prev)
+  call vhbt_int_a%view(vhbt_int)
+  call vhbt_int_prev_a%view(vhbt_int_prev)
 
   if (.not.BT_OBC%v_OBCs_on_PE) return
 
