@@ -637,9 +637,12 @@ type, public :: BT_cont_container_type ; private
                              !! [H ~> m or kg m-2]. Unassociated if the real BT_cont_type's h_v
                              !! was never allocated.
 contains
-  procedure, public :: build_from  => BT_cont_container_build_from
-  procedure, public :: copy_back   => BT_cont_container_copy_back
-  procedure, public :: associated  => BT_cont_container_associated
+  procedure, public :: build_from  => BT_cont_container_build_from !< Alloc+copy in from a
+                                                                    !! real BT_cont_type.
+  procedure, public :: copy_back   => BT_cont_container_copy_back !< Copy2F+free back into a
+                                                                   !! real BT_cont_type.
+  procedure, public :: associated  => BT_cont_container_associated !< True if built from an
+                                                                    !! associated BT_cont.
 end type BT_cont_container_type
 
 !> Finds the thickness fluxes from the continuity solver or their vertical sum without
