@@ -3013,6 +3013,8 @@ subroutine present_uhbt_or_set_BT_cont_fortran(bxC, u_a, h_in_a, h_W_a, h_E_a, u
   type(RealArray_t) :: no_uh_3d_a ! Never allocated; unassociated data signals uh_3d_a absent.
   type(RealArray_t) :: no_uhbt_a ! Never allocated; unassociated data signals uhbt_a absent.
 
+  nullify(uhbt, u_cor, du_cor, FA_u_W0, FA_u_E0, FA_u_WW, FA_u_EE, uBT_WW, uBT_EE)
+
   call u_a%view(u)
   call h_in_a%view(h_in)
   call h_W_a%view(h_W)
@@ -5346,6 +5348,8 @@ subroutine present_vhbt_or_set_BT_cont_fortran(bxC, v_a, h_in_a, h_S_a, h_N_a, v
   type(LogicalArray_t) :: do_I_a
   type(RealArray_t) :: no_vh_3d_a ! Never allocated; unassociated data signals vh_3d_a absent.
   type(RealArray_t) :: no_vhbt_a ! Never allocated; unassociated data signals vhbt_a absent.
+
+  nullify(vhbt, v_cor, dv_cor, FA_v_S0, FA_v_N0, FA_v_SS, FA_v_NN, vBT_SS, vBT_NN)
 
   call v_a%view(v)
   call h_in_a%view(h_in)
