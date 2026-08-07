@@ -2842,7 +2842,7 @@ subroutine btstep_timeloop(eta_a, ubt_a, vbt_a, uhbt0_a, Datu_a, BTCL_u, vhbt0_a
   type(RealArray_t) :: vhbt_a, vbt_trans_a, vbt_prev_a
   type(RealArray_t) :: vbt_int_a, vbt_int_prev_a, vhbt_int_a, vhbt_int_prev_a
   type(RealArray_t) :: PFu_a, PFv_a, eta_pred_a, p_surf_dyn_a
-  type(RealArray_t) :: Cor_u_a
+  type(RealArray_t) :: Cor_u_a, Cor_v_a
 
   call eta_a%view(eta)
   call ubt_a%view(ubt)
@@ -3141,9 +3141,15 @@ subroutine btstep_timeloop(eta_a, ubt_a, vbt_a, uhbt0_a, Datu_a, BTCL_u, vhbt0_a
 
     if (v_first) then
       ! On odd-steps, update v first.
-      call btloop_update_v(dtbt, ubt, vbt, v_accel_bt, Cor_v, PFv, isv-1, iev+1, jsv-1, jev, &
-                           f_4_v, bt_rem_v, BT_force_v, Cor_ref_v, Rayleigh_v, &
+      call Cor_v_a%alloc(lb=LBOUND(Cor_v), ub=UBOUND(Cor_v), source=Cor_v)
+      call PFv_a%alloc(lb=LBOUND(PFv), ub=UBOUND(PFv), source=PFv)
+      call btloop_update_v(dtbt, ubt_a, vbt_a, v_accel_bt_a, Cor_v_a, PFv_a, &
+                           isv-1, iev+1, jsv-1, jev, &
+                           f_4_v_a, bt_rem_v_a, BT_force_v_a, Cor_ref_v_a, Rayleigh_v_a, &
                            wt_accel(n), G, US, CS)
+      call Cor_v_a%copy2F(Cor_v)
+      call Cor_v_a%free()
+      call PFv_a%free()
 
       ! Now update the zonal velocity.
       call Cor_u_a%alloc(lb=LBOUND(Cor_u), ub=UBOUND(Cor_u), source=Cor_u)
@@ -3167,9 +3173,14 @@ subroutine btstep_timeloop(eta_a, ubt_a, vbt_a, uhbt0_a, Datu_a, BTCL_u, vhbt0_a
       call Cor_u_a%free()
       call PFu_a%free()
       ! Now update the meridional velocity.
-      call btloop_update_v(dtbt, ubt, vbt, v_accel_bt, Cor_v, PFv, isv, iev, jsv-1, jev, &
-                           f_4_v, bt_rem_v, BT_force_v, Cor_ref_v, Rayleigh_v, &
+      call Cor_v_a%alloc(lb=LBOUND(Cor_v), ub=UBOUND(Cor_v), source=Cor_v)
+      call PFv_a%alloc(lb=LBOUND(PFv), ub=UBOUND(PFv), source=PFv)
+      call btloop_update_v(dtbt, ubt_a, vbt_a, v_accel_bt_a, Cor_v_a, PFv_a, isv, iev, jsv-1, jev, &
+                           f_4_v_a, bt_rem_v_a, BT_force_v_a, Cor_ref_v_a, Rayleigh_v_a, &
                            wt_accel(n), G, US, CS, Cor_bracket_bug=CS%use_old_coriolis_bracket_bug)
+      call Cor_v_a%copy2F(Cor_v)
+      call Cor_v_a%free()
+      call PFv_a%free()
     endif
 
     ! Determine the transports based on the updated velocities when no OBCs are applied
@@ -3926,25 +3937,25 @@ subroutine btloop_add_dyn_PF(PFu_a, PFv_a, eta_pred_a, eta_a, dyn_coef_eta_a, p_
 end subroutine btloop_add_dyn_PF
 
 !> Update meridional velocity.
-subroutine btloop_update_v(dtbt, ubt, vbt, v_accel_bt, &
-                           Cor_v, PFv, is_v, ie_v, Js_v, Je_v, f_4_v, &
-                           bt_rem_v, BT_force_v, Cor_ref_v, Rayleigh_v, &
+subroutine btloop_update_v(dtbt, ubt_a, vbt_a, v_accel_bt_a, &
+                           Cor_v_a, PFv_a, is_v, ie_v, Js_v, Je_v, f_4_v_a, &
+                           bt_rem_v_a, BT_force_v_a, Cor_ref_v_a, Rayleigh_v_a, &
                            wt_accel_n, G, US, CS, Cor_bracket_bug)
   type(ocean_grid_type),   intent(inout) :: G     !< The ocean's grid structure.
   type(barotropic_CS),     intent(inout) :: CS    !< Barotropic control structure
-  real, dimension(SZIBW_(CS),SZJW_(CS)), intent(in) :: &
-    ubt           !< The zonal barotropic velocity [L T-1 ~> m s-1].
-  real, dimension(SZIW_(CS),SZJBW_(CS)), intent(inout) :: &
-    vbt           !< The meridional barotropic velocity [L T-1 ~> m s-1].
-  real, dimension(SZIW_(CS),SZJBW_(CS)), intent(inout) :: &
-    v_accel_bt    !< The difference between the meridional acceleration from the
+  type(RealArray_t), intent(in) :: &
+    ubt_a         !< The zonal barotropic velocity [L T-1 ~> m s-1].
+  type(RealArray_t), intent(inout) :: &
+    vbt_a         !< The meridional barotropic velocity [L T-1 ~> m s-1].
+  type(RealArray_t), intent(inout) :: &
+    v_accel_bt_a  !< The difference between the meridional acceleration from the
                   !! barotropic calculation and BT_force_v [L T-2 ~> m s-2].
-  real, dimension(SZIW_(CS),SZJBW_(CS)), intent(inout) :: &
-    Cor_v         !< The meridional Coriolis acceleration [L T-2 ~> m s-2]
-  real, dimension(SZIW_(CS),SZJBW_(CS)), intent(in) :: &
-    PFv           !< The meridional pressure force acceleration [L T-2 ~> m s-2].
-  real, dimension(4,SZIW_(CS),SZJBW_(CS)), intent(in) :: &
-    f_4_v         !< The terms giving the contribution to the Coriolis acceleration at a meridional
+  type(RealArray_t), intent(inout) :: &
+    Cor_v_a       !< The meridional Coriolis acceleration [L T-2 ~> m s-2]
+  type(RealArray_t), intent(in) :: &
+    PFv_a         !< The meridional pressure force acceleration [L T-2 ~> m s-2].
+  type(RealArray_t), intent(in) :: &
+    f_4_v_a       !< The terms giving the contribution to the Coriolis acceleration at a meridional
                   !! velocity point from the neighboring meridional velocity anomalies [T-1 ~> s-1].
                   !! These are the products of thicknesses at u points and appropriately staggered
                   !! averaged pseudo potential vorticities, but with sufficiently smooth topography
@@ -3954,18 +3965,18 @@ subroutine btloop_update_v(dtbt, ubt, vbt, v_accel_bt, &
   integer, intent(in)  :: ie_v !< The ending i-index of the range of v-point values to calculate
   integer, intent(in)  :: Js_v !< The starting j-index of the range of v-point values to calculate
   integer, intent(in)  :: Je_v !< The ending j-index of the range of v-point values to calculate
-  real, dimension(SZIW_(CS),SZJBW_(CS)), intent(in) :: &
-    bt_rem_v      !< The fraction of the barotropic meridional velocity that
+  type(RealArray_t), intent(in) :: &
+    bt_rem_v_a    !< The fraction of the barotropic meridional velocity that
                   !! remains after a time step, the rest being lost to bottom
                   !! drag [nondim].  bt_rem_v is between 0 and 1.
-  real, dimension(SZIW_(CS),SZJBW_(CS)), intent(in) :: &
-    BT_force_v    !< The vertical average of all of the v-accelerations that are
+  type(RealArray_t), intent(in) :: &
+    BT_force_v_a  !< The vertical average of all of the v-accelerations that are
                   !! not explicitly included in the barotropic equation [L T-2 ~> m s-2].
-  real, dimension(SZIW_(CS),SZJBW_(CS)), intent(in) :: &
-    Cor_ref_v     !< The meridional barotropic Coriolis acceleration due
+  type(RealArray_t), intent(in) :: &
+    Cor_ref_v_a   !< The meridional barotropic Coriolis acceleration due
                   !! to the reference velocities [L T-2 ~> m s-2].
-  real, dimension(SZIW_(CS),SZJBW_(CS)), intent(in) :: &
-    Rayleigh_v    !< A Rayleigh drag timescale operating at v-points for drag parameterizations
+  type(RealArray_t), intent(in) :: &
+    Rayleigh_v_a  !< A Rayleigh drag timescale operating at v-points for drag parameterizations
                   !! that introduced directly into the barotropic solver rather than coming
                   !! in via the visc_rem_v arrays from the layered equations [T-1 ~> s-1]
   real,    intent(in) :: wt_accel_n  !< The raw or relative weights of each of the barotropic timesteps
@@ -3976,8 +3987,22 @@ subroutine btloop_update_v(dtbt, ubt, vbt, v_accel_bt, &
                   !! not bitwise rotationally symmetric in the meridional Coriolis term
 
   ! Local variables
+  real, dimension(:,:), contiguous, pointer :: ubt, vbt, v_accel_bt, Cor_v, PFv
+  real, dimension(:,:), contiguous, pointer :: bt_rem_v, BT_force_v, Cor_ref_v, Rayleigh_v
+  real, dimension(:,:,:), contiguous, pointer :: f_4_v
   logical :: use_bracket_bug
   integer :: i, j
+
+  call ubt_a%view(ubt)
+  call vbt_a%view(vbt)
+  call v_accel_bt_a%view(v_accel_bt)
+  call Cor_v_a%view(Cor_v)
+  call PFv_a%view(PFv)
+  call f_4_v_a%view(f_4_v)
+  call bt_rem_v_a%view(bt_rem_v)
+  call BT_force_v_a%view(BT_force_v)
+  call Cor_ref_v_a%view(Cor_ref_v)
+  call Rayleigh_v_a%view(Rayleigh_v)
 
   use_bracket_bug = .false. ; if (present(Cor_bracket_bug)) use_bracket_bug = Cor_bracket_bug
 
