@@ -551,37 +551,37 @@ integer :: id_clock_reconstruct, id_clock_update, id_clock_correct
 
 !> Control structure for mom_continuity_ppm
 type, public :: continuity_PPM_CS ; private
-  logical :: initialized = .false. !< True if this control structure has been initialized.
+  logical, public :: initialized = .false. !< True if this control structure has been initialized.
   type(diag_ctrl), pointer :: diag !< Diagnostics control structure.
-  logical :: upwind_1st      !< If true, use a first-order upwind scheme.
-  logical :: monotonic       !< If true, use the Colella & Woodward monotonic
+  logical, public :: upwind_1st      !< If true, use a first-order upwind scheme.
+  logical, public :: monotonic       !< If true, use the Colella & Woodward monotonic
                              !! limiter; otherwise use a simple positive
                              !! definite limiter.
-  logical :: simple_2nd      !< If true, use a simple second order (arithmetic
+  logical, public :: simple_2nd      !< If true, use a simple second order (arithmetic
                              !! mean) interpolation of the edge values instead
                              !! of the higher order interpolation.
-  real :: tol_eta            !< The tolerance for free-surface height
+  real, public :: tol_eta            !< The tolerance for free-surface height
                              !! discrepancies between the barotropic solution and
                              !! the sum of the layer thicknesses [H ~> m or kg m-2].
-  real :: tol_vel            !< The tolerance for barotropic velocity
+  real, public :: tol_vel            !< The tolerance for barotropic velocity
                              !! discrepancies between the barotropic solution and
                              !! the sum of the layer thicknesses [L T-1 ~> m s-1].
-  real :: CFL_limit_adjust   !< The maximum CFL of the adjusted velocities [nondim]
+  real, public :: CFL_limit_adjust   !< The maximum CFL of the adjusted velocities [nondim]
   real :: h_marg_min         !< Negligible floor on h_marg, the marginal thickness
                              !! used to calculate the partial derivative of transports
                              !! with velocities [H ~> m or kg m-2]
-  logical :: aggress_adjust  !< If true, allow the adjusted velocities to have a
+  logical, public :: aggress_adjust  !< If true, allow the adjusted velocities to have a
                              !! relative CFL change up to 0.5.  False by default.
-  logical :: vol_CFL         !< If true, use the ratio of the open face lengths
+  logical, public :: vol_CFL         !< If true, use the ratio of the open face lengths
                              !! to the tracer cell areas when estimating CFL
                              !! numbers.  Without aggress_adjust, the default is
                              !! false; it is always true with.
-  logical :: better_iter     !< If true, stop corrective iterations using a
+  logical, public :: better_iter     !< If true, stop corrective iterations using a
                              !! velocity-based criterion and only stop if the
                              !! iteration is better than all predecessors.
-  logical :: use_visc_rem_max !< If true, use more appropriate limiting bounds
+  logical, public :: use_visc_rem_max !< If true, use more appropriate limiting bounds
                              !! for corrections in strongly viscous columns.
-  logical :: marginal_faces  !< If true, use the marginal face areas from the
+  logical, public :: marginal_faces  !< If true, use the marginal face areas from the
                              !! continuity solver for use as the weights in the
                              !! barotropic solver.  Otherwise use the transport
                              !! averaged areas.
