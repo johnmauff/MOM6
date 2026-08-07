@@ -4028,7 +4028,7 @@ subroutine zonal_flux_adjust_fortran(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a,
   integer :: jsh !< Start of j index range.
   integer :: ieh !< End of i index range.
   integer :: jeh !< End of j index range.
-  logical :: do_I(u_a%lb(1):u_a%ub(1)), local_OBC, use_uhbt
+  logical :: do_I(u_a%lb(1):u_a%ub(1)), local_OBC, use_uhbt, use_uh_3d
   integer, parameter:: max_itts = 20
   real, dimension(:,:,:), contiguous, pointer :: u, h_in, h_W, h_E, visc_rem, por_face_areaU, uh_3d
   real, dimension(:,:),   contiguous, pointer :: uh_tot_0, duhdu_tot_0, du, du_max_CFL, du_min_CFL
@@ -4063,6 +4063,7 @@ subroutine zonal_flux_adjust_fortran(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a,
   endif
 
   use_uhbt = uhbt_a%associated()
+  use_uh_3d = uh_3d_a%associated()
 
   ish = bxC%idxS(1) ; ieh = bxC%idxE(1) ; jsh = bxC%idxS(2) ; jeh = bxC%idxE(2) ; nz  = bxC%idxE(3)
 
@@ -4077,7 +4078,7 @@ subroutine zonal_flux_adjust_fortran(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a,
   !$omp   private(uh_err, uh_err_best, duhdu_tot, du_min, du_max, do_I, uh_aux, itt, tol_eta)
   do j=jsh,jeh
 
-    if (uh_3d_a%associated()) then
+    if (use_uh_3d) then
       do concurrent (k=1:nz, I=ish-1:ieh)
         uh_aux(I,k) = uh_3d(I,j,k)
       enddo
@@ -4138,7 +4139,7 @@ subroutine zonal_flux_adjust_fortran(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a,
       if (.not. any(do_I(ish-1:ieh))) exit
       !$ endif
 
-      if ((itt < max_itts) .or. uh_3d_a%associated()) then
+      if ((itt < max_itts) .or. use_uh_3d) then
         do concurrent (I=ish-1:ieh)
           uh_err(I) = 0.0 ; duhdu_tot(I) = 0.0
           if (use_uhbt) uh_err(I) = -uhbt(I,j)
@@ -4164,7 +4165,7 @@ subroutine zonal_flux_adjust_fortran(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a,
       endif
 
     enddo ! itt-loop
-    if (uh_3d_a%associated()) then
+    if (use_uh_3d) then
       do concurrent (k=1:nz, I=ish-1:ieh)
         uh_3d(I,j,k) = uh_aux(I,k)
       enddo
@@ -6267,7 +6268,7 @@ subroutine meridional_flux_adjust_fortran(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot
   real :: tol_eta ! The tolerance for the current iteration [H ~> m or kg m-2].
   real :: tol_vel ! The tolerance for velocity in the current iteration [L T-1 ~> m s-1].
   integer :: i, j, k, nz, itt
-  logical :: do_I(v_a%lb(1):v_a%ub(1)), local_OBC, use_vhbt
+  logical :: do_I(v_a%lb(1):v_a%ub(1)), local_OBC, use_vhbt, use_vh_3d
   integer, parameter :: max_itts = 20
   integer :: ish     !< Start of i index range.
   integer :: ieh     !< End of i index range.
@@ -6304,6 +6305,7 @@ subroutine meridional_flux_adjust_fortran(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot
   endif
 
   use_vhbt = vhbt_a%associated()
+  use_vh_3d = vh_3d_a%associated()
 
   ish = bxC%idxS(1) ; ieh = bxC%idxE(1) ; jsh = bxC%idxS(2) ; jeh = bxC%idxE(2) ; nz  = bxC%idxE(3)
 
@@ -6317,7 +6319,7 @@ subroutine meridional_flux_adjust_fortran(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot
   !$omp   private(vh_err, vh_err_best, dvhdv_tot, dv_min, dv_max, do_I, vh_aux, itt, tol_eta)
   do J=jsh-1,jeh
 
-    if (vh_3d_a%associated()) then
+    if (use_vh_3d) then
       do concurrent (k=1:nz, i=ish:ieh)
         vh_aux(i,k) = vh_3d(i,J,k)
       enddo
@@ -6381,7 +6383,7 @@ subroutine meridional_flux_adjust_fortran(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot
       if (.not. any(do_I(ish:ieh))) exit
       !$ endif
 
-      if ((itt < max_itts) .or. vh_3d_a%associated()) then
+      if ((itt < max_itts) .or. use_vh_3d) then
         do concurrent (i=ish:ieh)
           vh_err(i) = 0.0 ; dvhdv_tot(i) = 0.0
           if (use_vhbt) vh_err(i) = -vhbt(i,J)
@@ -6409,7 +6411,7 @@ subroutine meridional_flux_adjust_fortran(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot
     ! so-be-it, or else use a final upwind correction?
     ! This never seems to happen with 20 iterations as max_itt.
 
-    if (vh_3d_a%associated()) then
+    if (use_vh_3d) then
       do concurrent (k=1:nz, i=ish:ieh)
         vh_3d(i,J,k) = vh_aux(i,k)
       enddo
