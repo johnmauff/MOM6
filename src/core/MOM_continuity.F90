@@ -19,6 +19,7 @@ use MOM_continuity_PPM, only : zonal_flux_thickness, meridional_flux_thickness
 use MOM_continuity_PPM, only : zonal_BT_mass_flux, meridional_BT_mass_flux
 use MOM_continuity_PPM, only : set_continuity_loop_bounds, cont_loop_bounds_type
 use MOM_continuity_PPM, only : set_continuity_box
+use MOM_continuity_PPM, only : BT_cont_container_type
 
 use MOM_grid, only : ocean_grid_type
 use MOM_open_boundary, only : ocean_OBC_type
@@ -125,6 +126,9 @@ subroutine continuity(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt, v
   ! for whichever of the optional raw arguments above the caller did not supply.
   type(RealArray_t) :: uhbt_a, vhbt_a, visc_rem_u_a, visc_rem_v_a
   type(RealArray_t) :: u_cor_a, v_cor_a, du_cor_a, dv_cor_a
+  ! Container-based shadow of BT_cont, built by copy-in from the real BT_cont_type and copied back
+  ! before this wrapper returns; see BT_cont_container_type in MOM_continuity_PPM.
+  type(BT_cont_container_type) :: BT_cont_a
   type(box_t) :: bxC ! The continuity solver's base iteration box, built once here
 
   call bxC%safe_alloc(ndims=3)
@@ -168,6 +172,8 @@ subroutine continuity(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt, v
   if (present(du_cor)) call du_cor_a%alloc(lb=LBOUND(du_cor), ub=UBOUND(du_cor), source=du_cor)
   if (present(dv_cor)) call dv_cor_a%alloc(lb=LBOUND(dv_cor), ub=UBOUND(dv_cor), source=dv_cor)
 
+  if (present(BT_cont)) then ; if (associated(BT_cont)) call BT_cont_a%build_from(BT_cont) ; endif
+
   call continuity_PPM(bxC, u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, &
                       mask2dT_a, IareaT_a, dy_Cu_a, IdxT_a, dxCu_a, areaT_a, dxT_a, &
                       mask2dCu_a, dx_Cv_a, IdyT_a, dyCv_a, dyT_a, mask2dCv_a, &
@@ -177,7 +183,7 @@ subroutine continuity(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt, v
                       CS%CFL_limit_adjust, CS%aggress_adjust, CS%vol_CFL, CS%better_iter, &
                       CS%use_visc_rem_max, CS%marginal_faces, CS%tol_eta, CS%tol_vel, &
                       uhbt_a, vhbt_a, visc_rem_u_a, visc_rem_v_a, u_cor_a, v_cor_a, &
-                      BT_cont, du_cor_a, dv_cor_a)
+                      BT_cont_a, du_cor_a, dv_cor_a)
 
   call bxC%free()
 
@@ -220,6 +226,8 @@ subroutine continuity(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt, v
   if (present(dv_cor)) then
     call dv_cor_a%copy2F(dv_cor) ; call dv_cor_a%free()
   endif
+
+  if (BT_cont_a%associated()) call BT_cont_a%copy_back(BT_cont)
 
 end subroutine continuity
 
