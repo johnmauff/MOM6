@@ -39,6 +39,8 @@ use MOM_verticalGrid, only : verticalGrid_type
 use MOM_variables, only : accel_diag_ptrs
 use MOM_wave_drag, only : wave_drag_init, wave_drag_calc, wave_drag_CS
 
+use array_mod, only : RealArray_t
+
 implicit none ; private
 
 #include <MOM_memory.h>
@@ -480,7 +482,7 @@ subroutine btstep(U_in, V_in, eta_in, dt, bc_accel_u, bc_accel_v, forces, pbce, 
                   eta_PF_in, U_Cor, V_Cor, accel_layer_u, accel_layer_v, &
                   eta_out, uhbtav, vhbtav, G, GV, US, CS, &
                   visc_rem_u, visc_rem_v, SpV_avg, ADp, OBC, BT_cont, eta_PF_start, &
-                  taux_bot, tauy_bot, uh0, vh0, u_uh0, v_vh0, etaav)
+                  taux_bot, tauy_bot, uh0, vh0, u_uh0, v_vh0, etaav_a)
   type(ocean_grid_type),                   intent(inout) :: G       !< The ocean's grid structure.
   type(verticalGrid_type),                   intent(in)  :: GV      !< The ocean's vertical grid structure.
   type(unit_scale_type),                     intent(in)  :: US      !< A dimensional unit scaling type
@@ -551,7 +553,7 @@ subroutine btstep(U_in, V_in, eta_in, dt, bc_accel_u, bc_accel_v, forces, pbce, 
                                                                     !! velocities [H L2 T-1 ~> m3 s-1 or kg s-1].
   real, dimension(:,:,:),                     pointer    :: v_vh0   !< The velocities used to calculate
                                                                     !! vh0 [L T-1 ~> m s-1]
-  real, dimension(SZI_(G),SZJ_(G)), optional, intent(out) :: etaav        !< The free surface height or column mass
+  type(RealArray_t), optional, intent(inout) :: etaav_a !< The free surface height or column mass
                                                          !! averaged over the barotropic integration [H ~> m or kg m-2].
 
   ! Local variables
@@ -651,6 +653,8 @@ subroutine btstep(U_in, V_in, eta_in, dt, bc_accel_u, bc_accel_v, forces, pbce, 
                   !! u-velocities to the southwest, southeast, northwest and northeast.
   real, dimension(:,:,:), pointer :: ufilt, vfilt
                   ! Filtered velocities from the output of streaming filters [L T-1 ~> m s-1]
+  real, dimension(:,:), contiguous, pointer :: etaav ! The free surface height or column mass
+                  ! averaged over the barotropic integration [H ~> m or kg m-2].
   real, dimension(SZIB_(G),SZJ_(G)) :: Drag_u
                   ! The zonal acceleration due to frequency-dependent drag [L T-2 ~> m s-2]
   real, dimension(SZI_(G),SZJB_(G)) :: Drag_v
@@ -777,7 +781,8 @@ subroutine btstep(U_in, V_in, eta_in, dt, bc_accel_u, bc_accel_v, forces, pbce, 
   if ((.not.use_BT_cont) .and. CS%Nonlinear_continuity .and. &
       (CS%Nonlin_cont_update_period > 0)) stencil = max(2, CS%min_stencil)
 
-  find_etaav = present(etaav)
+  find_etaav = present(etaav_a)
+  if (find_etaav) call etaav_a%view(etaav)
 
   add_uh0 = associated(uh0)
   if (add_uh0 .and. .not.(associated(vh0) .and. associated(u_uh0) .and. &

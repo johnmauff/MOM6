@@ -81,6 +81,8 @@ use MOM_verticalGrid,          only : verticalGrid_type, get_thickness_units
 use MOM_verticalGrid,          only : get_flux_units, get_tr_flux_units
 use MOM_wave_interface,        only : wave_parameters_CS, Stokes_PGF
 
+use array_mod, only : RealArray_t
+
 implicit none ; private
 
 #include <MOM_memory.h>
@@ -366,6 +368,7 @@ subroutine step_MOM_dyn_split_RK2(u_inst, v_inst, h, tv, visc, Time_local, dt, f
 
   real, dimension(SZI_(G),SZJ_(G)) :: eta_pred ! The predictor value of the free surface height
                                                ! or column mass [H ~> m or kg m-2]
+  type(RealArray_t) :: eta_av_a
   real, dimension(SZI_(G),SZJ_(G)) :: SpV_avg  ! The column averaged specific volume [R-1 ~> m3 kg-1]
   real, dimension(SZI_(G),SZJ_(G)) :: deta_dt  ! A diagnostic of the time derivative of the free surface
                                                ! height or column mass [H T-1 ~> m s-1 or kg m-2 s-1]
@@ -1020,10 +1023,13 @@ subroutine step_MOM_dyn_split_RK2(u_inst, v_inst, h, tv, visc, Time_local, dt, f
 
   if (showCallTree) call callTree_enter("btstep(), MOM_barotropic.F90")
   ! This is the corrector step call to btstep.
+  call eta_av_a%alloc(lb=LBOUND(eta_av), ub=UBOUND(eta_av), source=eta_av)
   call btstep(u_inst, v_inst, eta, dt, u_bc_accel, v_bc_accel, forces, CS%pbce, CS%eta_PF, u_av, v_av, &
               CS%u_accel_bt, CS%v_accel_bt, eta_pred, CS%uhbt, CS%vhbt, G, GV, US, &
               CS%barotropic_CSp, CS%visc_rem_u, CS%visc_rem_v, SpV_avg, CS%ADp, CS%OBC, CS%BT_cont, &
-              eta_PF_start, taux_bot, tauy_bot, uh_ptr, vh_ptr, u_ptr, v_ptr, etaav=eta_av)
+              eta_PF_start, taux_bot, tauy_bot, uh_ptr, vh_ptr, u_ptr, v_ptr, etaav_a=eta_av_a)
+  call eta_av_a%copy2F(eta_av)
+  call eta_av_a%free()
 
   if (CS%id_deta_dt>0) then
     !$omp target update from(eta, eta_pred)
