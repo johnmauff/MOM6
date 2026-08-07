@@ -657,6 +657,9 @@ subroutine btstep(U_in, V_in, eta_in, dt, bc_accel_u, bc_accel_v, forces, pbce, 
                   ! averaged over the barotropic integration [H ~> m or kg m-2].
   type(RealArray_t) :: ubt_a, uhbt_a, vbt_a, vhbt_a
   type(RealArray_t) :: q_a, DCor_u_a, DCor_v_a, f_4_u_a, f_4_v_a
+  type(RealArray_t) :: u_accel_bt_a, v_accel_bt_a, pbce_a
+  type(RealArray_t) :: gtot_E_a, gtot_W_a, gtot_N_a, gtot_S_a, e_anom_a
+  type(RealArray_t) :: accel_layer_u_a, accel_layer_v_a
   real, dimension(SZIB_(G),SZJ_(G)) :: Drag_u
                   ! The zonal acceleration due to frequency-dependent drag [L T-2 ~> m s-2]
   real, dimension(SZI_(G),SZJB_(G)) :: Drag_v
@@ -2108,8 +2111,33 @@ subroutine btstep(U_in, V_in, eta_in, dt, bc_accel_u, bc_accel_v, forces, pbce, 
   endif
 
   ! Now calculate each layer's accelerations.
-  call btstep_layer_accel(dt, u_accel_bt, v_accel_bt, pbce, gtot_E, gtot_W, gtot_N, gtot_S, &
-                          e_anom, G, GV, CS, accel_layer_u, accel_layer_v)
+  call u_accel_bt_a%alloc(lb=LBOUND(u_accel_bt), ub=UBOUND(u_accel_bt), source=u_accel_bt)
+  call v_accel_bt_a%alloc(lb=LBOUND(v_accel_bt), ub=UBOUND(v_accel_bt), source=v_accel_bt)
+  call pbce_a%alloc(lb=LBOUND(pbce), ub=UBOUND(pbce), source=pbce)
+  call gtot_E_a%alloc(lb=LBOUND(gtot_E), ub=UBOUND(gtot_E), source=gtot_E)
+  call gtot_W_a%alloc(lb=LBOUND(gtot_W), ub=UBOUND(gtot_W), source=gtot_W)
+  call gtot_N_a%alloc(lb=LBOUND(gtot_N), ub=UBOUND(gtot_N), source=gtot_N)
+  call gtot_S_a%alloc(lb=LBOUND(gtot_S), ub=UBOUND(gtot_S), source=gtot_S)
+  call e_anom_a%alloc(lb=LBOUND(e_anom), ub=UBOUND(e_anom), source=e_anom)
+  call accel_layer_u_a%alloc(lb=LBOUND(accel_layer_u), ub=UBOUND(accel_layer_u), &
+                             source=accel_layer_u)
+  call accel_layer_v_a%alloc(lb=LBOUND(accel_layer_v), ub=UBOUND(accel_layer_v), &
+                             source=accel_layer_v)
+  call btstep_layer_accel(dt, u_accel_bt_a, v_accel_bt_a, pbce_a, &
+                          gtot_E_a, gtot_W_a, gtot_N_a, gtot_S_a, &
+                          e_anom_a, G, GV, CS, accel_layer_u_a, accel_layer_v_a)
+  call accel_layer_u_a%copy2F(accel_layer_u)
+  call accel_layer_v_a%copy2F(accel_layer_v)
+  call u_accel_bt_a%free()
+  call v_accel_bt_a%free()
+  call pbce_a%free()
+  call gtot_E_a%free()
+  call gtot_W_a%free()
+  call gtot_N_a%free()
+  call gtot_S_a%free()
+  call e_anom_a%free()
+  call accel_layer_u_a%free()
+  call accel_layer_v_a%free()
 
   if (apply_OBCs) then
     ! Correct the accelerations at OBC velocity points, but only in the
@@ -3754,55 +3782,70 @@ end subroutine btstep_ubt_from_layer
 
 
 !> Calculate the zonal and meridional acceleration of each layer due to the barotropic calculation.
-subroutine btstep_layer_accel(dt, u_accel_bt, v_accel_bt, pbce, gtot_E, gtot_W, gtot_N, gtot_S, &
-                              e_anom, G, GV, CS, accel_layer_u, accel_layer_v)
+subroutine btstep_layer_accel(dt, u_accel_bt_a, v_accel_bt_a, pbce_a, &
+                              gtot_E_a, gtot_W_a, gtot_N_a, gtot_S_a, &
+                              e_anom_a, G, GV, CS, accel_layer_u_a, accel_layer_v_a)
   type(barotropic_CS),      intent(inout) :: CS !< Barotropic control structure
   type(ocean_grid_type),    intent(inout) :: G  !< The ocean's grid structure.
   type(verticalGrid_type),  intent(in)    :: GV !< The ocean's vertical grid structure.
   real, intent(in)  :: dt      !< The time increment to integrate over [T ~> s].
-  real, dimension(SZIBW_(CS),SZJW_(CS)), intent(in) :: &
-    u_accel_bt  !< The difference between the zonal acceleration from the
+  type(RealArray_t), intent(in) :: &
+    u_accel_bt_a  !< The difference between the zonal acceleration from the
                 !! barotropic calculation and BT_force_u [L T-2 ~> m s-2].
-  real, dimension(SZIW_(CS),SZJBW_(CS)), intent(in) :: &
-    v_accel_bt  !< The difference between the meridional acceleration from the
+  type(RealArray_t), intent(in) :: &
+    v_accel_bt_a  !< The difference between the meridional acceleration from the
                 !! barotropic calculation and BT_force_v [L T-2 ~> m s-2].
-  real, dimension(SZI_(G),SZJ_(G),SZK_(GV)), intent(in)  :: pbce !< The baroclinic pressure anomaly in each layer
+  type(RealArray_t), intent(in)  :: pbce_a !< The baroclinic pressure anomaly in each layer
                                                          !! due to free surface height anomalies
                                                          !! [L2 H-1 T-2 ~> m s-2 or m4 kg-1 s-2].
-  real, dimension(SZIW_(CS),SZJW_(CS)), intent(in) :: &
-    gtot_E        !< The effective total reduced gravity used to relate free surface height
+  type(RealArray_t), intent(in) :: &
+    gtot_E_a      !< The effective total reduced gravity used to relate free surface height
                   !! deviations to pressure forces (including GFS and baroclinic contributions)
                   !! in the barotropic momentum equations half a grid-point to the east of a
                   !! thickness point [L2 H-1 T-2 ~> m s-2 or m4 kg-1 s-2].
-  real, dimension(SZIW_(CS),SZJW_(CS)), intent(in) :: &
-    gtot_W        !< The effective total reduced gravity used to relate free surface height
+  type(RealArray_t), intent(in) :: &
+    gtot_W_a      !< The effective total reduced gravity used to relate free surface height
                   !! deviations to pressure forces (including GFS and baroclinic contributions)
                   !! in the barotropic momentum equations half a grid-point to the west of a
                   !! thickness point [L2 H-1 T-2 ~> m s-2 or m4 kg-1 s-2].
-  real, dimension(SZIW_(CS),SZJW_(CS)), intent(in) :: &
-    gtot_N        !< The effective total reduced gravity used to relate free surface height
+  type(RealArray_t), intent(in) :: &
+    gtot_N_a      !< The effective total reduced gravity used to relate free surface height
                   !! deviations to pressure forces (including GFS and baroclinic contributions)
                   !! in the barotropic momentum equations half a grid-point to the north of a
                   !! thickness point [L2 H-1 T-2 ~> m s-2 or m4 kg-1 s-2].
-  real, dimension(SZIW_(CS),SZJW_(CS)), intent(in) :: &
-    gtot_S        !< The effective total reduced gravity used to relate free surface height
+  type(RealArray_t), intent(in) :: &
+    gtot_S_a      !< The effective total reduced gravity used to relate free surface height
                   !! deviations to pressure forces (including GFS and baroclinic contributions)
                   !! in the barotropic momentum equations half a grid-point to the south of a
                   !! thickness point [L2 H-1 T-2 ~> m s-2 or m4 kg-1 s-2].
                   !! (See Hallberg, J Comp Phys 1997 for a discussion of gtot_E, etc.)
-  real, dimension(SZI_(G),SZJ_(G)), intent(in) :: &
-    e_anom        !< The anomaly in the sea surface height or column mass
+  type(RealArray_t), intent(in) :: &
+    e_anom_a      !< The anomaly in the sea surface height or column mass
                   !! averaged between the beginning and end of the time step,
                   !! relative to eta_PF, with SAL effects included [H ~> m or kg m-2].
-  real, dimension(SZIB_(G),SZJ_(G),SZK_(GV)), intent(out) :: accel_layer_u !< The zonal acceleration of each layer due
+  type(RealArray_t), intent(inout) :: accel_layer_u_a !< The zonal acceleration of each layer due
                                                          !! to the barotropic calculation [L T-2 ~> m s-2].
-  real, dimension(SZI_(G),SZJB_(G),SZK_(GV)), intent(out) :: accel_layer_v !< The meridional acceleration of each layer
+  type(RealArray_t), intent(inout) :: accel_layer_v_a !< The meridional acceleration of each layer
                                                          !! due to the barotropic calculation [L T-2 ~> m s-2].
 
   ! Local variables
+  real, dimension(:,:), contiguous, pointer :: u_accel_bt, v_accel_bt
+  real, dimension(:,:), contiguous, pointer :: gtot_E, gtot_W, gtot_N, gtot_S, e_anom
+  real, dimension(:,:,:), contiguous, pointer :: pbce, accel_layer_u, accel_layer_v
   real :: accel_underflow ! An acceleration that is so small it should be zeroed out [L T-2 ~> m s-2].
   real :: Idt         ! The inverse of dt [T-1 ~> s-1].
   integer :: i, j, k, is, ie, js, je, nz
+
+  call u_accel_bt_a%view(u_accel_bt)
+  call v_accel_bt_a%view(v_accel_bt)
+  call pbce_a%view(pbce)
+  call gtot_E_a%view(gtot_E)
+  call gtot_W_a%view(gtot_W)
+  call gtot_N_a%view(gtot_N)
+  call gtot_S_a%view(gtot_S)
+  call e_anom_a%view(e_anom)
+  call accel_layer_u_a%view(accel_layer_u)
+  call accel_layer_v_a%view(accel_layer_v)
 
   is = G%isc ; ie = G%iec ; js = G%jsc ; je = G%jec ; nz = GV%ke
 
