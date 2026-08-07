@@ -152,6 +152,386 @@ implicit none ; private
     end subroutine turbotmp_meridional_edge_thickness_bridge
   end interface
 
+  interface
+    !> Bridge for the zonal_flux_thickness subroutine
+    subroutine turbotmp_zonal_flux_thickness_bridge(bx, u, h, h_W, h_E, h_u, dt, dy_Cu, IareaT, &
+                                           IdxT, vol_CFL, marginal, por_face_areaU, visc_rem_u, &
+                                           obc) bind(C)
+      use iso_c_binding, only : c_double, c_bool, c_ptr
+      use array_mod, only : RealArray_c
+      use box_mod,   only : Box_c
+      implicit none
+
+      type(Box_C),       intent(in)        :: bx             !< Index space over which to iterate
+      type(RealArray_C), intent(in)        :: u              !< Zonal velocity [L T-1 ~> m s-1].
+      type(RealArray_C), intent(in)        :: h              !< Layer thickness used to calculate
+                                                              !! fluxes [H ~> m or kg m-2].
+      type(RealArray_C), intent(in)        :: h_W            !< West edge thickness in the
+                                                              !! reconstruction [H ~> m or kg m-2].
+      type(RealArray_C), intent(in)        :: h_E            !< East edge thickness in the
+                                                              !! reconstruction [H ~> m or kg m-2].
+      type(RealArray_C), intent(inout)     :: h_u            !< Effective thickness at zonal
+                                                              !! faces [H ~> m or kg m-2].
+      real(c_double),    intent(in), value :: dt             !< Time increment [T ~> s].
+      type(RealArray_C), intent(in)        :: dy_Cu          !< The grid cell's unblocked lengths
+                                                              !! of the u/v-faces [L ~> m].
+      type(RealArray_C), intent(in)        :: IareaT         !< The grid cell's 1/areaT
+                                                              !! [L-2 ~> m-2].
+      type(RealArray_C), intent(in)        :: IdxT           !< The grid cell's 1/dxT [L-1 ~> m-1].
+      logical(c_bool),   intent(in), value :: vol_CFL        !< Rescale the ratio of face areas
+                                                              !! to cell areas for the CFL number.
+      logical(c_bool),   intent(in), value :: marginal       !< Report marginal face thicknesses.
+      type(RealArray_C), intent(in)        :: por_face_areaU !< Fractional open area of U-faces
+                                                              !! [nondim]
+      type(RealArray_C), intent(in)        :: visc_rem_u     !< Fraction of momentum remaining
+                                                              !! after a time-step of viscosity
+                                                              !! [nondim]
+      type(c_ptr),       intent(in), value :: obc            !< Pointer to OBC structure
+    end subroutine turbotmp_zonal_flux_thickness_bridge
+  end interface
+
+  interface
+    !> Bridge for the meridional_flux_thickness subroutine
+    subroutine turbotmp_meridional_flux_thickness_bridge(bx, v, h, h_S, h_N, h_v, dt, dx_Cv, &
+                                           IareaT, IdyT, vol_CFL, marginal, por_face_areaV, &
+                                           visc_rem_v, obc) bind(C)
+      use iso_c_binding, only : c_double, c_bool, c_ptr
+      use array_mod, only : RealArray_c
+      use box_mod,   only : Box_c
+      implicit none
+
+      type(Box_C),       intent(in)        :: bx             !< Index space over which to iterate
+      type(RealArray_C), intent(in)        :: v              !< Meridional velocity
+                                                              !! [L T-1 ~> m s-1].
+      type(RealArray_C), intent(in)        :: h              !< Layer thickness used to calculate
+                                                              !! fluxes [H ~> m or kg m-2].
+      type(RealArray_C), intent(in)        :: h_S            !< South edge thickness in the
+                                                              !! reconstruction [H ~> m or kg m-2].
+      type(RealArray_C), intent(in)        :: h_N            !< North edge thickness in the
+                                                              !! reconstruction [H ~> m or kg m-2].
+      type(RealArray_C), intent(inout)     :: h_v            !< Effective thickness at meridional
+                                                              !! faces [H ~> m or kg m-2].
+      real(c_double),    intent(in), value :: dt             !< Time increment [T ~> s].
+      type(RealArray_C), intent(in)        :: dx_Cv          !< The grid cell's unblocked lengths
+                                                              !! of the u/v-faces [L ~> m].
+      type(RealArray_C), intent(in)        :: IareaT         !< The grid cell's 1/areaT
+                                                              !! [L-2 ~> m-2].
+      type(RealArray_C), intent(in)        :: IdyT           !< The grid cell's 1/dyT [L-1 ~> m-1].
+      logical(c_bool),   intent(in), value :: vol_CFL        !< Rescale the ratio of face areas
+                                                              !! to cell areas for the CFL number.
+      logical(c_bool),   intent(in), value :: marginal       !< Report marginal face thicknesses.
+      type(RealArray_C), intent(in)        :: por_face_areaV !< Fractional open area of V-faces
+                                                              !! [nondim]
+      type(RealArray_C), intent(in)        :: visc_rem_v     !< Fraction of momentum remaining
+                                                              !! after a time-step of viscosity
+                                                              !! [nondim]
+      type(c_ptr),       intent(in), value :: obc            !< Pointer to OBC structure
+    end subroutine turbotmp_meridional_flux_thickness_bridge
+  end interface
+
+  interface
+    !> Bridge for the continuity_zonal_convergence subroutine
+    subroutine turbotmp_continuity_zonal_convergence_bridge(bx, h, uh, dt, IareaT, hin, &
+                                           hmin) bind(C)
+      use iso_c_binding, only : c_double
+      use array_mod, only : RealArray_c
+      use box_mod,   only : Box_c
+      implicit none
+
+      type(Box_C),       intent(in)        :: bx           !< Index space over which to iterate
+      type(RealArray_C), intent(inout)     :: h             !< Final layer thickness
+                                                             !! [H ~> m or kg m-2]
+      type(RealArray_C), intent(in)        :: uh            !< Zonal thickness flux, u*h*dy
+                                                             !! [H L2 T-1 ~> m3 s-1 or kg s-1]
+      real(c_double),    intent(in), value :: dt            !< Time increment [T ~> s]
+      type(RealArray_C), intent(in)        :: IareaT        !< The grid cell's 1/areaT
+                                                             !! [L-2 ~> m-2].
+      type(RealArray_C), intent(in)        :: hin           !< Initial layer thickness
+                                                             !! [H ~> m or kg m-2]. Unassociated
+                                                             !! (rank 0) if hin is absent
+                                                             !! Fortran-side.
+      real(c_double),    intent(in), value :: hmin          !< The minimum layer thickness
+                                                             !! [H ~> m or kg m-2]
+    end subroutine turbotmp_continuity_zonal_convergence_bridge
+  end interface
+
+  interface
+    !> Bridge for the continuity_meridional_convergence subroutine
+    subroutine turbotmp_continuity_meridional_convergence_bridge(bx, h, vh, dt, IareaT, hin, &
+                                           hmin) bind(C)
+      use iso_c_binding, only : c_double
+      use array_mod, only : RealArray_c
+      use box_mod,   only : Box_c
+      implicit none
+
+      type(Box_C),       intent(in)        :: bx           !< Index space over which to iterate
+      type(RealArray_C), intent(inout)     :: h             !< Final layer thickness
+                                                             !! [H ~> m or kg m-2]
+      type(RealArray_C), intent(in)        :: vh            !< Meridional thickness flux, v*h*dx
+                                                             !! [H L2 T-1 ~> m3 s-1 or kg s-1]
+      real(c_double),    intent(in), value :: dt            !< Time increment [T ~> s]
+      type(RealArray_C), intent(in)        :: IareaT        !< The grid cell's 1/areaT
+                                                             !! [L-2 ~> m-2].
+      type(RealArray_C), intent(in)        :: hin           !< Initial layer thickness
+                                                             !! [H ~> m or kg m-2]. Unassociated
+                                                             !! (rank 0) if hin is absent
+                                                             !! Fortran-side.
+      real(c_double),    intent(in), value :: hmin          !< The minimum layer thickness
+                                                             !! [H ~> m or kg m-2]
+    end subroutine turbotmp_continuity_meridional_convergence_bridge
+  end interface
+
+  interface
+    !> Bridge for the zonal_mass_flux subroutine
+    subroutine turbotmp_zonal_mass_flux_bridge(bx, u, h_in, h_W, h_E, uh, dt, obc, &
+                                       por_face_areaU, uhbt, visc_rem_u, u_cor, bt_cont, du_cor, &
+                                       dy_Cu, IareaT, IdxT, dxCu, areaT, dxT, mask2dCu, &
+                                       H_subroundoff, CFL_limit_adjust, aggress_adjust, &
+                                       use_visc_rem_max, vol_CFL, tol_vel, tol_eta, better_iter, &
+                                       marginal_faces) bind(C)
+      use iso_c_binding, only : c_double, c_bool, c_ptr
+      use array_mod, only : RealArray_c
+      use box_mod,   only : Box_c
+      implicit none
+
+      type(Box_C),       intent(in)        :: bx     !< Index space over which to iterate
+      type(RealArray_C), intent(in)        :: u      !< Zonal velocity [L T-1 ~> m s-1].
+      type(RealArray_C), intent(in)        :: h_in   !< Layer thickness used to calculate fluxes
+                                                      !! [H ~> m or kg m-2].
+      type(RealArray_C), intent(in)        :: h_W    !< Western edge thicknesses
+                                                      !! [H ~> m or kg m-2].
+      type(RealArray_C), intent(in)        :: h_E    !< Eastern edge thicknesses
+                                                      !! [H ~> m or kg m-2].
+      type(RealArray_C), intent(inout)     :: uh     !< Volume flux through zonal faces = u*h*dy
+                                                      !! [H L2 T-1 ~> m3 s-1 or kg s-1].
+      real(c_double),    intent(in), value :: dt     !< Time increment [T ~> s].
+      type(c_ptr),       intent(in), value :: obc    !< Pointer to OBC structure
+      type(RealArray_C), intent(in)        :: por_face_areaU !< fractional open area of U-faces
+                                                             !! [nondim]
+      type(RealArray_C), intent(in)        :: uhbt   !< The summed volume flux through zonal
+                                                      !! faces [H L2 T-1 ~> m3 s-1 or kg s-1].
+                                                      !! Unassociated (rank 0) if absent
+                                                      !! Fortran-side.
+      type(RealArray_C), intent(in)        :: visc_rem_u !< The fraction of zonal momentum
+                                                         !! originally in a layer that remains
+                                                         !! after a time-step of viscosity
+                                                         !! [nondim]. Unassociated (rank 0) if
+                                                         !! absent Fortran-side.
+      type(RealArray_C), intent(inout)     :: u_cor  !< The zonal velocities (u with a
+                                                      !! barotropic correction) that give uhbt
+                                                      !! as the depth-integrated transport
+                                                      !! [L T-1 ~> m s-1]
+      type(c_ptr),       intent(in), value :: bt_cont !< Pointer to a BT_cont_type structure
+                                                       !! with elements that describe the
+                                                       !! effective open face areas as a
+                                                       !! function of barotropic flow, or a
+                                                       !! null pointer if absent Fortran-side.
+      type(RealArray_C), intent(inout)     :: du_cor !< The zonal velocity increments from u
+                                                      !! that give uhbt as the depth-integrated
+                                                      !! transports [L T-1 ~> m s-1].
+                                                      !! Unassociated (rank 0) if absent
+                                                      !! Fortran-side.
+      type(RealArray_C), intent(in)        :: dy_Cu  !< The grid cell's unblocked lengths of
+                                                      !! the u/v-faces of the h-cell [L ~> m].
+      type(RealArray_C), intent(in)        :: IareaT !< The grid cell's 1/areaT [L-2 ~> m-2].
+      type(RealArray_C), intent(in)        :: IdxT   !< The grid cell's 1/dxT [L-1 ~> m-1].
+      type(RealArray_C), intent(in)        :: dxCu   !< The dx spacing at u points [L ~> m].
+      type(RealArray_C), intent(in)        :: areaT  !< The grid cell's area [L2 ~> m2].
+      type(RealArray_C), intent(in)        :: dxT    !< The dx spacing at h points [L ~> m].
+      type(RealArray_C), intent(in)        :: mask2dCu !< 0 for boundary points and 1 for ocean
+                                                       !! points on the u grid [nondim].
+      real(c_double),    intent(in), value :: H_subroundoff !< A thickness that is so small
+                             !! that it can be added to a thickness of Angstrom or larger
+                             !! without changing it at the bit level [H ~> m or kg m-2].
+      real(c_double),    intent(in), value :: CFL_limit_adjust !< The maximum CFL of the
+                                                                !! adjusted velocities [nondim]
+      logical(c_bool),   intent(in), value :: aggress_adjust !< If true, allow the adjusted
+                                                              !! velocities to have a relative
+                                                              !! CFL change up to 0.5.
+      logical(c_bool),   intent(in), value :: use_visc_rem_max !< If true, use more appropriate
+                                                                !! limiting bounds for
+                                                                !! corrections in strongly
+                                                                !! viscous columns.
+      logical(c_bool),   intent(in), value :: vol_CFL !< If true, use the ratio of the open
+                                                       !! face lengths to the tracer cell areas
+                                                       !! when estimating CFL numbers.
+      real(c_double),    intent(in), value :: tol_vel !< The tolerance for barotropic velocity
+                             !! discrepancies between the barotropic solution and the sum of
+                             !! the layer thicknesses [L T-1 ~> m s-1].
+      real(c_double),    intent(in), value :: tol_eta !< The tolerance for free-surface height
+                             !! discrepancies between the barotropic solution and the sum of
+                             !! the layer thicknesses [H ~> m or kg m-2].
+      logical(c_bool),   intent(in), value :: better_iter !< If true, stop corrective
+                                                          !! iterations using a velocity-based
+                                                          !! criterion and only stop if the
+                                                          !! iteration is better than all
+                                                          !! predecessors.
+      logical(c_bool),   intent(in), value :: marginal_faces !< If true, use the marginal face
+                             !! areas from the continuity solver for use as the weights in the
+                             !! barotropic solver. Otherwise use the transport averaged areas.
+    end subroutine turbotmp_zonal_mass_flux_bridge
+  end interface
+
+  interface
+    !> Bridge for the meridional_mass_flux subroutine
+    subroutine turbotmp_meridional_mass_flux_bridge(bx, v, h_in, h_S, h_N, vh, dt, obc, &
+                                       por_face_areaV, vhbt, visc_rem_v, v_cor, bt_cont, dv_cor, &
+                                       dx_Cv, IareaT, IdyT, dyCv, areaT, dyT, mask2dCv, &
+                                       H_subroundoff, CFL_limit_adjust, aggress_adjust, &
+                                       use_visc_rem_max, vol_CFL, tol_vel, tol_eta, better_iter, &
+                                       marginal_faces) bind(C)
+      use iso_c_binding, only : c_double, c_bool, c_ptr
+      use array_mod, only : RealArray_c
+      use box_mod,   only : Box_c
+      implicit none
+
+      type(Box_C),       intent(in)        :: bx     !< Index space over which to iterate
+      type(RealArray_C), intent(in)        :: v      !< Meridional velocity [L T-1 ~> m s-1].
+      type(RealArray_C), intent(in)        :: h_in   !< Layer thickness used to calculate fluxes
+                                                      !! [H ~> m or kg m-2].
+      type(RealArray_C), intent(in)        :: h_S    !< South edge thickness in the
+                                                      !! reconstruction [H ~> m or kg m-2].
+      type(RealArray_C), intent(in)        :: h_N    !< North edge thickness in the
+                                                      !! reconstruction [H ~> m or kg m-2].
+      type(RealArray_C), intent(inout)     :: vh     !< Volume flux through meridional faces =
+                                                      !! v*h*dx [H L2 T-1 ~> m3 s-1 or kg s-1].
+      real(c_double),    intent(in), value :: dt     !< Time increment [T ~> s].
+      type(c_ptr),       intent(in), value :: obc    !< Pointer to OBC structure
+      type(RealArray_C), intent(in)        :: por_face_areaV !< fractional open area of V-faces
+                                                             !! [nondim]
+      type(RealArray_C), intent(in)        :: vhbt   !< The summed volume flux through
+                                                      !! meridional faces
+                                                      !! [H L2 T-1 ~> m3 s-1 or kg s-1].
+                                                      !! Unassociated (rank 0) if absent
+                                                      !! Fortran-side.
+      type(RealArray_C), intent(in)        :: visc_rem_v !< The fraction of meridional momentum
+                                                         !! originally in a layer that remains
+                                                         !! after a time-step of viscosity
+                                                         !! [nondim]. Unassociated (rank 0) if
+                                                         !! absent Fortran-side.
+      type(RealArray_C), intent(inout)     :: v_cor  !< The meridional velocities (v with a
+                                                      !! barotropic correction) that give vhbt
+                                                      !! as the depth-integrated transport
+                                                      !! [L T-1 ~> m s-1].
+      type(c_ptr),       intent(in), value :: bt_cont !< Pointer to a BT_cont_type structure
+                                                       !! with elements that describe the
+                                                       !! effective open face areas as a
+                                                       !! function of barotropic flow, or a
+                                                       !! null pointer if absent Fortran-side.
+      type(RealArray_C), intent(inout)     :: dv_cor !< The meridional velocity increments from
+                                                      !! v that give vhbt as the
+                                                      !! depth-integrated transports
+                                                      !! [L T-1 ~> m s-1]. Unassociated (rank 0)
+                                                      !! if absent Fortran-side.
+      type(RealArray_C), intent(in)        :: dx_Cv  !< The grid cell's unblocked lengths of
+                                                      !! the u/v-faces of the h-cell [L ~> m].
+      type(RealArray_C), intent(in)        :: IareaT !< The grid cell's 1/areaT [L-2 ~> m-2].
+      type(RealArray_C), intent(in)        :: IdyT   !< The grid cell's 1/dyT [L-1 ~> m-1].
+      type(RealArray_C), intent(in)        :: dyCv   !< The dy spacing at v points [L ~> m].
+      type(RealArray_C), intent(in)        :: areaT  !< The grid cell's area [L2 ~> m2].
+      type(RealArray_C), intent(in)        :: dyT    !< The dy spacing at h points [L ~> m].
+      type(RealArray_C), intent(in)        :: mask2dCv !< 0 for boundary points and 1 for ocean
+                                                       !! points on the v grid [nondim].
+      real(c_double),    intent(in), value :: H_subroundoff !< A thickness that is so small
+                             !! that it can be added to a thickness of Angstrom or larger
+                             !! without changing it at the bit level [H ~> m or kg m-2].
+      real(c_double),    intent(in), value :: CFL_limit_adjust !< The maximum CFL of the
+                                                                !! adjusted velocities [nondim]
+      logical(c_bool),   intent(in), value :: aggress_adjust !< If true, allow the adjusted
+                                                              !! velocities to have a relative
+                                                              !! CFL change up to 0.5.
+      logical(c_bool),   intent(in), value :: use_visc_rem_max !< If true, use more appropriate
+                                                                !! limiting bounds for
+                                                                !! corrections in strongly
+                                                                !! viscous columns.
+      logical(c_bool),   intent(in), value :: vol_CFL !< If true, use the ratio of the open
+                                                       !! face lengths to the tracer cell areas
+                                                       !! when estimating CFL numbers.
+      real(c_double),    intent(in), value :: tol_vel !< The tolerance for barotropic velocity
+                             !! discrepancies between the barotropic solution and the sum of
+                             !! the layer thicknesses [L T-1 ~> m s-1].
+      real(c_double),    intent(in), value :: tol_eta !< The tolerance for free-surface height
+                             !! discrepancies between the barotropic solution and the sum of
+                             !! the layer thicknesses [H ~> m or kg m-2].
+      logical(c_bool),   intent(in), value :: better_iter !< If true, stop corrective
+                                                          !! iterations using a velocity-based
+                                                          !! criterion and only stop if the
+                                                          !! iteration is better than all
+                                                          !! predecessors.
+      logical(c_bool),   intent(in), value :: marginal_faces !< If true, use the marginal face
+                             !! areas from the continuity solver for use as the weights in the
+                             !! barotropic solver. Otherwise use the transport averaged areas.
+    end subroutine turbotmp_meridional_mass_flux_bridge
+  end interface
+
+  interface
+    subroutine turbotmp_zonal_bt_mass_flux_bridge(bx, u, h_in, h_W, h_E, uhbt, dt, vol_CFL, &
+                                       obc, por_face_areaU, dy_Cu, IareaT, IdxT) bind(C)
+      use iso_c_binding, only : c_double, c_bool, c_ptr
+      use array_mod, only : RealArray_c
+      use box_mod,   only : Box_c
+      implicit none
+
+      type(Box_C),       intent(in)        :: bx     !< Iteration box for continuity solver
+      type(RealArray_C), intent(in)        :: u      !< Zonal velocity [L T-1 ~> m s-1]
+      type(RealArray_C), intent(in)        :: h_in   !< Layer thickness used to
+                                                      !! calculate fluxes [H ~> m or kg m-2]
+      type(RealArray_C), intent(in)        :: h_W    !< Western edge thickness in the PPM
+                                                      !! reconstruction [H ~> m or kg m-2].
+      type(RealArray_C), intent(in)        :: h_E    !< Eastern edge thickness in the PPM
+                                                      !! reconstruction [H ~> m or kg m-2].
+      type(RealArray_C), intent(inout)     :: uhbt   !< The summed volume flux through zonal
+                                                      !! faces [H L2 T-1 ~> m3 s-1 or kg s-1].
+      real(c_double),    intent(in), value :: dt     !< Time increment [T ~> s].
+      logical(c_bool),   intent(in), value :: vol_CFL !< If true, use the ratio of the open face
+                                                       !! lengths to the tracer cell areas when
+                                                       !! estimating CFL numbers. Without
+                                                       !! aggress_adjust, the default is false; it
+                                                       !! is always true with.
+      type(c_ptr),       intent(in), value :: obc    !< Pointer to OBC structure
+      type(RealArray_C), intent(in)        :: por_face_areaU !< fractional open area of U-faces
+                                                             !! [nondim]
+      type(RealArray_C), intent(in)        :: dy_Cu  !< The grid cell's unblocked lengths of the
+                                                      !! u/v-faces of the h-cell [L ~> m].
+      type(RealArray_C), intent(in)        :: IareaT !< The grid cell's 1/areaT [L-2 ~> m-2].
+      type(RealArray_C), intent(in)        :: IdxT   !< The grid cell's 1/dxT [L-1 ~> m-1].
+    end subroutine turbotmp_zonal_bt_mass_flux_bridge
+  end interface
+
+  interface
+    subroutine turbotmp_meridional_bt_mass_flux_bridge(bx, v, h_in, h_S, h_N, vhbt, dt, vol_CFL, &
+                                       obc, por_face_areaV, dx_Cv, IareaT, IdyT) bind(C)
+      use iso_c_binding, only : c_double, c_bool, c_ptr
+      use array_mod, only : RealArray_c
+      use box_mod,   only : Box_c
+      implicit none
+
+      type(Box_C),       intent(in)        :: bx     !< Iteration box for continuity solver
+      type(RealArray_C), intent(in)        :: v      !< Meridional velocity [L T-1 ~> m s-1]
+      type(RealArray_C), intent(in)        :: h_in   !< Layer thickness used to
+                                                      !! calculate fluxes [H ~> m or kg m-2]
+      type(RealArray_C), intent(in)        :: h_S    !< Southern edge thickness in the PPM
+                                                      !! reconstruction [H ~> m or kg m-2].
+      type(RealArray_C), intent(in)        :: h_N    !< Northern edge thickness in the PPM
+                                                      !! reconstruction [H ~> m or kg m-2].
+      type(RealArray_C), intent(inout)     :: vhbt   !< The summed volume flux through meridional
+                                                      !! faces [H L2 T-1 ~> m3 s-1 or kg s-1].
+      real(c_double),    intent(in), value :: dt     !< Time increment [T ~> s].
+      logical(c_bool),   intent(in), value :: vol_CFL !< If true, use the ratio of the open face
+                                                       !! lengths to the tracer cell areas when
+                                                       !! estimating CFL numbers. Without
+                                                       !! aggress_adjust, the default is false; it
+                                                       !! is always true with.
+      type(c_ptr),       intent(in), value :: obc    !< Pointer to OBC structure
+      type(RealArray_C), intent(in)        :: por_face_areaV !< fractional open area of V-faces
+                                                             !! [nondim]
+      type(RealArray_C), intent(in)        :: dx_Cv  !< The grid cell's unblocked lengths of the
+                                                      !! u/v-faces of the h-cell [L ~> m].
+      type(RealArray_C), intent(in)        :: IareaT !< The grid cell's 1/areaT [L-2 ~> m-2].
+      type(RealArray_C), intent(in)        :: IdyT   !< The grid cell's 1/dyT [L-1 ~> m-1].
+    end subroutine turbotmp_meridional_bt_mass_flux_bridge
+  end interface
+
 #include <MOM_memory.h>
 
 public continuity_PPM, continuity_PPM_init, continuity_PPM_stencil
@@ -395,7 +775,7 @@ subroutine continuity_PPM(bxC, u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, &
                          use_visc_rem_max=use_visc_rem_max, vol_CFL=vol_CFL, &
                          tol_vel=tol_vel, tol_eta=tol_eta, better_iter=better_iter, &
                          marginal_faces=marginal_faces)
-    call continuity_zonal_convergence(bx, h_a, uh_a, dt, IareaT_a, hin_a=hin_a)
+    call continuity_zonal_convergence(bx, h_a, uh_a, dt, IareaT_a, hin_a=hin_a, hmin=0.0)
 
     ! update host h from continuity_zonal_convergence
 
@@ -431,7 +811,7 @@ subroutine continuity_PPM(bxC, u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, &
                               use_visc_rem_max=use_visc_rem_max, vol_CFL=vol_CFL, &
                               tol_vel=tol_vel, tol_eta=tol_eta, better_iter=better_iter, &
                               marginal_faces=marginal_faces)
-    call continuity_meridional_convergence(bx, h_a, vh_a, dt, IareaT_a, hin_a=hin_a)
+    call continuity_meridional_convergence(bx, h_a, vh_a, dt, IareaT_a, hin_a=hin_a, hmin=0.0)
 
     !  Now advect zonally, using the updated thicknesses to determine the fluxes.
     call zonal_edge_thickness(bxC, h_a, h_W_a, h_E_a, mask2dT_a, &
@@ -855,7 +1235,7 @@ end subroutine continuity_adjust_vel_PPM
 
 
 !> Updates the thicknesses due to zonal thickness fluxes.
-subroutine continuity_zonal_convergence(bxC, h_a, uh_a, dt, IareaT_a, hin_a, hmin)
+subroutine continuity_zonal_convergence_fortran(bxC, h_a, uh_a, dt, IareaT_a, hin_a, hmin)
   type(box_t),        intent(in)    :: bxC      !< Iteration box for continuity solver
   type(RealArray_t),  intent(inout) :: h_a      !< Final layer thickness [H ~> m or kg m-2]
   type(RealArray_t),  intent(in)    :: uh_a     !< Zonal thickness flux, u*h*dy
@@ -864,17 +1244,12 @@ subroutine continuity_zonal_convergence(bxC, h_a, uh_a, dt, IareaT_a, hin_a, hmi
   type(RealArray_t),  intent(in)    :: IareaT_a !< The grid cell's 1/areaT [L-2 ~> m-2].
   type(RealArray_t), intent(in) :: hin_a !< Initial layer thickness [H ~> m or kg m-2].
                                               !! If hin is absent, h is also the initial thickness.
-  real,              optional, intent(in)    :: hmin !< The minimum layer thickness
-                                                     !! [H ~> m or kg m-2]
+  real,                                       intent(in)    :: hmin !< The minimum layer
+                                                     !! thickness [H ~> m or kg m-2]
 
-  real :: h_min  ! The minimum layer thickness [H ~> m or kg m-2].  h_min could be 0.
   integer :: i, j, k, ish, ieh, jsh, jeh, nz
   real, dimension(:,:,:), contiguous, pointer :: h, uh, hin
   real, dimension(:,:), contiguous, pointer :: IareaT
-
-  call cpu_clock_begin(id_clock_update)
-
-  h_min = 0.0 ; if (present(hmin)) h_min = hmin
 
   call h_a%view(h)
   call uh_a%view(uh)
@@ -885,23 +1260,99 @@ subroutine continuity_zonal_convergence(bxC, h_a, uh_a, dt, IareaT_a, hin_a, hmi
     do concurrent(k=bxC%idxS(3):bxC%idxE(3), &
                   j=bxC%idxS(2):bxC%idxE(2), &
                   i=bxC%idxS(1):bxC%idxE(1))
-      h(i,j,k) = max( hin(i,j,k) - dt * IareaT(i,j) * (uh(I,j,k) - uh(I-1,j,k)), h_min )
+      h(i,j,k) = max( hin(i,j,k) - dt * IareaT(i,j) * (uh(I,j,k) - uh(I-1,j,k)), hmin )
     enddo
   else
     ! untested
     do concurrent(k=bxC%idxS(3):bxC%idxE(3), &
                   j=bxC%idxS(2):bxC%idxE(2), &
                   i=bxC%idxS(1):bxC%idxE(1))
-      h(i,j,k) = max( h(i,j,k) - dt * IareaT(i,j) * (uh(I,j,k) - uh(I-1,j,k)), h_min )
+      h(i,j,k) = max( h(i,j,k) - dt * IareaT(i,j) * (uh(I,j,k) - uh(I-1,j,k)), hmin )
     enddo
   endif
+
+end subroutine continuity_zonal_convergence_fortran
+
+!> Shim for continuity_zonal_convergence -- dispatches via CONTINUITY_ZONAL_CONVERGENCE_MODE
+!! env var.
+subroutine continuity_zonal_convergence(bxC, h_a, uh_a, dt, IareaT_a, hin_a, hmin)
+  type(box_t),        intent(in)    :: bxC      !< Iteration box for continuity solver
+  type(RealArray_t),  intent(inout) :: h_a      !< Final layer thickness [H ~> m or kg m-2]
+  type(RealArray_t),  intent(in)    :: uh_a     !< Zonal thickness flux, u*h*dy
+                                                !! [H L2 T-1 ~> m3 s-1 or kg s-1]
+  real,               intent(in)    :: dt       !< Time increment [T ~> s]
+  type(RealArray_t),  intent(in)    :: IareaT_a !< The grid cell's 1/areaT [L-2 ~> m-2].
+  type(RealArray_t), intent(in) :: hin_a !< Initial layer thickness [H ~> m or kg m-2].
+                                              !! If hin is absent, h is also the initial thickness.
+  real,                                       intent(in)    :: hmin !< The minimum layer
+                                                     !! thickness [H ~> m or kg m-2]
+
+  integer  :: mode, rc
+  type(RealArray_C) :: h_c, uh_c, IareaT_c, hin_c
+  type(Box_C)        :: bxC_c
+  real(c_double)     :: hmin_c
+  type(io_recorder)  :: rec
+  logical            :: capture
+  character(len=80)  :: kernel
+  character(len=100) :: dir
+  character(len=256) :: binFile, metaFile
+
+  kernel = "continuity_zonal_convergence"
+
+  call cpu_clock_begin(id_clock_update)
+
+  mode = getenv_mode("CONTINUITY_ZONAL_CONVERGENCE_MODE", default=TIMH_runFORTRAN)
+
+  select case (mode)
+
+    case (TIMH_capture)
+      capture = (.not. already_recorded(trim(kernel))) .and. is_root_pe()
+      if (capture) then
+        dir = "capture"
+        rc = mkdir_posix(trim(dir) // c_null_char, int(o'755', c_int))
+        binFile  = trim(dir) // "/" // trim(kernel) // ".bin"
+        metaFile = trim(dir) // "/" // trim(kernel) // ".meta"
+        call rec%open_write(binFile, metaFile)
+        call rec%add("_bxC",         bxC)
+        call rec%add("_h_before",    h_a)
+        call rec%add("_uh",          uh_a)
+        call rec%add("_dt",          dt)
+        call rec%add("_IareaT",      IareaT_a)
+        call rec%add("_hin",         hin_a)
+        call rec%add("_hmin",        hmin)
+      endif
+
+      call continuity_zonal_convergence_fortran(bxC, h_a, uh_a, dt, IareaT_a, hin_a, hmin)
+
+      if (capture) then
+        call rec%add("_h_after", h_a)
+        call rec%close()
+        call mark_recorded(trim(kernel))
+      endif
+
+#ifdef _TIM
+    case (TIMH_runAMREX)
+      bxC_c          = bxC%to_c()
+      h_c            = h_a%to_c()
+      uh_c           = uh_a%to_c()
+      IareaT_c       = IareaT_a%to_c()
+      hin_c          = hin_a%to_c()
+      hmin_c         = hmin
+      call turbotmp_continuity_zonal_convergence_bridge(bxC_c, h_c, uh_c, dt, IareaT_c, hin_c, &
+               hmin_c)
+#endif
+
+    case default
+      call continuity_zonal_convergence_fortran(bxC, h_a, uh_a, dt, IareaT_a, hin_a, hmin)
+
+  end select
 
   call cpu_clock_end(id_clock_update)
 
 end subroutine continuity_zonal_convergence
 
 !> Updates the thicknesses due to meridional thickness fluxes.
-subroutine continuity_meridional_convergence(bxC, h_a, vh_a, dt, IareaT_a, hin_a, hmin)
+subroutine continuity_meridional_convergence_fortran(bxC, h_a, vh_a, dt, IareaT_a, hin_a, hmin)
   type(box_t),        intent(in)    :: bxC      !< Iteration box for continuity solver
   type(RealArray_t),  intent(inout) :: h_a      !< Final layer thickness [H ~> m or kg m-2]
   type(RealArray_t),  intent(in)    :: vh_a     !< Meridional thickness flux, v*h*dx
@@ -910,17 +1361,12 @@ subroutine continuity_meridional_convergence(bxC, h_a, vh_a, dt, IareaT_a, hin_a
   type(RealArray_t),  intent(in)    :: IareaT_a !< The grid cell's 1/areaT [L-2 ~> m-2].
   type(RealArray_t), intent(in) :: hin_a !< Initial layer thickness [H ~> m or kg m-2].
                                               !! If hin is absent, h is also the initial thickness.
-  real,              optional, intent(in)    :: hmin !< The minimum layer thickness
-                                                     !! [H ~> m or kg m-2]
+  real,                                       intent(in)    :: hmin !< The minimum layer
+                                                     !! thickness [H ~> m or kg m-2]
 
-  real :: h_min  ! The minimum layer thickness [H ~> m or kg m-2].  h_min could be 0.
   integer :: i, j, k, ish, ieh, jsh, jeh, nz
   real, dimension(:,:,:), contiguous, pointer :: h, vh, hin
   real, dimension(:,:), contiguous, pointer :: IareaT
-
-  call cpu_clock_begin(id_clock_update)
-
-  h_min = 0.0 ; if (present(hmin)) h_min = hmin
 
   call h_a%view(h)
   call vh_a%view(vh)
@@ -932,15 +1378,91 @@ subroutine continuity_meridional_convergence(bxC, h_a, vh_a, dt, IareaT_a, hin_a
     do concurrent(k=bxC%idxS(3):bxC%idxE(3), &
                   j=bxC%idxS(2):bxC%idxE(2), &
                   i=bxC%idxS(1):bxC%idxE(1))
-      h(i,j,k) = max( hin(i,j,k) - dt * IareaT(i,j) * (vh(i,J,k) - vh(i,J-1,k)), h_min )
+      h(i,j,k) = max( hin(i,j,k) - dt * IareaT(i,j) * (vh(i,J,k) - vh(i,J-1,k)), hmin )
     enddo
   else
     do concurrent(k=bxC%idxS(3):bxC%idxE(3), &
                   j=bxC%idxS(2):bxC%idxE(2), &
                   i=bxC%idxS(1):bxC%idxE(1))
-      h(i,j,k) = max( h(i,j,k) - dt * IareaT(i,j) * (vh(i,J,k) - vh(i,J-1,k)), h_min )
+      h(i,j,k) = max( h(i,j,k) - dt * IareaT(i,j) * (vh(i,J,k) - vh(i,J-1,k)), hmin )
     enddo
   endif
+
+end subroutine continuity_meridional_convergence_fortran
+
+!> Shim for continuity_meridional_convergence -- dispatches via
+!! CONTINUITY_MERIDIONAL_CONVERGENCE_MODE env var.
+subroutine continuity_meridional_convergence(bxC, h_a, vh_a, dt, IareaT_a, hin_a, hmin)
+  type(box_t),        intent(in)    :: bxC      !< Iteration box for continuity solver
+  type(RealArray_t),  intent(inout) :: h_a      !< Final layer thickness [H ~> m or kg m-2]
+  type(RealArray_t),  intent(in)    :: vh_a     !< Meridional thickness flux, v*h*dx
+                                                !! [H L2 T-1 ~> m3 s-1 or kg s-1]
+  real,               intent(in)    :: dt       !< Time increment [T ~> s]
+  type(RealArray_t),  intent(in)    :: IareaT_a !< The grid cell's 1/areaT [L-2 ~> m-2].
+  type(RealArray_t), intent(in) :: hin_a !< Initial layer thickness [H ~> m or kg m-2].
+                                              !! If hin is absent, h is also the initial thickness.
+  real,                                       intent(in)    :: hmin !< The minimum layer
+                                                     !! thickness [H ~> m or kg m-2]
+
+  integer  :: mode, rc
+  type(RealArray_C) :: h_c, vh_c, IareaT_c, hin_c
+  type(Box_C)        :: bxC_c
+  real(c_double)     :: hmin_c
+  type(io_recorder)  :: rec
+  logical            :: capture
+  character(len=80)  :: kernel
+  character(len=100) :: dir
+  character(len=256) :: binFile, metaFile
+
+  kernel = "continuity_meridional_convergence"
+
+  call cpu_clock_begin(id_clock_update)
+
+  mode = getenv_mode("CONTINUITY_MERIDIONAL_CONVERGENCE_MODE", default=TIMH_runFORTRAN)
+
+  select case (mode)
+
+    case (TIMH_capture)
+      capture = (.not. already_recorded(trim(kernel))) .and. is_root_pe()
+      if (capture) then
+        dir = "capture"
+        rc = mkdir_posix(trim(dir) // c_null_char, int(o'755', c_int))
+        binFile  = trim(dir) // "/" // trim(kernel) // ".bin"
+        metaFile = trim(dir) // "/" // trim(kernel) // ".meta"
+        call rec%open_write(binFile, metaFile)
+        call rec%add("_bxC",         bxC)
+        call rec%add("_h_before",    h_a)
+        call rec%add("_vh",          vh_a)
+        call rec%add("_dt",          dt)
+        call rec%add("_IareaT",      IareaT_a)
+        call rec%add("_hin",         hin_a)
+        call rec%add("_hmin",        hmin)
+      endif
+
+      call continuity_meridional_convergence_fortran(bxC, h_a, vh_a, dt, IareaT_a, hin_a, hmin)
+
+      if (capture) then
+        call rec%add("_h_after", h_a)
+        call rec%close()
+        call mark_recorded(trim(kernel))
+      endif
+
+#ifdef _TIM
+    case (TIMH_runAMREX)
+      bxC_c    = bxC%to_c()
+      h_c      = h_a%to_c()
+      vh_c     = vh_a%to_c()
+      IareaT_c = IareaT_a%to_c()
+      hin_c    = hin_a%to_c()
+      hmin_c   = hmin
+      call turbotmp_continuity_meridional_convergence_bridge(bxC_c, h_c, vh_c, dt, IareaT_c, &
+               hin_c, hmin_c)
+#endif
+
+    case default
+      call continuity_meridional_convergence_fortran(bxC, h_a, vh_a, dt, IareaT_a, hin_a, hmin)
+
+  end select
 
   call cpu_clock_end(id_clock_update)
 
@@ -1206,7 +1728,7 @@ end subroutine meridional_edge_thickness
 
 
 !> Calculates the mass or volume fluxes through the zonal faces, and other related quantities.
-subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, OBC, &
+subroutine zonal_mass_flux_fortran(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, OBC, &
                            por_face_areaU_a, uhbt_a, visc_rem_u_a, u_cor_a, BT_cont, du_cor_a, &
                            dy_Cu_a, IareaT_a, IdxT_a, dxCu_a, areaT_a, dxT_a, mask2dCu_a, &
                            H_subroundoff, CFL_limit_adjust, aggress_adjust, use_visc_rem_max, &
@@ -1312,8 +1834,6 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, OBC, &
   real, dimension(:,:),   contiguous, pointer :: dy_Cu, IareaT, IdxT, areaT, dxT, mask2dCu
 
   nullify(visc_rem_u, du_cor)
-
-  call cpu_clock_begin(id_clock_correct)
 
   call u_a%view(u)
   call h_in_a%view(h_in)
@@ -1522,6 +2042,214 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, OBC, &
 
   !$omp target exit data &
   !$omp   map(release: duhdu)
+
+end subroutine zonal_mass_flux_fortran
+
+!> Shim for zonal_mass_flux -- dispatches via ZONAL_MASS_FLUX_MODE env var.
+subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, OBC, &
+                           por_face_areaU_a, uhbt_a, visc_rem_u_a, u_cor_a, BT_cont, du_cor_a, &
+                           dy_Cu_a, IareaT_a, IdxT_a, dxCu_a, areaT_a, dxT_a, mask2dCu_a, &
+                           H_subroundoff, CFL_limit_adjust, aggress_adjust, use_visc_rem_max, &
+                           vol_CFL, tol_vel, tol_eta, better_iter, marginal_faces)
+  type(Box_t),             intent(in)    :: bxC  !< Iteration box for continuity solver
+  type(RealArray_t),       intent(in)    :: u_a    !< Zonal velocity [L T-1 ~> m s-1].
+  type(RealArray_t),       intent(in)    :: h_in_a !< Layer thickness used to calculate fluxes
+                                                   !! [H ~> m or kg m-2].
+  type(RealArray_t),       intent(in)    :: h_W_a !< Western edge thicknesses [H ~> m or kg m-2].
+  type(RealArray_t),       intent(in)    :: h_E_a !< Eastern edge thicknesses [H ~> m or kg m-2].
+  type(RealArray_t),       intent(inout) :: uh_a   !< Volume flux through zonal faces = u*h*dy
+                                                 !! [H L2 T-1 ~> m3 s-1 or kg s-1].
+  real,                    intent(in)    :: dt   !< Time increment [T ~> s].
+  type(ocean_OBC_type),    pointer       :: OBC  !< Open boundaries control structure.
+  type(RealArray_t),       intent(in)    :: por_face_areaU_a !< fractional open area of U-faces
+                                                             !! [nondim]
+  type(RealArray_t),       intent(in) :: uhbt_a !< The summed volume flux through zonal faces
+                                                 !! [H L2 T-1 ~> m3 s-1 or kg s-1].
+  type(RealArray_t),       intent(in) :: visc_rem_u_a
+                     !< The fraction of zonal momentum originally in a layer that remains after a
+                     !! time-step of viscosity, and the fraction of a time-step's worth of a
+                     !! barotropic acceleration that a layer experiences after viscosity is applied
+                     !! [nondim]. Visc_rem_u is between 0 (at the bottom) and 1 (far above the
+                     !! bottom).
+  type(RealArray_t),       intent(inout) :: u_cor_a
+                     !< The zonal velocities (u with a barotropic correction)
+                     !! that give uhbt as the depth-integrated transport [L T-1 ~> m s-1]
+  type(BT_cont_type), optional, pointer  :: BT_cont !< A structure with elements that describe the
+                     !! effective open face areas as a function of barotropic flow.
+  type(RealArray_t),       intent(inout) :: du_cor_a
+                                     !< The zonal velocity increments from u that give uhbt
+                                     !! as the depth-integrated transports [L T-1 ~> m s-1].
+  type(RealArray_t),       intent(in)    :: dy_Cu_a !< The grid cell's unblocked lengths of the
+                                                    !! u/v-faces of the h-cell [L ~> m].
+  type(RealArray_t),       intent(in)    :: IareaT_a !< The grid cell's 1/areaT [L-2 ~> m-2].
+  type(RealArray_t),       intent(in)    :: IdxT_a !< The grid cell's 1/dxT [L-1 ~> m-1].
+  type(RealArray_t),       intent(in)    :: dxCu_a !< The dx spacing at u points [L ~> m].
+  type(RealArray_t),       intent(in)    :: areaT_a !< The grid cell's area [L2 ~> m2].
+  type(RealArray_t),       intent(in)    :: dxT_a !< The dx spacing at h points [L ~> m].
+  type(RealArray_t),       intent(in)    :: mask2dCu_a !< 0 for boundary points and 1 for ocean
+                                                       !! points on the u grid [nondim].
+  real,                    intent(in)    :: H_subroundoff !< A thickness that is so small that it
+                     !! can be added to a thickness of Angstrom or larger without changing it at the
+                     !! bit level [H ~> m or kg m-2].
+  real,                    intent(in)    :: CFL_limit_adjust !< The maximum CFL of the adjusted
+                                                             !! velocities [nondim]
+  logical,                 intent(in)    :: aggress_adjust !< If true, allow the adjusted velocities
+                                                           !! to have a relative CFL change up to
+                                                           !! 0.5. False by default.
+  logical,                 intent(in)    :: use_visc_rem_max !< If true, use more appropriate
+                                                             !! limiting bounds for corrections in
+                                                             !! strongly viscous columns.
+  logical,                 intent(in)    :: vol_CFL !< If true, use the ratio of the open face
+                                                     !! lengths to the tracer cell areas when
+                                                     !! estimating CFL numbers. Without
+                                                     !! aggress_adjust, the default is false; it is
+                                                     !! always true with.
+  real,                    intent(in)    :: tol_vel !< The tolerance for barotropic velocity
+                                                     !! discrepancies between the barotropic
+                                                     !! solution and the sum of the layer
+                                                     !! thicknesses [L T-1 ~> m s-1].
+  real,                    intent(in)    :: tol_eta !< The tolerance for free-surface height
+                                                     !! discrepancies between the barotropic
+                                                     !! solution and the sum of the layer
+                                                     !! thicknesses [H ~> m or kg m-2].
+  logical,                 intent(in)    :: better_iter !< If true, stop corrective iterations
+                                                         !! using a velocity-based criterion and
+                                                         !! only stop if the iteration is better
+                                                         !! than all predecessors.
+  logical,                 intent(in)    :: marginal_faces !< If true, use the marginal face areas
+                          !! from the continuity solver for use as the weights in the barotropic
+                          !! solver. Otherwise use the transport averaged areas.
+
+  integer  :: mode, rc
+  type(RealArray_C) :: u_c, h_in_c, h_W_c, h_E_c, uh_c, por_face_areaU_c
+  type(RealArray_C) :: uhbt_c, visc_rem_u_c, u_cor_c, du_cor_c
+  type(RealArray_C) :: dy_Cu_c, IareaT_c, IdxT_c, dxCu_c, areaT_c, dxT_c, mask2dCu_c
+  type(Box_C)        :: bxC_c
+  type(c_ptr)        :: OBC_c, BT_cont_c
+  logical(c_bool)    :: aggress_adjust_c, use_visc_rem_max_c, vol_CFL_c, better_iter_c
+  logical(c_bool)    :: marginal_faces_c
+  type(io_recorder)  :: rec
+  logical            :: capture
+  character(len=80)  :: kernel
+  character(len=100) :: dir
+  character(len=256) :: binFile, metaFile
+
+  kernel = "zonal_mass_flux"
+
+  call cpu_clock_begin(id_clock_correct)
+
+  mode = getenv_mode("ZONAL_MASS_FLUX_MODE", default=TIMH_runFORTRAN)
+
+  select case (mode)
+
+    case (TIMH_capture)
+      capture = (.not. already_recorded(trim(kernel))) .and. is_root_pe()
+      if (capture) then
+        dir = "capture"
+        rc = mkdir_posix(trim(dir) // c_null_char, int(o'755', c_int))
+        binFile  = trim(dir) // "/" // trim(kernel) // ".bin"
+        metaFile = trim(dir) // "/" // trim(kernel) // ".meta"
+        call rec%open_write(binFile, metaFile)
+        call rec%add("_bxC",              bxC)
+        call rec%add("_u",                u_a)
+        call rec%add("_h_in",             h_in_a)
+        call rec%add("_h_W",              h_W_a)
+        call rec%add("_h_E",              h_E_a)
+        call rec%add("_uh_before",        uh_a)
+        call rec%add("_dt",               dt)
+        call rec%add("_por_face_areaU",   por_face_areaU_a)
+        call rec%add("_uhbt",             uhbt_a)
+        call rec%add("_visc_rem_u",       visc_rem_u_a)
+        call rec%add("_u_cor_before",     u_cor_a)
+        call rec%add("_du_cor_before",    du_cor_a)
+        call rec%add("_dy_Cu",            dy_Cu_a)
+        call rec%add("_IareaT",           IareaT_a)
+        call rec%add("_IdxT",             IdxT_a)
+        call rec%add("_dxCu",             dxCu_a)
+        call rec%add("_areaT",            areaT_a)
+        call rec%add("_dxT",              dxT_a)
+        call rec%add("_mask2dCu",         mask2dCu_a)
+        call rec%add("_H_subroundoff",    H_subroundoff)
+        call rec%add("_CFL_limit_adjust", CFL_limit_adjust)
+        call rec%add("_aggress_adjust",   aggress_adjust)
+        call rec%add("_use_visc_rem_max", use_visc_rem_max)
+        call rec%add("_vol_CFL",          vol_CFL)
+        call rec%add("_tol_vel",          tol_vel)
+        call rec%add("_tol_eta",          tol_eta)
+        call rec%add("_better_iter",      better_iter)
+        call rec%add("_marginal_faces",   marginal_faces)
+      endif
+
+      call zonal_mass_flux_fortran(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, OBC, &
+                                   por_face_areaU_a, uhbt_a, visc_rem_u_a, u_cor_a, BT_cont, &
+                                   du_cor_a, dy_Cu_a, IareaT_a, IdxT_a, dxCu_a, areaT_a, dxT_a, &
+                                   mask2dCu_a, H_subroundoff, CFL_limit_adjust, aggress_adjust, &
+                                   use_visc_rem_max, vol_CFL, tol_vel, tol_eta, better_iter, &
+                                   marginal_faces)
+
+      if (capture) then
+        call rec%add("_uh_after",     uh_a)
+        call rec%add("_u_cor_after",  u_cor_a)
+        call rec%add("_du_cor_after", du_cor_a)
+        call rec%close()
+        call mark_recorded(trim(kernel))
+      endif
+
+#ifdef _TIM
+    case (TIMH_runAMREX)
+      bxC_c              = bxC%to_c()
+      u_c                = u_a%to_c()
+      h_in_c             = h_in_a%to_c()
+      h_W_c              = h_W_a%to_c()
+      h_E_c              = h_E_a%to_c()
+      uh_c               = uh_a%to_c()
+      por_face_areaU_c   = por_face_areaU_a%to_c()
+      uhbt_c             = uhbt_a%to_c()
+      visc_rem_u_c       = visc_rem_u_a%to_c()
+      u_cor_c            = u_cor_a%to_c()
+      du_cor_c           = du_cor_a%to_c()
+      dy_Cu_c            = dy_Cu_a%to_c()
+      IareaT_c           = IareaT_a%to_c()
+      IdxT_c             = IdxT_a%to_c()
+      dxCu_c             = dxCu_a%to_c()
+      areaT_c            = areaT_a%to_c()
+      dxT_c              = dxT_a%to_c()
+      mask2dCu_c         = mask2dCu_a%to_c()
+      aggress_adjust_c   = aggress_adjust
+      use_visc_rem_max_c = use_visc_rem_max
+      vol_CFL_c          = vol_CFL
+      better_iter_c      = better_iter
+      marginal_faces_c   = marginal_faces
+      if (associated(OBC)) then
+        OBC_c = c_loc(OBC)
+      else
+        OBC_c = c_null_ptr
+      endif
+      if (present(BT_cont)) then
+        if (associated(BT_cont)) then
+          BT_cont_c = c_loc(BT_cont)
+        else
+          BT_cont_c = c_null_ptr
+        endif
+      else
+        BT_cont_c = c_null_ptr
+      endif
+      call turbotmp_zonal_mass_flux_bridge(bxC_c, u_c, h_in_c, h_W_c, h_E_c, uh_c, dt, OBC_c, &
+               por_face_areaU_c, uhbt_c, visc_rem_u_c, u_cor_c, BT_cont_c, du_cor_c, &
+               dy_Cu_c, IareaT_c, IdxT_c, dxCu_c, areaT_c, dxT_c, mask2dCu_c, &
+               H_subroundoff, CFL_limit_adjust, aggress_adjust_c, use_visc_rem_max_c, &
+               vol_CFL_c, tol_vel, tol_eta, better_iter_c, marginal_faces_c)
+#endif
+
+    case default
+      call zonal_mass_flux_fortran(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, OBC, &
+                                   por_face_areaU_a, uhbt_a, visc_rem_u_a, u_cor_a, BT_cont, &
+                                   du_cor_a, dy_Cu_a, IareaT_a, IdxT_a, dxCu_a, areaT_a, dxT_a, &
+                                   mask2dCu_a, H_subroundoff, CFL_limit_adjust, aggress_adjust, &
+                                   use_visc_rem_max, vol_CFL, tol_vel, tol_eta, better_iter, &
+                                   marginal_faces)
+
+  end select
 
   call cpu_clock_end(id_clock_correct)
 
@@ -1776,7 +2504,7 @@ end subroutine present_uhbt_or_set_BT_cont
 
 
 !> Calculates the vertically integrated mass or volume fluxes through the zonal faces.
-subroutine zonal_BT_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uhbt_a, dt, vol_CFL, &
+subroutine zonal_BT_mass_flux_fortran(bxC, u_a, h_in_a, h_W_a, h_E_a, uhbt_a, dt, vol_CFL, &
                               OBC, por_face_areaU_a, dy_Cu_a, IareaT_a, IdxT_a)
   type(Box_t),                                intent(in)  :: bxC  !< Iteration box for continuity solver
   type(RealArray_t),       intent(in)  :: u_a  !< Zonal velocity [L T-1 ~> m s-1]
@@ -1826,8 +2554,6 @@ subroutine zonal_BT_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uhbt_a, dt, vol_CF
   call IareaT_a%view(IareaT)
   call IdxT_a%view(IdxT)
 
-  call cpu_clock_begin(id_clock_correct)
-
   local_specified_BC = .false.
   if (associated(OBC)) then ; if (OBC%OBC_pe) then
     local_specified_BC = OBC%specified_v_BCs_exist_globally
@@ -1868,6 +2594,117 @@ subroutine zonal_BT_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uhbt_a, dt, vol_CF
   do k=1,nz ; do j=jsh,jeh ; do I=ish-1,ieh
         uhbt(I,j) = uhbt(I,j) + uh(I,j,k)
   enddo ; enddo ; enddo ! j-loop
+
+end subroutine zonal_BT_mass_flux_fortran
+
+!> Shim for zonal_BT_mass_flux -- dispatches via ZONAL_BT_MASS_FLUX_MODE env var.
+subroutine zonal_BT_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uhbt_a, dt, vol_CFL, &
+                              OBC, por_face_areaU_a, dy_Cu_a, IareaT_a, IdxT_a)
+  type(Box_t),                                intent(in)  :: bxC  !< Iteration box for continuity solver
+  type(RealArray_t),       intent(in)  :: u_a  !< Zonal velocity [L T-1 ~> m s-1]
+  type(RealArray_t),       intent(in)  :: h_in_a !< Layer thickness used to
+                                                 !! calculate fluxes [H ~> m or kg m-2]
+  type(RealArray_t),       intent(in)  :: h_W_a !< Western edge thickness in the PPM
+                                                !! reconstruction [H ~> m or kg m-2].
+  type(RealArray_t),       intent(in)  :: h_E_a !< Eastern edge thickness in the PPM
+                                                !! reconstruction [H ~> m or kg m-2].
+  type(RealArray_t),       intent(inout) :: uhbt_a !< The summed volume flux through zonal
+                                                   !! faces [H L2 T-1 ~> m3 s-1 or kg s-1].
+  real,                                       intent(in)  :: dt   !< Time increment [T ~> s].
+  logical,                 intent(in)  :: vol_CFL !< If true, use the ratio of the open face
+                                                   !! lengths to the tracer cell areas when
+                                                   !! estimating CFL numbers. Without
+                                                   !! aggress_adjust, the default is false; it is
+                                                   !! always true with.
+  type(ocean_OBC_type),                       pointer     :: OBC  !< Open boundary condition type
+                                                                  !! specifies whether, where, and what
+                                                                  !! open boundary conditions are used.
+  type(RealArray_t),       intent(in)  :: por_face_areaU_a !< fractional open area of U-faces
+                                                           !! [nondim]
+  type(RealArray_t),       intent(in)  :: dy_Cu_a !< The grid cell's unblocked lengths of the
+                                                   !! u/v-faces of the h-cell [L ~> m].
+  type(RealArray_t),       intent(in)  :: IareaT_a !< The grid cell's 1/areaT [L-2 ~> m-2].
+  type(RealArray_t),       intent(in)  :: IdxT_a !< The grid cell's 1/dxT [L-1 ~> m-1].
+
+  integer  :: mode, rc
+  type(RealArray_C) :: u_c, h_in_c, h_W_c, h_E_c, uhbt_c, por_face_areaU_c
+  type(RealArray_C) :: dy_Cu_c, IareaT_c, IdxT_c
+  type(Box_C)        :: bxC_c
+  type(c_ptr)        :: OBC_c
+  logical(c_bool)    :: vol_CFL_c
+  type(io_recorder)  :: rec
+  logical            :: capture
+  character(len=80)  :: kernel
+  character(len=100) :: dir
+  character(len=256) :: binFile, metaFile
+
+  kernel = "zonal_bt_mass_flux"
+
+  call cpu_clock_begin(id_clock_correct)
+
+  mode = getenv_mode("ZONAL_BT_MASS_FLUX_MODE", default=TIMH_runFORTRAN)
+
+  select case (mode)
+
+    case (TIMH_capture)
+      capture = (.not. already_recorded(trim(kernel))) .and. is_root_pe()
+      if (capture) then
+        dir = "capture"
+        rc = mkdir_posix(trim(dir) // c_null_char, int(o'755', c_int))
+        binFile  = trim(dir) // "/" // trim(kernel) // ".bin"
+        metaFile = trim(dir) // "/" // trim(kernel) // ".meta"
+        call rec%open_write(binFile, metaFile)
+        call rec%add("_bxC",            bxC)
+        call rec%add("_u",              u_a)
+        call rec%add("_h_in",           h_in_a)
+        call rec%add("_h_W",            h_W_a)
+        call rec%add("_h_E",            h_E_a)
+        call rec%add("_uhbt_before",    uhbt_a)
+        call rec%add("_dt",             dt)
+        call rec%add("_vol_CFL",        vol_CFL)
+        call rec%add("_por_face_areaU", por_face_areaU_a)
+        call rec%add("_dy_Cu",          dy_Cu_a)
+        call rec%add("_IareaT",         IareaT_a)
+        call rec%add("_IdxT",           IdxT_a)
+      endif
+
+      call zonal_BT_mass_flux_fortran(bxC, u_a, h_in_a, h_W_a, h_E_a, uhbt_a, dt, vol_CFL, &
+                                      OBC, por_face_areaU_a, dy_Cu_a, IareaT_a, IdxT_a)
+
+      if (capture) then
+        call rec%add("_uhbt_after", uhbt_a)
+        call rec%close()
+        call mark_recorded(trim(kernel))
+      endif
+
+#ifdef _TIM
+    case (TIMH_runAMREX)
+      bxC_c            = bxC%to_c()
+      u_c              = u_a%to_c()
+      h_in_c           = h_in_a%to_c()
+      h_W_c            = h_W_a%to_c()
+      h_E_c            = h_E_a%to_c()
+      uhbt_c           = uhbt_a%to_c()
+      por_face_areaU_c = por_face_areaU_a%to_c()
+      dy_Cu_c          = dy_Cu_a%to_c()
+      IareaT_c         = IareaT_a%to_c()
+      IdxT_c           = IdxT_a%to_c()
+      vol_CFL_c        = vol_CFL
+      if (associated(OBC)) then
+        OBC_c = c_loc(OBC)
+      else
+        OBC_c = c_null_ptr
+      endif
+      call turbotmp_zonal_bt_mass_flux_bridge(bxC_c, u_c, h_in_c, h_W_c, h_E_c, uhbt_c, dt, &
+                                              vol_CFL_c, OBC_c, por_face_areaU_c, dy_Cu_c, &
+                                              IareaT_c, IdxT_c)
+#endif
+
+    case default
+      call zonal_BT_mass_flux_fortran(bxC, u_a, h_in_a, h_W_a, h_E_a, uhbt_a, dt, vol_CFL, &
+                                      OBC, por_face_areaU_a, dy_Cu_a, IareaT_a, IdxT_a)
+
+  end select
 
   call cpu_clock_end(id_clock_correct)
 
@@ -1976,7 +2813,7 @@ end subroutine flux_elem_OBC
 
 !> Sets the effective interface thickness associated with the fluxes at each zonal velocity point,
 !! optionally scaling back these thicknesses to account for viscosity and fractional open areas.
-subroutine zonal_flux_thickness(bxC, u_a, h_a, h_W_a, h_E_a, h_u_a, dt, dy_Cu_a, IareaT_a, &
+subroutine zonal_flux_thickness_fortran(bxC, u_a, h_a, h_W_a, h_E_a, h_u_a, dt, dy_Cu_a, IareaT_a, &
                                 IdxT_a, vol_CFL, marginal, por_face_areaU_a, OBC, visc_rem_u_a)
   type(box_t),                               intent(in)    :: bxC  !< Iteration box for continuity solver
   type(RealArray_t),       intent(in)    :: u_a  !< Zonal velocity [L T-1 ~> m s-1].
@@ -2108,6 +2945,124 @@ subroutine zonal_flux_thickness(bxC, u_a, h_a, h_W_a, h_E_a, h_u_a, dt, dy_Cu_a,
   endif
 
   call bxU%free()
+
+end subroutine zonal_flux_thickness_fortran
+
+!> Shim for zonal_flux_thickness -- dispatches via ZONAL_FLUX_THICKNESS_MODE env var.
+subroutine zonal_flux_thickness(bxC, u_a, h_a, h_W_a, h_E_a, h_u_a, dt, dy_Cu_a, IareaT_a, &
+                                IdxT_a, vol_CFL, marginal, por_face_areaU_a, OBC, visc_rem_u_a)
+  type(box_t),                               intent(in)    :: bxC  !< Iteration box for continuity solver
+  type(RealArray_t),       intent(in)    :: u_a  !< Zonal velocity [L T-1 ~> m s-1].
+  type(RealArray_t),       intent(in)    :: h_a  !< Layer thickness used to calculate fluxes
+                                                 !! [H ~> m or kg m-2].
+  type(RealArray_t),       intent(in)    :: h_W_a !< West edge thickness in the reconstruction
+                                                  !! [H ~> m or kg m-2].
+  type(RealArray_t),       intent(in)    :: h_E_a !< East edge thickness in the reconstruction
+                                                  !! [H ~> m or kg m-2].
+  type(RealArray_t),       intent(inout) :: h_u_a !< Effective thickness at zonal faces,
+                                                  !! scaled down to account for the effects of
+                                                  !! viscosity and the fractional open area
+                                                  !! [H ~> m or kg m-2].
+  real,                                      intent(in)    :: dt   !< Time increment [T ~> s].
+  type(RealArray_t),       intent(in)    :: dy_Cu_a !< The grid cell's unblocked lengths of the
+                                                    !! u/v-faces of the h-cell [L ~> m].
+  type(RealArray_t),       intent(in)    :: IareaT_a !< The grid cell's 1/areaT [L-2 ~> m-2].
+  type(RealArray_t),       intent(in)    :: IdxT_a !< The grid cell's 1/dxT [L-1 ~> m-1].
+  logical,                                   intent(in)    :: vol_CFL !< If true, rescale the ratio
+                          !! of face areas to the cell areas when estimating the CFL number.
+  logical,                                   intent(in)    :: marginal !< If true, report the
+                          !! marginal face thicknesses; otherwise report transport-averaged thicknesses.
+  type(RealArray_t),       intent(in)    :: por_face_areaU_a !< fractional open area of U-faces
+                                                             !! [nondim]
+  type(ocean_OBC_type),                      pointer       :: OBC !< Open boundaries control structure.
+  type(RealArray_t), intent(in) :: visc_rem_u_a
+                          !< Both the fraction of the momentum originally in a layer that remains after
+                          !! a time-step of viscosity, and the fraction of a time-step's worth of a
+                          !! barotropic acceleration that a layer experiences after viscosity is applied [nondim].
+                          !! Visc_rem_u is between 0 (at the bottom) and 1 (far above the bottom).
+
+  integer  :: mode, rc
+  type(RealArray_C) :: u_c, h_c, h_W_c, h_E_c, h_u_c, dy_Cu_c, IareaT_c, IdxT_c
+  type(RealArray_C) :: por_face_areaU_c, visc_rem_u_c
+  type(Box_C)        :: bxC_c
+  type(c_ptr)        :: OBC_c
+  logical(c_bool)    :: vol_CFL_c, marginal_c
+  type(io_recorder)  :: rec
+  logical            :: capture
+  character(len=80)  :: kernel
+  character(len=100) :: dir
+  character(len=256) :: binFile, metaFile
+
+  kernel = "zonal_flux_thickness"
+
+  mode = getenv_mode("ZONAL_FLUX_THICKNESS_MODE", default=TIMH_runFORTRAN)
+
+  select case (mode)
+
+    case (TIMH_capture)
+      capture = (.not. already_recorded(trim(kernel))) .and. is_root_pe()
+      if (capture) then
+        dir = "capture"
+        rc = mkdir_posix(trim(dir) // c_null_char, int(o'755', c_int))
+        binFile  = trim(dir) // "/" // trim(kernel) // ".bin"
+        metaFile = trim(dir) // "/" // trim(kernel) // ".meta"
+        call rec%open_write(binFile, metaFile)
+        call rec%add("_bxC",            bxC)
+        call rec%add("_u",              u_a)
+        call rec%add("_h",              h_a)
+        call rec%add("_h_W",            h_W_a)
+        call rec%add("_h_E",            h_E_a)
+        call rec%add("_h_u_before",     h_u_a)
+        call rec%add("_dt",             dt)
+        call rec%add("_dy_Cu",          dy_Cu_a)
+        call rec%add("_IareaT",         IareaT_a)
+        call rec%add("_IdxT",           IdxT_a)
+        call rec%add("_vol_CFL",        vol_CFL)
+        call rec%add("_marginal",       marginal)
+        call rec%add("_por_face_areaU", por_face_areaU_a)
+        call rec%add("_visc_rem_u",     visc_rem_u_a)
+      endif
+
+      call zonal_flux_thickness_fortran(bxC, u_a, h_a, h_W_a, h_E_a, h_u_a, dt, dy_Cu_a, &
+                                        IareaT_a, IdxT_a, vol_CFL, marginal, por_face_areaU_a, &
+                                        OBC, visc_rem_u_a)
+
+      if (capture) then
+        call rec%add("_h_u_after", h_u_a)
+        call rec%close()
+        call mark_recorded(trim(kernel))
+      endif
+
+#ifdef _TIM
+    case (TIMH_runAMREX)
+      bxC_c            = bxC%to_c()
+      u_c              = u_a%to_c()
+      h_c              = h_a%to_c()
+      h_W_c            = h_W_a%to_c()
+      h_E_c            = h_E_a%to_c()
+      h_u_c            = h_u_a%to_c()
+      dy_Cu_c          = dy_Cu_a%to_c()
+      IareaT_c         = IareaT_a%to_c()
+      IdxT_c           = IdxT_a%to_c()
+      por_face_areaU_c = por_face_areaU_a%to_c()
+      visc_rem_u_c     = visc_rem_u_a%to_c()
+      vol_CFL_c        = vol_CFL
+      marginal_c       = marginal
+      if (associated(OBC)) then
+        OBC_c = c_loc(OBC)
+      else
+        OBC_c = c_null_ptr
+      endif
+      call turbotmp_zonal_flux_thickness_bridge(bxC_c, u_c, h_c, h_W_c, h_E_c, h_u_c, dt, dy_Cu_c, &
+               IareaT_c, IdxT_c, vol_CFL_c, marginal_c, por_face_areaU_c, visc_rem_u_c, OBC_c)
+#endif
+
+    case default
+      call zonal_flux_thickness_fortran(bxC, u_a, h_a, h_W_a, h_E_a, h_u_a, dt, dy_Cu_a, &
+                                        IareaT_a, IdxT_a, vol_CFL, marginal, por_face_areaU_a, &
+                                        OBC, visc_rem_u_a)
+
+  end select
 
 end subroutine zonal_flux_thickness
 
@@ -2550,7 +3505,7 @@ subroutine set_zonal_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, BT_cont, du0_a, uh_
 end subroutine set_zonal_BT_cont
 
 !> Calculates the mass or volume fluxes through the meridional faces, and other related quantities.
-subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, OBC, &
+subroutine meridional_mass_flux_fortran(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, OBC, &
                                  por_face_areaV_a, vhbt_a, visc_rem_v_a, v_cor_a, BT_cont, &
                                  dv_cor_a, dx_Cv_a, IareaT_a, IdyT_a, dyCv_a, areaT_a, dyT_a, &
                                  mask2dCv_a, H_subroundoff, CFL_limit_adjust, aggress_adjust, &
@@ -2659,8 +3614,6 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, OBC, &
     visc_rem_v_tmp ! A copy of visc_rem_v or an array of 1's [nondim]
 
   nullify(visc_rem_v, dv_cor)
-
-  call cpu_clock_begin(id_clock_correct)
 
   call v_a%view(v)
   call h_in_a%view(h_in)
@@ -2862,6 +3815,219 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, OBC, &
 
   !$omp target exit data &
   !$omp   map(release: dvhdv)
+
+end subroutine meridional_mass_flux_fortran
+
+!> Shim for meridional_mass_flux -- dispatches via MERIDIONAL_MASS_FLUX_MODE env var.
+subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, OBC, &
+                                 por_face_areaV_a, vhbt_a, visc_rem_v_a, v_cor_a, BT_cont, &
+                                 dv_cor_a, dx_Cv_a, IareaT_a, IdyT_a, dyCv_a, areaT_a, dyT_a, &
+                                 mask2dCv_a, H_subroundoff, CFL_limit_adjust, aggress_adjust, &
+                                 use_visc_rem_max, vol_CFL, tol_vel, tol_eta, better_iter, &
+                                 marginal_faces)
+  type(Box_t),             intent(in)    :: bxC  !< Iteration box for continuity solver
+  type(RealArray_t),       intent(in)    :: v_a    !< Meridional velocity [L T-1 ~> m s-1]
+  type(RealArray_t),       intent(in)    :: h_in_a !< Layer thickness used to calculate fluxes
+                                                   !! [H ~> m or kg m-2]
+  type(RealArray_t),       intent(in)    :: h_S_a !< South edge thickness in the reconstruction
+                                                  !! [H ~> m or kg m-2].
+  type(RealArray_t),       intent(in)    :: h_N_a !< North edge thickness in the reconstruction
+                                                  !! [H ~> m or kg m-2].
+  type(RealArray_t),       intent(inout) :: vh_a   !< Volume flux through meridional faces = v*h*dx
+                                                 !! [H L2 T-1 ~> m3 s-1 or kg s-1]
+  real,                    intent(in)    :: dt   !< Time increment [T ~> s].
+  type(ocean_OBC_type),    pointer       :: OBC  !< Open boundary condition type
+                                                 !! specifies whether, where, and what
+                                                 !! open boundary conditions are used.
+  type(RealArray_t),       intent(in)    :: por_face_areaV_a !< fractional open area of V-faces
+                                                             !! [nondim]
+  type(RealArray_t),       intent(in) :: vhbt_a !< The summed volume flux through meridional
+                                                 !! faces [H L2 T-1 ~> m3 s-1 or kg s-1].
+  type(RealArray_t),       intent(in) :: visc_rem_v_a
+                     !< Both the fraction of the momentum originally in a layer that remains after a
+                     !! time-step of viscosity, and the fraction of a time-step's worth of a
+                     !! barotropic acceleration that a layer experiences after viscosity is applied
+                     !! [nondim]. Visc_rem_v is between 0 (at the bottom) and 1 (far above the
+                     !! bottom).
+  type(RealArray_t),       intent(inout) :: v_cor_a
+                     !< The meridional velocities (v with a barotropic correction)
+                     !! that give vhbt as the depth-integrated transport [L T-1 ~> m s-1].
+  type(BT_cont_type), optional, pointer  :: BT_cont !< A structure with elements that describe the
+                     !! effective open face areas as a function of barotropic flow.
+  type(RealArray_t),       intent(inout) :: dv_cor_a
+                                     !< The meridional velocity increments from v that give vhbt
+                                     !! as the depth-integrated transports [L T-1 ~> m s-1].
+  type(RealArray_t),       intent(in)    :: dx_Cv_a !< The grid cell's unblocked lengths of the
+                                                    !! u/v-faces of the h-cell [L ~> m].
+  type(RealArray_t),       intent(in)    :: IareaT_a !< The grid cell's 1/areaT [L-2 ~> m-2].
+  type(RealArray_t),       intent(in)    :: IdyT_a !< The grid cell's 1/dyT [L-1 ~> m-1].
+  type(RealArray_t),       intent(in)    :: dyCv_a !< The dy spacing at v points [L ~> m].
+  type(RealArray_t),       intent(in)    :: areaT_a !< The grid cell's area [L2 ~> m2].
+  type(RealArray_t),       intent(in)    :: dyT_a !< The dy spacing at h points [L ~> m].
+  type(RealArray_t),       intent(in)    :: mask2dCv_a !< 0 for boundary points and 1 for ocean
+                                                       !! points on the v grid [nondim].
+  real,                    intent(in)    :: H_subroundoff !< A thickness that is so small that it
+                     !! can be added to a thickness of Angstrom or larger without changing it at the
+                     !! bit level [H ~> m or kg m-2].
+  real,                    intent(in)    :: CFL_limit_adjust !< The maximum CFL of the adjusted
+                                                             !! velocities [nondim]
+  logical,                 intent(in)    :: aggress_adjust !< If true, allow the adjusted velocities
+                                                           !! to have a relative CFL change up to
+                                                           !! 0.5. False by default.
+  logical,                 intent(in)    :: use_visc_rem_max !< If true, use more appropriate
+                                                             !! limiting bounds for corrections in
+                                                             !! strongly viscous columns.
+  logical,                 intent(in)    :: vol_CFL !< If true, use the ratio of the open face
+                                                     !! lengths to the tracer cell areas when
+                                                     !! estimating CFL numbers. Without
+                                                     !! aggress_adjust, the default is false; it is
+                                                     !! always true with.
+  real,                    intent(in)    :: tol_vel !< The tolerance for barotropic velocity
+                                                     !! discrepancies between the barotropic
+                                                     !! solution and the sum of the layer
+                                                     !! thicknesses [L T-1 ~> m s-1].
+  real,                    intent(in)    :: tol_eta !< The tolerance for free-surface height
+                                                     !! discrepancies between the barotropic
+                                                     !! solution and the sum of the layer
+                                                     !! thicknesses [H ~> m or kg m-2].
+  logical,                 intent(in)    :: better_iter !< If true, stop corrective iterations
+                                                         !! using a velocity-based criterion and
+                                                         !! only stop if the iteration is better
+                                                         !! than all predecessors.
+  logical,                 intent(in)    :: marginal_faces !< If true, use the marginal face areas
+                          !! from the continuity solver for use as the weights in the barotropic
+                          !! solver. Otherwise use the transport averaged areas.
+
+  integer  :: mode, rc
+  type(RealArray_C) :: v_c, h_in_c, h_S_c, h_N_c, vh_c, por_face_areaV_c
+  type(RealArray_C) :: vhbt_c, visc_rem_v_c, v_cor_c, dv_cor_c
+  type(RealArray_C) :: dx_Cv_c, IareaT_c, IdyT_c, dyCv_c, areaT_c, dyT_c, mask2dCv_c
+  type(Box_C)        :: bxC_c
+  type(c_ptr)        :: OBC_c, BT_cont_c
+  logical(c_bool)    :: aggress_adjust_c, use_visc_rem_max_c, vol_CFL_c, better_iter_c
+  logical(c_bool)    :: marginal_faces_c
+  type(io_recorder)  :: rec
+  logical            :: capture
+  character(len=80)  :: kernel
+  character(len=100) :: dir
+  character(len=256) :: binFile, metaFile
+
+  kernel = "meridional_mass_flux"
+
+  call cpu_clock_begin(id_clock_correct)
+
+  mode = getenv_mode("MERIDIONAL_MASS_FLUX_MODE", default=TIMH_runFORTRAN)
+
+  select case (mode)
+
+    case (TIMH_capture)
+      capture = (.not. already_recorded(trim(kernel))) .and. is_root_pe()
+      if (capture) then
+        dir = "capture"
+        rc = mkdir_posix(trim(dir) // c_null_char, int(o'755', c_int))
+        binFile  = trim(dir) // "/" // trim(kernel) // ".bin"
+        metaFile = trim(dir) // "/" // trim(kernel) // ".meta"
+        call rec%open_write(binFile, metaFile)
+        call rec%add("_bxC",              bxC)
+        call rec%add("_v",                v_a)
+        call rec%add("_h_in",             h_in_a)
+        call rec%add("_h_S",              h_S_a)
+        call rec%add("_h_N",              h_N_a)
+        call rec%add("_vh_before",        vh_a)
+        call rec%add("_dt",               dt)
+        call rec%add("_por_face_areaV",   por_face_areaV_a)
+        call rec%add("_vhbt",             vhbt_a)
+        call rec%add("_visc_rem_v",       visc_rem_v_a)
+        call rec%add("_v_cor_before",     v_cor_a)
+        call rec%add("_dv_cor_before",    dv_cor_a)
+        call rec%add("_dx_Cv",            dx_Cv_a)
+        call rec%add("_IareaT",           IareaT_a)
+        call rec%add("_IdyT",             IdyT_a)
+        call rec%add("_dyCv",             dyCv_a)
+        call rec%add("_areaT",            areaT_a)
+        call rec%add("_dyT",              dyT_a)
+        call rec%add("_mask2dCv",         mask2dCv_a)
+        call rec%add("_H_subroundoff",    H_subroundoff)
+        call rec%add("_CFL_limit_adjust", CFL_limit_adjust)
+        call rec%add("_aggress_adjust",   aggress_adjust)
+        call rec%add("_use_visc_rem_max", use_visc_rem_max)
+        call rec%add("_vol_CFL",          vol_CFL)
+        call rec%add("_tol_vel",          tol_vel)
+        call rec%add("_tol_eta",          tol_eta)
+        call rec%add("_better_iter",      better_iter)
+        call rec%add("_marginal_faces",   marginal_faces)
+      endif
+
+      call meridional_mass_flux_fortran(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, OBC, &
+                                        por_face_areaV_a, vhbt_a, visc_rem_v_a, v_cor_a, &
+                                        BT_cont, dv_cor_a, dx_Cv_a, IareaT_a, IdyT_a, dyCv_a, &
+                                        areaT_a, dyT_a, mask2dCv_a, H_subroundoff, &
+                                        CFL_limit_adjust, aggress_adjust, use_visc_rem_max, &
+                                        vol_CFL, tol_vel, tol_eta, better_iter, marginal_faces)
+
+      if (capture) then
+        call rec%add("_vh_after",     vh_a)
+        call rec%add("_v_cor_after",  v_cor_a)
+        call rec%add("_dv_cor_after", dv_cor_a)
+        call rec%close()
+        call mark_recorded(trim(kernel))
+      endif
+
+#ifdef _TIM
+    case (TIMH_runAMREX)
+      bxC_c              = bxC%to_c()
+      v_c                = v_a%to_c()
+      h_in_c             = h_in_a%to_c()
+      h_S_c              = h_S_a%to_c()
+      h_N_c              = h_N_a%to_c()
+      vh_c               = vh_a%to_c()
+      por_face_areaV_c   = por_face_areaV_a%to_c()
+      vhbt_c             = vhbt_a%to_c()
+      visc_rem_v_c       = visc_rem_v_a%to_c()
+      v_cor_c            = v_cor_a%to_c()
+      dv_cor_c           = dv_cor_a%to_c()
+      dx_Cv_c            = dx_Cv_a%to_c()
+      IareaT_c           = IareaT_a%to_c()
+      IdyT_c             = IdyT_a%to_c()
+      dyCv_c             = dyCv_a%to_c()
+      areaT_c            = areaT_a%to_c()
+      dyT_c              = dyT_a%to_c()
+      mask2dCv_c         = mask2dCv_a%to_c()
+      aggress_adjust_c   = aggress_adjust
+      use_visc_rem_max_c = use_visc_rem_max
+      vol_CFL_c          = vol_CFL
+      better_iter_c      = better_iter
+      marginal_faces_c   = marginal_faces
+      if (associated(OBC)) then
+        OBC_c = c_loc(OBC)
+      else
+        OBC_c = c_null_ptr
+      endif
+      if (present(BT_cont)) then
+        if (associated(BT_cont)) then
+          BT_cont_c = c_loc(BT_cont)
+        else
+          BT_cont_c = c_null_ptr
+        endif
+      else
+        BT_cont_c = c_null_ptr
+      endif
+      call turbotmp_meridional_mass_flux_bridge(bxC_c, v_c, h_in_c, h_S_c, h_N_c, vh_c, dt, &
+               OBC_c, por_face_areaV_c, vhbt_c, visc_rem_v_c, v_cor_c, BT_cont_c, dv_cor_c, &
+               dx_Cv_c, IareaT_c, IdyT_c, dyCv_c, areaT_c, dyT_c, mask2dCv_c, &
+               H_subroundoff, CFL_limit_adjust, aggress_adjust_c, use_visc_rem_max_c, &
+               vol_CFL_c, tol_vel, tol_eta, better_iter_c, marginal_faces_c)
+#endif
+
+    case default
+      call meridional_mass_flux_fortran(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, OBC, &
+                                        por_face_areaV_a, vhbt_a, visc_rem_v_a, v_cor_a, &
+                                        BT_cont, dv_cor_a, dx_Cv_a, IareaT_a, IdyT_a, dyCv_a, &
+                                        areaT_a, dyT_a, mask2dCv_a, H_subroundoff, &
+                                        CFL_limit_adjust, aggress_adjust, use_visc_rem_max, &
+                                        vol_CFL, tol_vel, tol_eta, better_iter, marginal_faces)
+
+  end select
 
   call cpu_clock_end(id_clock_correct)
 
@@ -3119,7 +4285,7 @@ end subroutine present_vhbt_or_set_BT_cont
 
 
 !> Calculates the vertically integrated mass or volume fluxes through the meridional faces.
-subroutine meridional_BT_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vhbt_a, dt, &
+subroutine meridional_BT_mass_flux_fortran(bxC, v_a, h_in_a, h_S_a, h_N_a, vhbt_a, dt, &
                                    vol_CFL, OBC, por_face_areaV_a, dx_Cv_a, IareaT_a, IdyT_a)
 
   type(box_t),                                intent(in)  :: bxC  !< Iteration box for continuity solver
@@ -3169,8 +4335,6 @@ subroutine meridional_BT_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vhbt_a, dt, &
   call IareaT_a%view(IareaT)
   call IdyT_a%view(IdyT)
 
-  call cpu_clock_begin(id_clock_correct)
-
   local_specified_BC = .false.
   if (associated(OBC)) then ; if (OBC%OBC_pe) then
     local_specified_BC = OBC%specified_v_BCs_exist_globally
@@ -3212,6 +4376,120 @@ subroutine meridional_BT_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vhbt_a, dt, &
     vhbt(i,J) = vhbt(i,J) + vh(i,J,k)
   enddo ; enddo ; enddo
 
+end subroutine meridional_BT_mass_flux_fortran
+
+!> Shim for meridional_BT_mass_flux -- dispatches via MERIDIONAL_BT_MASS_FLUX_MODE env var.
+subroutine meridional_BT_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vhbt_a, dt, &
+                                   vol_CFL, OBC, por_face_areaV_a, dx_Cv_a, IareaT_a, IdyT_a)
+
+  type(box_t),                                intent(in)  :: bxC  !< Iteration box for continuity solver
+  type(RealArray_t),       intent(in)  :: v_a  !< Meridional velocity [L T-1 ~> m s-1]
+  type(RealArray_t),       intent(in)  :: h_in_a !< Layer thickness used to
+                                                 !! calculate fluxes [H ~> m or kg m-2]
+  type(RealArray_t),       intent(in)  :: h_S_a !< Southern edge thickness in the PPM
+                                                !! reconstruction [H ~> m or kg m-2].
+  type(RealArray_t),       intent(in)  :: h_N_a !< Northern edge thickness in the PPM
+                                                !! reconstruction [H ~> m or kg m-2].
+  type(RealArray_t),       intent(inout) :: vhbt_a !< The summed volume flux through meridional
+                                                   !! faces [H L2 T-1 ~> m3 s-1 or kg s-1].
+  real,                                       intent(in)  :: dt   !< Time increment [T ~> s].
+  logical,                 intent(in)  :: vol_CFL !< If true, use the ratio of the open face
+                                                   !! lengths to the tracer cell areas when
+                                                   !! estimating CFL numbers. Without
+                                                   !! aggress_adjust, the default is false; it is
+                                                   !! always true with.
+  type(ocean_OBC_type),                       pointer     :: OBC  !< Open boundary condition type
+                                                                  !! specifies whether, where, and what
+                                                                  !! open boundary conditions are used.
+  type(RealArray_t),       intent(in)  :: por_face_areaV_a !< fractional open area of V-faces
+                                                           !! [nondim]
+  type(RealArray_t),       intent(in)  :: dx_Cv_a !< The grid cell's unblocked lengths of the
+                                                   !! u/v-faces of the h-cell [L ~> m].
+  type(RealArray_t),       intent(in)  :: IareaT_a !< The grid cell's 1/areaT [L-2 ~> m-2].
+  type(RealArray_t),       intent(in)  :: IdyT_a !< The grid cell's 1/dyT [L-1 ~> m-1].
+
+  integer  :: mode, rc
+  type(RealArray_C) :: v_c, h_in_c, h_S_c, h_N_c, vhbt_c, por_face_areaV_c
+  type(RealArray_C) :: dx_Cv_c, IareaT_c, IdyT_c
+  type(Box_C)        :: bxC_c
+  type(c_ptr)        :: OBC_c
+  logical(c_bool)    :: vol_CFL_c
+  type(io_recorder)  :: rec
+  logical            :: capture
+  character(len=80)  :: kernel
+  character(len=100) :: dir
+  character(len=256) :: binFile, metaFile
+
+  kernel = "meridional_bt_mass_flux"
+
+  call cpu_clock_begin(id_clock_correct)
+
+  mode = getenv_mode("MERIDIONAL_BT_MASS_FLUX_MODE", default=TIMH_runFORTRAN)
+
+  select case (mode)
+
+    case (TIMH_capture)
+      capture = (.not. already_recorded(trim(kernel))) .and. is_root_pe()
+      if (capture) then
+        dir = "capture"
+        rc = mkdir_posix(trim(dir) // c_null_char, int(o'755', c_int))
+        binFile  = trim(dir) // "/" // trim(kernel) // ".bin"
+        metaFile = trim(dir) // "/" // trim(kernel) // ".meta"
+        call rec%open_write(binFile, metaFile)
+        call rec%add("_bxC",            bxC)
+        call rec%add("_v",              v_a)
+        call rec%add("_h_in",           h_in_a)
+        call rec%add("_h_S",            h_S_a)
+        call rec%add("_h_N",            h_N_a)
+        call rec%add("_vhbt_before",    vhbt_a)
+        call rec%add("_dt",             dt)
+        call rec%add("_vol_CFL",        vol_CFL)
+        call rec%add("_por_face_areaV", por_face_areaV_a)
+        call rec%add("_dx_Cv",          dx_Cv_a)
+        call rec%add("_IareaT",         IareaT_a)
+        call rec%add("_IdyT",           IdyT_a)
+      endif
+
+      call meridional_BT_mass_flux_fortran(bxC, v_a, h_in_a, h_S_a, h_N_a, vhbt_a, dt, &
+                                           vol_CFL, OBC, por_face_areaV_a, dx_Cv_a, IareaT_a, &
+                                           IdyT_a)
+
+      if (capture) then
+        call rec%add("_vhbt_after", vhbt_a)
+        call rec%close()
+        call mark_recorded(trim(kernel))
+      endif
+
+#ifdef _TIM
+    case (TIMH_runAMREX)
+      bxC_c            = bxC%to_c()
+      v_c              = v_a%to_c()
+      h_in_c           = h_in_a%to_c()
+      h_S_c            = h_S_a%to_c()
+      h_N_c            = h_N_a%to_c()
+      vhbt_c           = vhbt_a%to_c()
+      por_face_areaV_c = por_face_areaV_a%to_c()
+      dx_Cv_c          = dx_Cv_a%to_c()
+      IareaT_c         = IareaT_a%to_c()
+      IdyT_c           = IdyT_a%to_c()
+      vol_CFL_c        = vol_CFL
+      if (associated(OBC)) then
+        OBC_c = c_loc(OBC)
+      else
+        OBC_c = c_null_ptr
+      endif
+      call turbotmp_meridional_bt_mass_flux_bridge(bxC_c, v_c, h_in_c, h_S_c, h_N_c, vhbt_c, dt, &
+                                                    vol_CFL_c, OBC_c, por_face_areaV_c, dx_Cv_c, &
+                                                    IareaT_c, IdyT_c)
+#endif
+
+    case default
+      call meridional_BT_mass_flux_fortran(bxC, v_a, h_in_a, h_S_a, h_N_a, vhbt_a, dt, &
+                                           vol_CFL, OBC, por_face_areaV_a, dx_Cv_a, IareaT_a, &
+                                           IdyT_a)
+
+  end select
+
   call cpu_clock_end(id_clock_correct)
 
 end subroutine meridional_BT_mass_flux
@@ -3219,8 +4497,9 @@ end subroutine meridional_BT_mass_flux
 
 !> Sets the effective interface thickness associated with the fluxes at each meridional velocity point,
 !! optionally scaling back these thicknesses to account for viscosity and fractional open areas.
-subroutine meridional_flux_thickness(bxC, v_a, h_a, h_S_a, h_N_a, h_v_a, dt, dx_Cv_a, IareaT_a, &
-                                     IdyT_a, vol_CFL, marginal, por_face_areaV_a, OBC, visc_rem_v_a)
+subroutine meridional_flux_thickness_fortran(bxC, v_a, h_a, h_S_a, h_N_a, h_v_a, dt, dx_Cv_a, &
+                                     IareaT_a, IdyT_a, vol_CFL, marginal, por_face_areaV_a, OBC, &
+                                     visc_rem_v_a)
   type(box_t),                               intent(in)    :: bxC  !< Iteration box for continuity solver
   type(RealArray_t),       intent(in)    :: v_a  !< Meridional velocity [L T-1 ~> m s-1].
   type(RealArray_t),       intent(in)    :: h_a  !< Layer thickness used to calculate fluxes,
@@ -3354,6 +4633,125 @@ subroutine meridional_flux_thickness(bxC, v_a, h_a, h_S_a, h_N_a, h_v_a, dt, dx_
   endif
 
   call bxV%free()
+
+end subroutine meridional_flux_thickness_fortran
+
+!> Shim for meridional_flux_thickness -- dispatches via MERIDIONAL_FLUX_THICKNESS_MODE env var.
+subroutine meridional_flux_thickness(bxC, v_a, h_a, h_S_a, h_N_a, h_v_a, dt, dx_Cv_a, IareaT_a, &
+                                     IdyT_a, vol_CFL, marginal, por_face_areaV_a, OBC, visc_rem_v_a)
+  type(box_t),                               intent(in)    :: bxC  !< Iteration box for continuity solver
+  type(RealArray_t),       intent(in)    :: v_a  !< Meridional velocity [L T-1 ~> m s-1].
+  type(RealArray_t),       intent(in)    :: h_a  !< Layer thickness used to calculate fluxes,
+                                                 !! [H ~> m or kg m-2].
+  type(RealArray_t),       intent(in)    :: h_S_a !< South edge thickness in the reconstruction,
+                                                  !! [H ~> m or kg m-2].
+  type(RealArray_t),       intent(in)    :: h_N_a !< North edge thickness in the reconstruction,
+                                                  !! [H ~> m or kg m-2].
+  type(RealArray_t),       intent(inout) :: h_v_a !< Effective thickness at meridional faces,
+                                                  !! scaled down to account for the effects of
+                                                  !! viscosity and the fractional open area
+                                                  !! [H ~> m or kg m-2].
+  real,                                      intent(in)    :: dt   !< Time increment [T ~> s].
+  type(RealArray_t),       intent(in)    :: dx_Cv_a !< The grid cell's unblocked lengths of the
+                                                    !! u/v-faces of the h-cell [L ~> m].
+  type(RealArray_t),       intent(in)    :: IareaT_a !< The grid cell's 1/areaT [L-2 ~> m-2].
+  type(RealArray_t),       intent(in)    :: IdyT_a !< The grid cell's 1/dyT [L-1 ~> m-1].
+  logical,                                   intent(in)    :: vol_CFL !< If true, rescale the ratio
+                          !! of face areas to the cell areas when estimating the CFL number.
+  logical,                                   intent(in)    :: marginal !< If true, report the marginal
+                          !! face thicknesses; otherwise report transport-averaged thicknesses.
+  type(RealArray_t),       intent(in)    :: por_face_areaV_a  !< fractional open area of V-faces
+                                                              !! [nondim]
+  type(ocean_OBC_type),                      pointer       :: OBC !< Open boundaries control structure.
+  type(RealArray_t), intent(in) :: visc_rem_v_a !< Both the fraction
+                          !! of the momentum originally in a layer that remains after a time-step of
+                          !! viscosity, and the fraction of a time-step's worth of a barotropic
+                          !! acceleration that a layer experiences after viscosity is applied [nondim].
+                          !! Visc_rem_v is between 0 (at the bottom) and 1 (far above the bottom).
+
+  integer  :: mode, rc
+  type(RealArray_C) :: v_c, h_c, h_S_c, h_N_c, h_v_c, dx_Cv_c, IareaT_c, IdyT_c
+  type(RealArray_C) :: por_face_areaV_c, visc_rem_v_c
+  type(Box_C)        :: bxC_c
+  type(c_ptr)        :: OBC_c
+  logical(c_bool)    :: vol_CFL_c, marginal_c
+  type(io_recorder)  :: rec
+  logical            :: capture
+  character(len=80)  :: kernel
+  character(len=100) :: dir
+  character(len=256) :: binFile, metaFile
+
+  kernel = "meridional_flux_thickness"
+
+  mode = getenv_mode("MERIDIONAL_FLUX_THICKNESS_MODE", default=TIMH_runFORTRAN)
+
+  select case (mode)
+
+    case (TIMH_capture)
+      capture = (.not. already_recorded(trim(kernel))) .and. is_root_pe()
+      if (capture) then
+        dir = "capture"
+        rc = mkdir_posix(trim(dir) // c_null_char, int(o'755', c_int))
+        binFile  = trim(dir) // "/" // trim(kernel) // ".bin"
+        metaFile = trim(dir) // "/" // trim(kernel) // ".meta"
+        call rec%open_write(binFile, metaFile)
+        call rec%add("_bxC",            bxC)
+        call rec%add("_v",              v_a)
+        call rec%add("_h",              h_a)
+        call rec%add("_h_S",            h_S_a)
+        call rec%add("_h_N",            h_N_a)
+        call rec%add("_h_v_before",     h_v_a)
+        call rec%add("_dt",             dt)
+        call rec%add("_dx_Cv",          dx_Cv_a)
+        call rec%add("_IareaT",         IareaT_a)
+        call rec%add("_IdyT",           IdyT_a)
+        call rec%add("_vol_CFL",        vol_CFL)
+        call rec%add("_marginal",       marginal)
+        call rec%add("_por_face_areaV", por_face_areaV_a)
+        call rec%add("_visc_rem_v",     visc_rem_v_a)
+      endif
+
+      call meridional_flux_thickness_fortran(bxC, v_a, h_a, h_S_a, h_N_a, h_v_a, dt, dx_Cv_a, &
+                                             IareaT_a, IdyT_a, vol_CFL, marginal, &
+                                             por_face_areaV_a, OBC, visc_rem_v_a)
+
+      if (capture) then
+        call rec%add("_h_v_after", h_v_a)
+        call rec%close()
+        call mark_recorded(trim(kernel))
+      endif
+
+#ifdef _TIM
+    case (TIMH_runAMREX)
+      bxC_c            = bxC%to_c()
+      v_c              = v_a%to_c()
+      h_c              = h_a%to_c()
+      h_S_c            = h_S_a%to_c()
+      h_N_c            = h_N_a%to_c()
+      h_v_c            = h_v_a%to_c()
+      dx_Cv_c          = dx_Cv_a%to_c()
+      IareaT_c         = IareaT_a%to_c()
+      IdyT_c           = IdyT_a%to_c()
+      por_face_areaV_c = por_face_areaV_a%to_c()
+      visc_rem_v_c     = visc_rem_v_a%to_c()
+      vol_CFL_c        = vol_CFL
+      marginal_c       = marginal
+      if (associated(OBC)) then
+        OBC_c = c_loc(OBC)
+      else
+        OBC_c = c_null_ptr
+      endif
+      call turbotmp_meridional_flux_thickness_bridge(bxC_c, v_c, h_c, h_S_c, h_N_c, h_v_c, dt, &
+               dx_Cv_c, IareaT_c, IdyT_c, vol_CFL_c, marginal_c, por_face_areaV_c, visc_rem_v_c, &
+               OBC_c)
+#endif
+
+    case default
+      call meridional_flux_thickness_fortran(bxC, v_a, h_a, h_S_a, h_N_a, h_v_a, dt, dx_Cv_a, &
+                                             IareaT_a, IdyT_a, vol_CFL, marginal, &
+                                             por_face_areaV_a, OBC, visc_rem_v_a)
+
+  end select
 
 end subroutine meridional_flux_thickness
 
