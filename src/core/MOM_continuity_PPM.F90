@@ -465,6 +465,7 @@ implicit none ; private
   end interface
 
   interface
+    !> Bridge for the zonal_BT_mass_flux subroutine
     subroutine turbotmp_zonal_bt_mass_flux_bridge(bx, u, h_in, h_W, h_E, uhbt, dt, vol_CFL, &
                                        obc, por_face_areaU, dy_Cu, IareaT, IdxT) bind(C)
       use iso_c_binding, only : c_double, c_bool, c_ptr
@@ -499,6 +500,7 @@ implicit none ; private
   end interface
 
   interface
+    !> Bridge for the meridional_BT_mass_flux subroutine
     subroutine turbotmp_meridional_bt_mass_flux_bridge(bx, v, h_in, h_S, h_N, vhbt, dt, vol_CFL, &
                                        obc, por_face_areaV, dx_Cv, IareaT, IdyT) bind(C)
       use iso_c_binding, only : c_double, c_bool, c_ptr

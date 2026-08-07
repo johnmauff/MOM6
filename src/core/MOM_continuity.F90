@@ -33,6 +33,7 @@ use box_mod, only : Box_t
 
 implicit none ; private
 
+!> Calculates the mass or volume fluxes through the zonal and meridional faces.
 interface continuity_fluxes
   module procedure continuity_3d_fluxes, continuity_2d_fluxes
 end interface continuity_fluxes
