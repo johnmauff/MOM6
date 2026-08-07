@@ -662,6 +662,7 @@ subroutine btstep(U_in, V_in, eta_in, dt, bc_accel_u, bc_accel_v, forces, pbce, 
   type(RealArray_t) :: accel_layer_u_a, accel_layer_v_a
   type(RealArray_t) :: U_in_a, V_in_a, wt_u_a, wt_v_a
   type(RealArray_t) :: Datu_a, Datv_a
+  type(RealArray_t) :: eta_a, SpV_col_avg_a
   real, dimension(SZIB_(G),SZJ_(G)) :: Drag_u
                   ! The zonal acceleration due to frequency-dependent drag [L T-2 ~> m s-2]
   real, dimension(SZI_(G),SZJB_(G)) :: Drag_v
@@ -1250,8 +1251,17 @@ subroutine btstep(U_in, V_in, eta_in, dt, bc_accel_u, bc_accel_v, forces, pbce, 
       call complete_group_pass(CS%pass_SpV_avg, CS%BT_domain)
 
     dgeo_de_OBC = 1.0 ; if (CS%tidal_SAL_Flather) dgeo_de_OBC = dgeo_de
-    call set_up_BT_OBC(OBC, eta, SpV_col_avg, CS%BT_OBC, CS%BT_Domain, G, GV, US, CS, MS, ievf-ie, &
-                       use_BT_cont, integral_BT_cont, dt, Datu, Datv, BTCL_u, BTCL_v, dgeo_de_OBC)
+    call eta_a%alloc(lb=LBOUND(eta), ub=UBOUND(eta), source=eta)
+    call SpV_col_avg_a%alloc(lb=LBOUND(SpV_col_avg), ub=UBOUND(SpV_col_avg), source=SpV_col_avg)
+    call Datu_a%alloc(lb=LBOUND(Datu), ub=UBOUND(Datu), source=Datu)
+    call Datv_a%alloc(lb=LBOUND(Datv), ub=UBOUND(Datv), source=Datv)
+    call set_up_BT_OBC(OBC, eta_a, SpV_col_avg_a, CS%BT_OBC, CS%BT_Domain, G, GV, US, CS, MS, &
+                       ievf-ie, use_BT_cont, integral_BT_cont, dt, Datu_a, Datv_a, &
+                       BTCL_u, BTCL_v, dgeo_de_OBC)
+    call eta_a%free()
+    call SpV_col_avg_a%free()
+    call Datu_a%free()
+    call Datv_a%free()
   endif
 
   ! Determine the difference between the sum of the layer fluxes and the
@@ -4593,14 +4603,15 @@ end subroutine initialize_BT_OBC
 
 !> This subroutine sets up the time-varying fields in the private structure used to apply the open
 !! boundary conditions, as developed by Mehmet Ilicak.
-subroutine set_up_BT_OBC(OBC, eta, SpV_avg, BT_OBC, BT_Domain, G, GV, US, CS, MS, halo, use_BT_cont, &
-                         integral_BT_cont, dt_baroclinic, Datu, Datv, BTCL_u, BTCL_v, dgeo_de)
+subroutine set_up_BT_OBC(OBC, eta_a, SpV_avg_a, BT_OBC, BT_Domain, G, GV, US, CS, MS, halo, &
+                         use_BT_cont, integral_BT_cont, dt_baroclinic, Datu_a, Datv_a, &
+                         BTCL_u, BTCL_v, dgeo_de)
   type(ocean_OBC_type), target,          intent(inout) :: OBC    !< An associated pointer to an OBC type.
   type(memory_size_type),                intent(in)    :: MS     !< A type that describes the memory sizes of the
                                                                  !! argument arrays.
-  real, dimension(SZIW_(MS),SZJW_(MS)),  intent(in)    :: eta    !< The barotropic free surface height anomaly or
-                                                                 !! column mass anomaly [H ~> m or kg m-2].
-  real, dimension(SZIW_(MS),SZJW_(MS)),  intent(in)    :: SpV_avg !< The column average specific volume [R-1 ~> m3 kg-1]
+  type(RealArray_t), intent(in) :: eta_a !< The barotropic free surface height anomaly or column
+                                         !! mass anomaly [H ~> m or kg m-2].
+  type(RealArray_t), intent(in) :: SpV_avg_a !< The column average specific volume [R-1 ~> m3 kg-1]
   type(BT_OBC_type),                     intent(inout) :: BT_OBC !< A structure with the private barotropic arrays
                                                                  !! related to the open boundary conditions,
                                                                  !! set by set_up_BT_OBC.
@@ -4617,10 +4628,10 @@ subroutine set_up_BT_OBC(OBC, eta, SpV_avg, BT_OBC, BT_Domain, G, GV, US, CS, MS
                                                                  !! using the time-integrated barotropic velocity.
   real,                                  intent(in)    :: dt_baroclinic !< The baroclinic timestep for this cycle of
                                                                  !! updates to the barotropic solver [T ~> s]
-  real, dimension(SZIBW_(MS),SZJW_(MS)), intent(in)    :: Datu   !< A fixed estimate of the face areas at u points
-                                                                 !! [H L ~> m2 or kg m-1].
-  real, dimension(SZIW_(MS),SZJBW_(MS)), intent(in)    :: Datv   !< A fixed estimate of the face areas at v points
-                                                                 !! [H L ~> m2 or kg m-1].
+  type(RealArray_t), intent(in) :: Datu_a !< A fixed estimate of the face areas at u points
+                                         !! [H L ~> m2 or kg m-1].
+  type(RealArray_t), intent(in) :: Datv_a !< A fixed estimate of the face areas at v points
+                                         !! [H L ~> m2 or kg m-1].
   type(local_BT_cont_u_type), dimension(SZIBW_(MS),SZJW_(MS)), intent(in) :: BTCL_u !< Structure of information used
                                                                  !! for a dynamic estimate of the face areas at
                                                                  !! u-points.
@@ -4630,11 +4641,17 @@ subroutine set_up_BT_OBC(OBC, eta, SpV_avg, BT_OBC, BT_Domain, G, GV, US, CS, MS
   real,                                  intent(in)    :: dgeo_de  !< The constant of proportionality between
                                                                  !! geopotential and sea surface height [nondim].
   ! Local variables
+  real, dimension(:,:), contiguous, pointer :: eta, SpV_avg, Datu, Datv
   real :: I_dt      ! The inverse of the time interval of this call [T-1 ~> s-1].
   integer :: i, j, k, is, ie, js, je, n, nz
   integer :: isd, ied, jsd, jed, IsdB, IedB, JsdB, JedB
   integer :: isdw, iedw, jsdw, jedw
   type(OBC_segment_type), pointer  :: segment !< Open boundary segment
+
+  call eta_a%view(eta)
+  call SpV_avg_a%view(SpV_avg)
+  call Datu_a%view(Datu)
+  call Datv_a%view(Datv)
 
   is = G%isc-halo ; ie = G%iec+halo ; js = G%jsc-halo ; je = G%jec+halo
   isd = G%isd ; ied = G%ied ; jsd = G%jsd ; jed = G%jed ; nz = GV%ke
