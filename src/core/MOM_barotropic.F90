@@ -660,6 +660,7 @@ subroutine btstep(U_in, V_in, eta_in, dt, bc_accel_u, bc_accel_v, forces, pbce, 
   type(RealArray_t) :: u_accel_bt_a, v_accel_bt_a, pbce_a
   type(RealArray_t) :: gtot_E_a, gtot_W_a, gtot_N_a, gtot_S_a, e_anom_a
   type(RealArray_t) :: accel_layer_u_a, accel_layer_v_a
+  type(RealArray_t) :: U_in_a, V_in_a, wt_u_a, wt_v_a
   real, dimension(SZIB_(G),SZJ_(G)) :: Drag_u
                   ! The zonal acceleration due to frequency-dependent drag [L T-2 ~> m s-2]
   real, dimension(SZI_(G),SZJB_(G)) :: Drag_v
@@ -1348,7 +1349,21 @@ subroutine btstep(U_in, V_in, eta_in, dt, bc_accel_u, bc_accel_v, forces, pbce, 
   endif
 
 ! Calculate the initial barotropic velocities from the layer's velocities.
-  call btstep_ubt_from_layer(U_in, V_in, wt_u, wt_v, ubt, vbt, G, GV, CS)
+  call U_in_a%alloc(lb=LBOUND(U_in), ub=UBOUND(U_in), source=U_in)
+  call V_in_a%alloc(lb=LBOUND(V_in), ub=UBOUND(V_in), source=V_in)
+  call wt_u_a%alloc(lb=LBOUND(wt_u), ub=UBOUND(wt_u), source=wt_u)
+  call wt_v_a%alloc(lb=LBOUND(wt_v), ub=UBOUND(wt_v), source=wt_v)
+  call ubt_a%alloc(lb=LBOUND(ubt), ub=UBOUND(ubt))
+  call vbt_a%alloc(lb=LBOUND(vbt), ub=UBOUND(vbt))
+  call btstep_ubt_from_layer(U_in_a, V_in_a, wt_u_a, wt_v_a, ubt_a, vbt_a, G, GV, CS)
+  call ubt_a%copy2F(ubt)
+  call vbt_a%copy2F(vbt)
+  call U_in_a%free()
+  call V_in_a%free()
+  call wt_u_a%free()
+  call wt_v_a%free()
+  call ubt_a%free()
+  call vbt_a%free()
 
   do concurrent (j=CS%jsdw:CS%jedw, i=CS%isdw-1:CS%iedw)
     uhbt(i,j) = 0.0 ; u_accel_bt(i,j) = 0.0
@@ -3730,23 +3745,32 @@ end subroutine btloop_update_u
 
 
 !> Calculate the zonal and meridional velocity from the 3-D velocity.
-subroutine btstep_ubt_from_layer(U_in, V_in, wt_u, wt_v, ubt, vbt,  G, GV, CS)
+subroutine btstep_ubt_from_layer(U_in_a, V_in_a, wt_u_a, wt_v_a, ubt_a, vbt_a, G, GV, CS)
   type(verticalGrid_type), intent(in)  :: GV      !< The ocean's vertical grid structure.
   type(barotropic_CS),     intent(inout) :: CS    !< Barotropic control structure
   type(ocean_grid_type),   intent(inout) :: G     !< The ocean's grid structure.
-  real, intent(in)  :: U_in(SZIB_(G),SZJ_(G),SZK_(GV)) !< The initial (3-D) zonal velocity [L T-1 ~> m s-1]
-  real, intent(in)  :: V_in(SZI_(G),SZJB_(G),SZK_(GV)) !< The initial (3-D) meridional velocity [L T-1 ~> m s-1]
-  real, intent(in)  :: wt_u(SZIB_(G),SZJ_(G),SZK_(GV)) !< The normalized weights to be used in calculating
+  type(RealArray_t), intent(in)  :: U_in_a !< The initial (3-D) zonal velocity [L T-1 ~> m s-1]
+  type(RealArray_t), intent(in)  :: V_in_a !< The initial (3-D) meridional velocity [L T-1 ~> m s-1]
+  type(RealArray_t), intent(in)  :: wt_u_a !< The normalized weights to be used in calculating
                                                   !! zonal barotropic velocities, possibly with sums
                                                   !! less than one due to viscous losses [nondim]
-  real, intent(in)  :: wt_v(SZI_(G),SZJB_(G),SZK_(GV)) !< The normalized weights to be used in calculating
+  type(RealArray_t), intent(in)  :: wt_v_a !< The normalized weights to be used in calculating
                                                   !! meridional barotropic velocities, possibly with
                                                   !! sums less than one due to viscous losses [nondim]
-  real, intent(out) :: ubt(SZIBW_(CS),SZJW_(CS))  !< The zonal barotropic velocity [L T-1 ~> m s-1]
-  real, intent(out) :: vbt(SZIW_(CS),SZJBW_(CS))  !< The meridional barotropic velocity [L T-1 ~> m s-1]
+  type(RealArray_t), intent(inout) :: ubt_a  !< The zonal barotropic velocity [L T-1 ~> m s-1]
+  type(RealArray_t), intent(inout) :: vbt_a  !< The meridional barotropic velocity [L T-1 ~> m s-1]
 
   ! Local variables
+  real, dimension(:,:,:), contiguous, pointer :: U_in, V_in, wt_u, wt_v
+  real, dimension(:,:), contiguous, pointer :: ubt, vbt
   integer :: i, j, k, is, ie, js, je, nz
+
+  call U_in_a%view(U_in)
+  call V_in_a%view(V_in)
+  call wt_u_a%view(wt_u)
+  call wt_v_a%view(wt_v)
+  call ubt_a%view(ubt)
+  call vbt_a%view(vbt)
 
   is = G%isc ; ie = G%iec ; js = G%jsc ; je = G%jec ; nz = GV%ke
 
