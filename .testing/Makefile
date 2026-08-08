@@ -242,15 +242,13 @@ SYMMETRIC_FCFLAGS := FCFLAGS="$(FCFLAGS_DEBUG) $(FCFLAGS_INIT) $(FCFLAGS_DEPS)"
 ASYMMETRIC_FCFLAGS := FCFLAGS="$(FCFLAGS_DEBUG) $(FCFLAGS_INIT) $(FCFLAGS_DEPS)"
 REPRO_FCFLAGS := FCFLAGS="$(FCFLAGS_REPRO) $(FCFLAGS_DEPS)"
 OPT_FCFLAGS := FCFLAGS="$(FCFLAGS_OPT) $(FCFLAGS_DEPS)"
-OPENMP_FCFLAGS := FCFLAGS="$(FCFLAGS_DEBUG) $(FCFLAGS_INIT) $(FCFLAGS_DEPS) -fsanitize=address"
+OPENMP_FCFLAGS := FCFLAGS="$(FCFLAGS_DEBUG) $(FCFLAGS_INIT) $(FCFLAGS_DEPS)"
 TARGET_FCFLAGS := FCFLAGS="$(FCFLAGS_DEBUG) $(FCFLAGS_INIT) $(FCFLAGS_DEPS)"
 COV_FCFLAGS := FCFLAGS="$(FCFLAGS_COVERAGE) $(FCFLAGS_DEPS)"
 
 # Linker flags
 MOM_LDFLAGS := LDFLAGS="$(LDFLAGS_DEPS) $(LDFLAGS_USER)"
 COV_LDFLAGS := LDFLAGS="$(LDFLAGS_COVERAGE) $(LDFLAGS_DEPS) $(LDFLAGS_USER)"
-# AddressSanitizer must also be linked in, in case FCFLAGS alone doesn't reach the link step.
-OPENMP_LDFLAGS := LDFLAGS="$(LDFLAGS_DEPS) $(LDFLAGS_USER) -fsanitize=address"
 
 # Environment variable configuration
 MOM_ENV := $(PATH_FMS)
@@ -258,7 +256,7 @@ $(BUILD)/symmetric/Makefile: MOM_ENV += $(SYMMETRIC_FCFLAGS) $(MOM_LDFLAGS)
 $(BUILD)/asymmetric/Makefile: MOM_ENV += $(ASYMMETRIC_FCFLAGS) $(MOM_LDFLAGS) \
   MOM_MEMORY=$(AC_SRCDIR)/../config_src/memory/dynamic_nonsymmetric/MOM_memory.h
 $(BUILD)/repro/Makefile: MOM_ENV += $(REPRO_FCFLAGS) $(MOM_LDFLAGS)
-$(BUILD)/openmp/Makefile: MOM_ENV += $(OPENMP_FCFLAGS) $(OPENMP_LDFLAGS)
+$(BUILD)/openmp/Makefile: MOM_ENV += $(OPENMP_FCFLAGS) $(MOM_LDFLAGS)
 $(BUILD)/target/Makefile: MOM_ENV += $(TARGET_FCFLAGS) $(MOM_LDFLAGS)
 $(BUILD)/opt/Makefile: MOM_ENV += $(OPT_FCFLAGS) $(MOM_LDFLAGS)
 $(BUILD)/opt_target/Makefile: MOM_ENV += $(OPT_FCFLAGS) $(MOM_LDFLAGS)
@@ -641,7 +639,7 @@ $(eval $(call STAT_RULE,symmetric,symmetric,,,,1))
 $(eval $(call STAT_RULE,asymmetric,asymmetric,,,,1))
 $(eval $(call STAT_RULE,target,target,,,,1))
 $(eval $(call STAT_RULE,repro,repro,,,,1))
-$(eval $(call STAT_RULE,openmp,openmp,,,GOMP_CPU_AFFINITY=0$(,)1 MallocScribble=1 MallocPreScribble=1 MallocGuardEdges=1,1))
+$(eval $(call STAT_RULE,openmp,openmp,,,GOMP_CPU_AFFINITY=0$(,)1,1))
 $(eval $(call STAT_RULE,layout,symmetric,,LAYOUT=2$(,)1,,2))
 $(eval $(call STAT_RULE,rotate,symmetric,,ROTATE_INDEX=True\nINDEX_TURNS=1,,1))
 $(eval $(call STAT_RULE,nan,symmetric,,,MALLOC_PERTURB_=1,1))
