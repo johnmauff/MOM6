@@ -136,7 +136,7 @@ module array_mod
      procedure :: from_c_Logical                 !< Refresh %data from the C compatible structure
      procedure ::  viewLogical1D,  viewLogical2D, &   !< Associates a Fortran pointer to an array container
                    viewLogical3D,  viewLogical4D
-     procedure :: allocLogical1D, allocLogical2D,  &  !< Allocates memory and associatea a Fortran pointer
+     procedure :: allocLogical1D, allocLogical2D,  &  !< Allocates memory and associates a Fortran pointer
                   allocLogical3D, allocLogical4D
      procedure :: copy2FLogical1D, copy2FLogical2D, & !< Copy data in a LogicalArray_t to a Fortran array
                   copy2FLogical3D, copy2FLogical4D
@@ -325,12 +325,14 @@ subroutine read_binaryLogical(this, unit)
 
   ! --- Null case ---
   if (n == -1) then
-    if (associated(this%data)) deallocate(this%data)
-    if (associated(this%shape)) deallocate(this%shape)
-    if (associated(this%lb)) deallocate(this%lb)
-    if (associated(this%ub)) deallocate(this%ub)
+    if (associated(this%data))   deallocate(this%data)
+    if (associated(this%data_c)) call amrex_deallocate(this%data_c)
+    if (associated(this%shape))  deallocate(this%shape)
+    if (associated(this%lb))     deallocate(this%lb)
+    if (associated(this%ub))     deallocate(this%ub)
 
     nullify(this%data)
+    nullify(this%data_c)
     nullify(this%shape)
     nullify(this%lb)
     nullify(this%ub)
@@ -341,11 +343,11 @@ subroutine read_binaryLogical(this, unit)
   this%rank = n
 
   ! --- Clean old allocations ---
-  if (associated(this%shape)) deallocate(this%shape)
-  if (associated(this%lb)) deallocate(this%lb)
-  if (associated(this%ub)) deallocate(this%ub)
-  if (associated(this%data)) deallocate(this%data)
-
+  if (associated(this%data_c)) call amrex_deallocate(this%data_c)
+  if (associated(this%shape))  deallocate(this%shape)
+  if (associated(this%lb))     deallocate(this%lb)
+  if (associated(this%ub))     deallocate(this%ub)
+  if (associated(this%data))   deallocate(this%data)
   ! --- Allocate metadata ---
   allocate(this%shape(n))
   allocate(this%lb(n))
