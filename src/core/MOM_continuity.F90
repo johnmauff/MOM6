@@ -179,9 +179,7 @@ subroutine continuity(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt, v
                       mask2dCu_a, dx_Cv_a, IdyT_a, dyCv_a, dyT_a, mask2dCv_a, &
                       por_face_areaU_a, por_face_areaV_a, OBC, &
                       G%first_direction, GV%Angstrom_H, GV%H_subroundoff, stencil, &
-                      CS%initialized, CS%upwind_1st, CS%monotonic, CS%simple_2nd, &
-                      CS%CFL_limit_adjust, CS%aggress_adjust, CS%vol_CFL, CS%better_iter, &
-                      CS%use_visc_rem_max, CS%marginal_faces, CS%tol_eta, CS%tol_vel, &
+                      CS%initialized, CS%recon, CS%adjust, &
                       uhbt_a, vhbt_a, visc_rem_u_a, visc_rem_v_a, u_cor_a, v_cor_a, &
                       BT_cont_a, du_cor_a, dv_cor_a)
 
@@ -283,8 +281,8 @@ subroutine continuity_2d_fluxes(u, v, h, uhbt, vhbt, dt, G, GV, US, CS, OBC, pbv
   call continuity_2d_fluxes_PPM(bxC, u_a, v_a, h_a, uhbt_a, vhbt_a, dt, &
                                 mask2dT_a, dy_Cu_a, IareaT_a, IdxT_a, dx_Cv_a, IdyT_a, &
                                 por_face_areaU_a, por_face_areaV_a, OBC, &
-                                GV%Angstrom_H, CS%upwind_1st, CS%monotonic, CS%simple_2nd, &
-                                CS%vol_CFL)
+                                GV%Angstrom_H, CS%recon, &
+                                CS%adjust)
 
   call bxC%free()
 
@@ -365,9 +363,7 @@ subroutine continuity_3d_fluxes(u, v, h, uh, vh, dt, G, GV, US, CS, OBC, pbv)
                                 mask2dCu_a, dx_Cv_a, IdyT_a, dyCv_a, dyT_a, mask2dCv_a, &
                                 por_face_areaU_a, por_face_areaV_a, OBC, &
                                 GV%Angstrom_H, GV%H_subroundoff, &
-                                CS%upwind_1st, CS%monotonic, CS%simple_2nd, CS%CFL_limit_adjust, &
-                                CS%aggress_adjust, CS%vol_CFL, CS%better_iter, &
-                                CS%use_visc_rem_max, CS%marginal_faces, CS%tol_eta, CS%tol_vel)
+                                CS%recon, CS%adjust)
 
   call bxC%free()
 
@@ -481,9 +477,7 @@ subroutine continuity_adjust_vel(u, v, h, dt, G, GV, US, CS, OBC, pbv, uhbt, vhb
                                  dxT_a, mask2dCu_a, dx_Cv_a, IdyT_a, dyCv_a, dyT_a, &
                                  mask2dCv_a, por_face_areaU_a, por_face_areaV_a, OBC, &
                                  GV%Angstrom_H, GV%H_subroundoff, &
-                                 CS%upwind_1st, CS%monotonic, CS%simple_2nd, CS%CFL_limit_adjust, &
-                                 CS%aggress_adjust, CS%vol_CFL, CS%better_iter, &
-                                 CS%use_visc_rem_max, CS%marginal_faces, CS%tol_eta, CS%tol_vel, &
+                                 CS%recon, CS%adjust, &
                                  u_cor_a, v_cor_a, visc_rem_u_a, visc_rem_v_a)
 
   call bxC%free()
