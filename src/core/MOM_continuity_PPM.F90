@@ -29,6 +29,71 @@ use turbotmp_helperF, only : TIMH_runAMREX, TIMH_capture, TIMH_runFORTRAN
 
 implicit none ; private
 
+!> Options controlling the PPM edge-value reconstruction scheme used by the continuity solver.
+type, public :: reconstruction_opts_type
+  logical :: upwind_1st      !< If true, use a first-order upwind scheme.
+  logical :: monotonic       !< If true, use the Colella & Woodward monotonic
+                             !! limiter; otherwise use a simple positive
+                             !! definite limiter.
+  logical :: simple_2nd      !< If true, use a simple second order (arithmetic
+                             !! mean) interpolation of the edge values instead
+                             !! of the higher order interpolation.
+end type reconstruction_opts_type
+
+!> bind(C) mirror of reconstruction_opts_type, field-for-field, same order.
+type, bind(C) :: reconstruction_opts_C
+  logical(c_bool) :: upwind_1st  !< If true, use a first-order upwind scheme.
+  logical(c_bool) :: monotonic   !< If true, use the Colella & Woodward monotonic limiter.
+  logical(c_bool) :: simple_2nd  !< If true, use a simple second order interpolation.
+end type reconstruction_opts_C
+
+!> Options controlling the barotropic-transport-adjustment iteration used by the continuity
+!! solver's mass-flux, BT_cont-setting, and velocity-correction kernels.
+type, public :: transport_adjust_opts_type
+  real    :: CFL_limit_adjust   !< The maximum CFL of the adjusted velocities [nondim]
+  logical :: aggress_adjust     !< If true, allow the adjusted velocities to have a
+                             !! relative CFL change up to 0.5.  False by default.
+  logical :: vol_CFL            !< If true, use the ratio of the open face lengths
+                             !! to the tracer cell areas when estimating CFL
+                             !! numbers.  Without aggress_adjust, the default is
+                             !! false; it is always true with.
+  logical :: better_iter        !< If true, stop corrective iterations using a
+                             !! velocity-based criterion and only stop if the
+                             !! iteration is better than all predecessors.
+  logical :: use_visc_rem_max   !< If true, use more appropriate limiting bounds
+                             !! for corrections in strongly viscous columns.
+  logical :: marginal_faces     !< If true, use the marginal face areas from the
+                             !! continuity solver for use as the weights in the
+                             !! barotropic solver.  Otherwise use the transport
+                             !! averaged areas.
+  real    :: tol_eta             !< The tolerance for free-surface height
+                             !! discrepancies between the barotropic solution and
+                             !! the sum of the layer thicknesses [H ~> m or kg m-2].
+  real    :: tol_vel             !< The tolerance for barotropic velocity
+                             !! discrepancies between the barotropic solution and
+                             !! the sum of the layer thicknesses [L T-1 ~> m s-1].
+end type transport_adjust_opts_type
+
+!> bind(C) mirror of transport_adjust_opts_type, field-for-field, same order.
+type, bind(C) :: transport_adjust_opts_C
+  real(c_double)  :: CFL_limit_adjust !< The maximum CFL of the adjusted velocities [nondim]
+  logical(c_bool) :: aggress_adjust !< If true, allow the adjusted velocities to have a
+                                     !! relative CFL change up to 0.5.
+  logical(c_bool) :: vol_CFL !< If true, use the ratio of the open face lengths to the
+                              !! tracer cell areas when estimating CFL numbers.
+  logical(c_bool) :: better_iter !< If true, stop corrective iterations using a
+                                  !! velocity-based criterion and only stop if better.
+  logical(c_bool) :: use_visc_rem_max !< If true, use more appropriate limiting bounds
+                                       !! for corrections in strongly viscous columns.
+  logical(c_bool) :: marginal_faces !< If true, use the marginal face areas from the
+                                     !! continuity solver as barotropic solver weights.
+  real(c_double)  :: tol_eta !< The tolerance for free-surface height discrepancies
+                              !! [H ~> m or kg m-2].
+  real(c_double)  :: tol_vel !< The tolerance for barotropic velocity discrepancies
+                              !! [L T-1 ~> m s-1].
+end type transport_adjust_opts_C
+
+
   !----------------------------------------
   ! C interface (bridge to C++)
   !----------------------------------------
@@ -1138,63 +1203,6 @@ public record_bt_cont, restore_bt_cont
 !>@{ CPU time clock IDs
 integer :: id_clock_reconstruct, id_clock_update, id_clock_correct
 !>@}
-
-!> Options controlling the PPM edge-value reconstruction scheme used by the continuity solver.
-type, public :: reconstruction_opts_type
-  logical :: upwind_1st      !< If true, use a first-order upwind scheme.
-  logical :: monotonic       !< If true, use the Colella & Woodward monotonic
-                             !! limiter; otherwise use a simple positive
-                             !! definite limiter.
-  logical :: simple_2nd      !< If true, use a simple second order (arithmetic
-                             !! mean) interpolation of the edge values instead
-                             !! of the higher order interpolation.
-end type reconstruction_opts_type
-
-!> bind(C) mirror of reconstruction_opts_type, field-for-field, same order.
-type, bind(C) :: reconstruction_opts_C
-  logical(c_bool) :: upwind_1st  !< If true, use a first-order upwind scheme.
-  logical(c_bool) :: monotonic   !< If true, use the Colella & Woodward monotonic limiter.
-  logical(c_bool) :: simple_2nd  !< If true, use a simple second order interpolation.
-end type reconstruction_opts_C
-
-!> Options controlling the barotropic-transport-adjustment iteration used by the continuity
-!! solver's mass-flux, BT_cont-setting, and velocity-correction kernels.
-type, public :: transport_adjust_opts_type
-  real    :: CFL_limit_adjust   !< The maximum CFL of the adjusted velocities [nondim]
-  logical :: aggress_adjust     !< If true, allow the adjusted velocities to have a
-                             !! relative CFL change up to 0.5.  False by default.
-  logical :: vol_CFL            !< If true, use the ratio of the open face lengths
-                             !! to the tracer cell areas when estimating CFL
-                             !! numbers.  Without aggress_adjust, the default is
-                             !! false; it is always true with.
-  logical :: better_iter        !< If true, stop corrective iterations using a
-                             !! velocity-based criterion and only stop if the
-                             !! iteration is better than all predecessors.
-  logical :: use_visc_rem_max   !< If true, use more appropriate limiting bounds
-                             !! for corrections in strongly viscous columns.
-  logical :: marginal_faces     !< If true, use the marginal face areas from the
-                             !! continuity solver for use as the weights in the
-                             !! barotropic solver.  Otherwise use the transport
-                             !! averaged areas.
-  real    :: tol_eta             !< The tolerance for free-surface height
-                             !! discrepancies between the barotropic solution and
-                             !! the sum of the layer thicknesses [H ~> m or kg m-2].
-  real    :: tol_vel             !< The tolerance for barotropic velocity
-                             !! discrepancies between the barotropic solution and
-                             !! the sum of the layer thicknesses [L T-1 ~> m s-1].
-end type transport_adjust_opts_type
-
-!> bind(C) mirror of transport_adjust_opts_type, field-for-field, same order.
-type, bind(C) :: transport_adjust_opts_C
-  real(c_double)  :: CFL_limit_adjust
-  logical(c_bool) :: aggress_adjust
-  logical(c_bool) :: vol_CFL
-  logical(c_bool) :: better_iter
-  logical(c_bool) :: use_visc_rem_max
-  logical(c_bool) :: marginal_faces
-  real(c_double)  :: tol_eta
-  real(c_double)  :: tol_vel
-end type transport_adjust_opts_C
 
 !> Control structure for mom_continuity_ppm
 type, public :: continuity_PPM_CS ; private
