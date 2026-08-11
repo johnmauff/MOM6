@@ -1,5 +1,6 @@
 ---
 name: generate_cpp_bridge
+version: "0.3"
 description: Wrap an already-container-based MOM6 Fortran subroutine in a runtime-dispatched shim that selects between (a) the original Fortran code, (b) a binary capture mode that records inputs+outputs to disk for offline validation, and (c) a C++/AMReX bridge invoked through bind(C). Use when porting any MOM6 kernel to AMReX while keeping the Fortran truth available as a numerical reference. Requires the target subroutine's array dummies to already be RealArray_t / IntArray_t -- run convert_array_containers first. Mirrors the pattern established in TURBO-ESM/MOM6 PR #15.
 user-invocable: true
 argument-hint: <work-directory> <function-name> [--enable_src_validate] [--enable_git_commit] [--disable_git_commit]
@@ -7,22 +8,16 @@ argument-hint: <work-directory> <function-name> [--enable_src_validate] [--enabl
 
 # Generate C++ bridge for a MOM6 Fortran subroutine
 
-This skill is the **execution checklist**. All templates, rationale,
-type-mapping tables, and pitfalls live in the `cpp_bridge_lessons` skill
-(same numbered sections, §1–§17) — invoke `cpp_bridge_lessons` once near
-the start of a session, before running this skill, and refer back to its
-numbered sections from each step below (Step 0 checks that it has been
-loaded). Do not reproduce templates here.
+This skill is the **execution checklist**; templates, rationale, and
+pitfalls live in `cpp_bridge_lessons` (§1–§17) — invoke it once per
+session before running this skill, and refer back to its sections from
+each step below (Step 0 checks it's loaded). Do not reproduce templates
+here.
 
-**Precondition — data structures are already converted.** This skill
-operates on a subroutine whose array dummies are *already*
-`type(RealArray_t)` / `type(IntArray_t)` and whose iteration domain is
-already a `type(Box_t)`. Converting raw grid-shaped arrays
-(`real, dimension(SZI_(G),…)`) into containers is the job of the
-**`convert_array_containers`** skill; run it first. Step 0 checks this
-and stops if the target is not yet converted.
-
-The two skills are **orthogonal** and must stay that way:
+**Precondition:** the target's array dummies are already
+`type(RealArray_t)`/`type(IntArray_t)`, its iteration domain already a
+`type(Box_t)` — that's `convert_array_containers`'s job, run first;
+Step 0 stops if it isn't done. The two skills are orthogonal:
 
 | Owned by `convert_array_containers` | Owned by this skill |
 |---|---|
@@ -34,8 +29,8 @@ The two skills are **orthogonal** and must stay that way:
 | | The `bind(C)` interface declaration |
 | | Halo-check and cpu-clock relocation |
 
-Never perform work from the left-hand column here. If the target needs
-it, stop and tell the user to run `convert_array_containers` first.
+Never do left-column work here — stop and refer the user to
+`convert_array_containers` if the target needs it.
 
 ## Help message
 
@@ -95,8 +90,7 @@ error. Do not retry, do not assume defaults, do not create anything.
 2. **Work directory is an existing MOM6 checkout.** If `$0` is not an
    existing directory → stop:
    `Error: work directory "<value>" does not exist.`
-   The directory must already contain a TURBO-ESM/MOM6 checkout —
-   cloning is not performed by this skill. Step 1 verifies the checkout
+   Cloning is not performed by this skill; Step 1 verifies checkout
    identity and branch state.
 3. **Parse optional flags.** Scan remaining arguments for `--enable_src_validate`,
    `--enable_git_commit`, and `--disable_git_commit`.
@@ -105,30 +99,26 @@ error. Do not retry, do not assume defaults, do not create anything.
    --disable_git_commit are mutually exclusive.` Any unrecognised argument
    that starts with `--` → stop:
    `Error: unknown option "<value>". Run "/generate_cpp_bridge --help" for usage.`
-4. **Reference material primed.** This skill assumes the `cpp_bridge_lessons`
-   skill has already been invoked earlier in this session. If you have no
+4. **Reference material primed.** This skill assumes `cpp_bridge_lessons`
+   has already been invoked earlier in this session. If you have no
    memory of its numbered sections (§3.1, §3.2, §5, §12, §13, §14, §15,
-   §16, §17 are referenced throughout this procedure), invoke the
-   `cpp_bridge_lessons` skill now, before proceeding to Step 1 or any step
-   below. Do not guess at template content from memory of a similar prior
-   task — invoke it and read its content first.
-5. **Target is already container-based.** Locate the subroutine's
-   declaration and inspect its dummy arguments. Every grid-shaped array
-   dummy must already be `type(RealArray_t)` / `type(IntArray_t)`, and the
-   iteration domain must already be a `type(Box_t)`. If any dummy is still
-   a raw grid-shaped array (`real, dimension(SZI_(G),…)` or similar) →
+   §16, §17 are referenced throughout), invoke it now, before Step 1 or
+   any step below — never guess at template content from memory.
+5. **Target is already container-based.** Every grid-shaped array dummy
+   must already be `type(RealArray_t)`/`type(IntArray_t)`, and the
+   iteration domain already a `type(Box_t)`. If any dummy is still a raw
+   grid-shaped array →
    stop:
    `Error: "<function-name>" still takes raw arrays. Run "/convert_array_containers <work-directory> <function-name>" first, then re-run this skill.`
-   Do not convert the data structures yourself — that is
-   `convert_array_containers`' job, and doing it here would duplicate
-   that skill's work and produce an unreviewable combined diff.
+   Do not convert them yourself (boundary table above) — that would
+   duplicate `convert_array_containers`'s work and produce an
+   unreviewable combined diff.
 
-Step 1 runs only when `--enable_src_validate` is set. Items 4 (reference-
-material priming) and 5 (container precondition) always run, regardless of
-flags. Step 10's behavior is decided by `--enable_git_commit` /
-`--disable_git_commit` if passed, or otherwise by the global preference
-described in Step 10. No other wrapping work executes until Step 0
-validation passes.
+Step 1 runs only when `--enable_src_validate` is set. Items 4 and 5
+always run, regardless of flags. Step 10's behavior is decided by
+`--enable_git_commit`/`--disable_git_commit` if passed, or otherwise by
+the global preference described in Step 10. No wrapping work executes
+until Step 0 passes.
 
 ## Settle these decisions (ask if not obvious from the tree)
 
@@ -150,11 +140,9 @@ Each step is one action with a pointer to the lessons.md section that
 holds the template or rationale.
 
 ### 1. Validate the existing checkout *(runs only when `--enable_src_validate` is passed; skip otherwise and proceed to Step 2)*
-   If `--enable_src_validate` was not supplied, skip this entire step and go to Step 2.
-
-   **Verify the work directory.** All wrapping work in this skill is
-   based on the `dev/turbo-debug` branch — that is the agreed base for
-   bridge work and what the C++ side expects to merge against.
+   All wrapping work in this skill is based on the `dev/turbo-debug`
+   branch — the agreed base for bridge work and what the C++ side
+   expects to merge against.
 
    Verify `$0` is a TURBO-ESM/MOM6 checkout by running
    `git -C $0 remote -v` and confirming the output contains
@@ -182,11 +170,10 @@ holds the template or rationale.
    - **`lessons.md` present.** If `$0/.claude/skills/generate_cpp_bridge/lessons.md` is missing → stop:
      `Error: lessons.md not found at <work-directory>/.claude/skills/generate_cpp_bridge/lessons.md.`
      This is an **existence check only** — a cheap proxy for "this
-     checkout has the skill installed." Do not read the file for
-     guidance: its content moved to the `cpp_bridge_lessons` skill, and
-     the copy in an older checkout may be stale (in particular it may
-     still show the removed `%dup` API). Always take templates and API
-     detail from `cpp_bridge_lessons`, never from this file.
+     checkout has the skill installed." Do not read it for guidance:
+     content moved to `cpp_bridge_lessons`, and an older checkout's copy
+     may be stale (e.g. still showing the removed `%dup` API). Always
+     take templates and API detail from `cpp_bridge_lessons`.
    - **Confirm the plan.** Print one paragraph naming: the resolved
      subroutine file path, the proposed env-var (`<UPPERCASE_$1>_MODE`),
      the proposed bridge symbol (`<prefix>_$1_bridge`; pick `<prefix>` by
@@ -196,26 +183,27 @@ holds the template or rationale.
      Then proceed to Step 2.
 
 ### 2. Classify each dummy argument for the C boundary
-   The dummies are already containers (Step 0 item 5 verified this). For
-   every arg, record intent / kind / rank / optional, and map it to its
-   `bind(C)` counterpart using lessons.md §3.1–§3.2:
-   `type(RealArray_t)` → `type(RealArray_C)`, `type(Box_t)` → `type(Box_C)`,
-   scalars → `real(c_double)` / `integer(c_int)` / `logical(c_bool)` by
-   value, pointers → `type(c_ptr)`.
+   The dummies are already containers (Step 0 item 5). For every arg,
+   record intent/kind/rank/optional, and map it to its `bind(C)`
+   counterpart using lessons.md §3.1–§3.2: `type(RealArray_t)` →
+   `type(RealArray_C)`, `type(Box_t)` → `type(Box_C)`, scalars →
+   `real(c_double)`/`integer(c_int)`/`logical(c_bool)` by value,
+   pointers → `type(c_ptr)`.
 
    Do **not** introduce a `Box_t`, and do not alter any dummy's type. If
-   the iteration domain is not already a `Box_t`, stop and refer the user
-   to `convert_array_containers` — Step 0 item 5 should have caught this.
+   the iteration domain is not already a `Box_t`, stop and refer the
+   user to `convert_array_containers` — Step 0 item 5 should have
+   caught this.
 
 ### 3. Rename the original implementation
-   Rename `$1` → `$1_fortran` in place. **That is the only change to this
-   subroutine.** Its body, dummy declarations, `%view` calls, and loop
+   Rename `$1` → `$1_fortran` in place. **That is the only change to
+   this subroutine.** Body, dummy declarations, `%view` calls, and loop
    structure are already container-based and must be left byte-for-byte
-   unchanged apart from the name on the `subroutine` / `end subroutine`
-   lines. Template for what the result should look like: lessons.md §12.
+   unchanged apart from the `subroutine`/`end subroutine` name lines.
+   Template: lessons.md §12.
 
-   Do not convert array dummies (already done), do not rewrite loops
-   (already `do concurrent` over the `Box_t`), and do not touch the math.
+   Do not convert array dummies (already done), rewrite loops (already
+   `do concurrent` over the `Box_t`), or touch the math.
 
 ### 4. Add the `bind(C)` interface block
    At the top of the host module, declare `<prefix>_$1_bridge` per the
@@ -223,15 +211,15 @@ holds the template or rationale.
 
 ### 5. Write the shim subroutine `$1`
    Takes the public name the original had, and **inherits that
-   subroutine's container-based dummy list verbatim** — same names, same
-   types, same intents, same `!<` doc comments. Because the signature is
-   unchanged, existing call sites keep working untouched.
+   subroutine's container-based dummy list verbatim** — same names,
+   types, intents, `!<` comments. Because the signature is unchanged,
+   existing call sites keep working untouched.
 
    No array↔container wrapping happens anywhere in this shim: the
    containers arrive ready to use. Each dispatch arm either passes them
    straight to `$1_fortran` or converts them to their `_C` mirrors with
-   `%to_c()` for the bridge call (inside `#ifdef _TIM` — see
-   lessons.md §9 on why `%to_c` cannot appear unguarded).
+   `%to_c()` for the bridge call (inside `#ifdef _TIM` — lessons.md §9
+   on why `%to_c` cannot appear unguarded).
 
    Body is one `select case (mode)` over
    `getenv_mode("<ENV_VAR>", default=TIMH_runFORTRAN)` with three arms:
@@ -254,7 +242,7 @@ holds the template or rationale.
    likely the shim's signature drifted from the original in Step 5. Stop
    and fix the shim instead of rewriting callers.
 
-   Any call-site work involving `alloc` / `copy2F` / `free` belongs to
+   Any call-site work involving `alloc`/`copy2F`/`free` belongs to
    `convert_array_containers`, not here.
 
 ### 8. Relocate halo checks and CPU clocks
@@ -317,21 +305,31 @@ holds the template or rationale.
    with unrelated history, stop and surface the conflict to the user
    rather than force-pushing.
 
+## Versioning marker
+
+Every Fortran file this skill creates or modifies gets a `!!SKILLS: 0.3`
+marker line — the shared version number for this whole skill family,
+not just this one skill. If the file doesn't already have one, add it
+as its own line immediately after the license/header comment block,
+before the `module` statement; if it already has one, update it rather
+than adding a second line. Deliberately grep-able
+(`grep -rn "!!SKILLS:"`) and meant to be stripped later.
+
 ## Hard rules
 
-- Do not change the public name of `$1`, and do not change its argument
-  list at all — the shim inherits the converted subroutine's container
-  signature verbatim and must drop into existing call sites unchanged.
-- Do not convert data structures. Array dummies are already containers
-  before this skill runs; if they are not, stop and refer the user to
-  `convert_array_containers`. Specifically: never change a dummy's type,
-  never introduce a `Box_t`, never rewrite a loop nest, and never add
-  `alloc` / `%view` / `copy2F` / `free` calls at a call site.
+- Never skip the `!!SKILLS: 0.3` marker on a file this skill touches,
+  and never add a second marker line if one already exists.
+- Do not change the public name of `$1`, or its argument list at all —
+  the shim inherits the converted subroutine's container signature
+  verbatim and must drop into existing call sites unchanged.
+- Do not do `convert_array_containers`'s work (boundary table above) —
+  never change a dummy's type, introduce a `Box_t`, rewrite a loop
+  nest, or add `alloc`/`%view`/`copy2F`/`free` at a call site.
 - Do not introduce a global mode variable; per-kernel env vars only.
 - Do not gate capture mode behind `#ifdef _TIM`; only the AMReX arm is gated.
 - Do not omit the `case default` arm.
 - Do not pass default-kind `logical`/`integer` to a `bind(C)` routine —
-  cast to `c_bool` / `c_int` (lessons.md §3.2).
+  cast to `c_bool`/`c_int` (lessons.md §3.2).
 - Do not call `c_loc(this%data(1))` on an unallocated container; allocate
   first.
 - Do not re-implement `getenv_mode`, `already_recorded`, `mark_recorded`,

@@ -1,37 +1,31 @@
 ---
 name: cpp_bridge_lessons
+version: "0.3"
 description: Reference material for wrapping a MOM6 Fortran subroutine in a runtime-dispatched C++/AMReX bridge -- type-mapping tables, code templates, naming conventions, and recurring pitfalls, organized in numbered sections §1-§17. Companion to the generate_cpp_bridge skill, which cites these sections by number (e.g. "lessons.md §12") throughout its procedure. Invoke once near the start of a session that will run generate_cpp_bridge one or more times; not needed again per-subroutine within that session.
 user-invocable: true
 ---
 
 # Lessons from PR #15: AMReX/C++ Bridge for PPM Subroutines
 
-> Invoke this skill once, near the start of a session, before running
-> `generate_cpp_bridge` (or, in a later phase, `generate_amrex_code`).
-> Its content then stays available for the rest of the session — you do
-> not need to invoke it again before each subroutine. Sections are
-> numbered §1–§17 and are referenced by that numbering from the calling
-> skill(s); do not renumber them.
+> Invoke once, near the start of a session, before running
+> `generate_cpp_bridge` (or `generate_amrex_code`). Stays available for
+> the rest of the session. Sections are numbered §1–§17 and cited by
+> that numbering elsewhere; do not renumber them.
 
-Source: [TURBO-ESM/MOM6 PR #15](https://github.com/TURBO-ESM/MOM6/pull/15) — merged commit `daf6abefb`.
+Source: [TURBO-ESM/MOM6 PR #15](https://github.com/TURBO-ESM/MOM6/pull/15)
+— merged commit `daf6abefb`. This document distills the design and
+patterns it used to wrap three subroutines in `MOM_continuity_PPM`
+(`PPM_limit_pos`, `PPM_limit_cw84`, `PPM_reconstruction_y`) so they can
+be redirected at runtime to C++/AMReX, while keeping the Fortran truth
+available and adding a capture mode for offline validation. It's a
+*non-invasive* refactor — callers don't change; the subroutine they call
+becomes a small dispatcher (a "shim") picking between three implementations.
 
-**Pre-condition:** The `generate_cpp_bridge` skill operates on a
-pre-existing TURBO-ESM/MOM6 checkout. The work directory must already
-contain the source tree (i.e. have `src/` and `config_src/`) and must be
-on (or rebased onto) the `dev/turbo-debug` branch. Cloning is not
-performed — use `git clone -b dev/turbo-debug git@github.com:TURBO-ESM/MOM6.git <dir>`
-once to set up the directory, then pass it as `<work-directory>` on every
-subsequent skill invocation.
-
-This document distills the design, logic, and patterns used to wrap three
-existing Fortran subroutines in `MOM_continuity_PPM` (`PPM_limit_pos`,
-`PPM_limit_cw84`, `PPM_reconstruction_y`) so they can be redirected at
-runtime to a C++/AMReX implementation while preserving the original Fortran
-truth and adding a side-by-side capture mode for offline validation.
-
-The PR is a *non-invasive* refactor: callers do not change their call sites,
-yet the subroutine they call is now a small dispatcher (a "shim") that picks
-between three implementations.
+**Pre-condition:** work in a TURBO-ESM/MOM6 checkout with `src/` and
+`config_src/`, on (or rebased onto) `dev/turbo-debug`. Cloning isn't
+performed —
+`git clone -b dev/turbo-debug git@github.com:TURBO-ESM/MOM6.git <dir>`
+once, then pass that directory as `<work-directory>` on every invocation.
 
 ---
 
@@ -251,15 +245,11 @@ be retired once full ports are validated.
 
 ## 4. Caller-side wrapping pattern
 
-> **Scope note.** Converting raw arrays to `RealArray_t` containers —
-> both at a call site and in a callee's dummy declarations — is the job
-> of the **`convert_array_containers`** skill, not this one. Run that
-> skill first; `generate_cpp_bridge` then operates on a routine whose
-> data structures are already containers. This section is retained as
-> background so the bridge work is intelligible, and because a routine
-> may still have unconverted call sites when it is bridged. For the
-> authoritative container API and conversion procedure, see the
-> `array_container_lessons` skill.
+> **Scope note.** Converting raw arrays to containers is
+> `convert_array_containers`'s job, not this one — run it first; this
+> section is background so the bridge work reads sensibly, and because a
+> call site may still be unconverted when its callee is bridged.
+> Authoritative container API: `array_container_lessons`.
 
 Call sites that invoke a container-based routine on raw arrays wrap those
 arrays into `RealArray_t` containers. The recipe:
@@ -307,11 +297,10 @@ container, but it does not allocate.
 
 ## 5. Iteration domain as a first-class object (`Box_t`)
 
-> **Scope note.** Introducing a `Box_t` and rewriting loop nests over it
-> is `convert_array_containers`' job, and the authoritative `Box_t` API
-> reference is `array_container_lessons` §5. By the time this skill runs,
-> the kernel already takes a `Box_t`. This section is background plus the
-> C-side mirror, which *is* bridge-specific.
+> **Scope note.** Introducing a `Box_t` is `convert_array_containers`'s
+> job (`array_container_lessons` §5 is the authoritative API reference);
+> by the time this skill runs the kernel already takes one. Background
+> plus the C-side mirror, which *is* bridge-specific.
 
 Kernels take a `Box_t` rather than packing loop bounds into many integer
 args, so loops inside them read:
