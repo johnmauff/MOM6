@@ -465,7 +465,7 @@ subroutine from_c_Logical(this)
 
   integer :: i, n
 
-  if (.not. associated(this%data_c)) then 
+  if (.not. associated(this%data_c)) then
     call MOM_err(FATAL, "from_c_Logical: pointer %data_c is not associated")
   endif
 
