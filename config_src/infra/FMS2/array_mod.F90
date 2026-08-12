@@ -30,7 +30,7 @@ module array_mod
   !! integer-encoded (0/1) -- see LogicalArray_t%to_c in the TIM infra layer.
   type, bind(C) :: LogicalArray_C
      type(c_ptr) :: data               !< Storage pointer for array container
-     type(c_ptr) :: shape              !< An array of dinmension extents
+     type(c_ptr) :: shape              !< An array of dimension extents
      type(c_ptr) :: lb                 !< Lower bounds
      type(c_ptr) :: ub                 !< Upper bounds
      integer(c_int) :: rank            !< The number of dimensions
