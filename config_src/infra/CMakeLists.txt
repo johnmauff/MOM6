@@ -10,6 +10,7 @@ add_library(mom6_infra STATIC
     ${MOM6_INFRA}/MOM_ensemble_manager_infra.F90
     ${MOM6_INFRA}/array_mod.F90
     ${MOM6_INFRA}/box_mod.F90
+    ${MOM6_INFRA}/MOM_coms_helpers.F90
     ${MOM6_INFRA}/MOM_coms_infra.F90
     ${MOM6_INFRA}/MOM_domain_infra.F90
     ${MOM6_INFRA}/MOM_data_override_infra.F90
@@ -19,10 +20,6 @@ add_library(mom6_infra STATIC
     ${MOM6_INFRA}/MOM_io_infra.F90
     ${MOM6_INFRA}/MOM_interp_infra.F90
 )
-# MOM_coms_helpers.F90 exists only in the TIM infra directory
-if(MOM6_INFRA STREQUAL "TIM")
-    target_sources(mom6_infra PRIVATE ${MOM6_INFRA}/MOM_coms_helpers.F90)
-endif()
 add_library(MOM6::infra ALIAS mom6_infra)
 
 set_target_properties(mom6_infra PROPERTIES
