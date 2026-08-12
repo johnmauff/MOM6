@@ -39,6 +39,7 @@ add_library(mom6_framework STATIC
     MOM_checksums.F90
     MOM_netcdf.F90
     MOM_io_file.F90
+    turbotmp_helperF.F90
 )
 add_library(MOM6::framework ALIAS mom6_framework)
 

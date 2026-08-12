@@ -9,6 +9,7 @@ add_library(mom6_infra STATIC
     ${MOM6_INFRA}/MOM_cpu_clock_infra.F90
     ${MOM6_INFRA}/MOM_ensemble_manager_infra.F90
     ${MOM6_INFRA}/array_mod.F90
+    ${MOM6_INFRA}/box_mod.F90
     ${MOM6_INFRA}/MOM_coms_infra.F90
     ${MOM6_INFRA}/MOM_domain_infra.F90
     ${MOM6_INFRA}/MOM_data_override_infra.F90
