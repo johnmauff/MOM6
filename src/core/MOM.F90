@@ -417,8 +417,8 @@ type, public :: MOM_control_struct ; private
     !< Control structure used for the interface height smoothing operator.
   type(mixedlayer_restrat_CS) :: mixedlayer_restrat_CSp
     !< Pointer to the control structure used for the mixed layer restratification
-  type(set_visc_CS)           :: set_visc_CSp
-    !< Pointer to the control structure used to set viscosities
+  type(set_visc_CS), allocatable :: set_visc_CSp
+    !< Control structure used to set viscosities
   type(diabatic_CS),             pointer :: diabatic_CSp => NULL()
     !< Pointer to the control structure for the diabatic driver
   type(MEKE_CS) :: MEKE_CSp
@@ -1040,7 +1040,12 @@ subroutine step_MOM(forces_in, fluxes_in, sfc_state, Time_start, time_int_in, CS
         !$omp target update to(u, v, h)
       endif
 
+      ! UMW NOTE: These transfers are needed to prevent excessive transfers in the group
+      ! updates within this subroutine
+      !$omp target enter data map(to: CS%tv, CS%tv%T, CS%tv%S)
       call post_diabatic_halo_updates(CS, G, GV, US, u, v, h, CS%tv)
+      !$omp target exit data map(from: CS%tv%T, CS%tv%S)
+      !$omp target exit data map(release: CS%tv)
 
       CS%time_in_thermo_cycle = CS%time_in_thermo_cycle + dtdia
 
@@ -1058,7 +1063,6 @@ subroutine step_MOM(forces_in, fluxes_in, sfc_state, Time_start, time_int_in, CS
 
     if (do_dyn) then
       !$omp target enter data map(alloc: ssh)
-
       call cpu_clock_begin(id_clock_dynamics)
       ! Determining the time-average sea surface height is part of the algorithm.
       ! This may be eta_av if Boussinesq, or need to be diagnosed if not.
@@ -1122,7 +1126,6 @@ subroutine step_MOM(forces_in, fluxes_in, sfc_state, Time_start, time_int_in, CS
       ssh(i,j) = CS%ssh_rint(i,j) * I_wt_ssh
       CS%ave_ssh_ibc(i,j) = ssh(i,j)
     enddo
-    !$omp target update from(CS%ave_ssh_ibc)
 
     if (associated(CS%HA_CSp)) then
       !$omp target update from(ssh)
@@ -1136,6 +1139,7 @@ subroutine step_MOM(forces_in, fluxes_in, sfc_state, Time_start, time_int_in, CS
       call adjust_ssh_for_p_atm(CS%tv, G, GV, US, CS%ave_ssh_ibc, fluxes%p_surf_SSH, &
                                 CS%calc_rho_for_sea_lev)
     endif
+    !$omp target exit data map(delete: ssh)
   endif
 
   if (do_dyn .and. CS%interp_p_surf) then ; do j=jsd,jed ; do i=isd,ied
@@ -1176,6 +1180,7 @@ subroutine step_MOM(forces_in, fluxes_in, sfc_state, Time_start, time_int_in, CS
     endif
 
     if (CS%time_in_thermo_cycle > 0.0) then
+      !$omp target update from(CS%ave_ssh_ibc)
       call enable_averages(CS%time_in_thermo_cycle, Time_local, CS%diag)
       call post_surface_thermo_diags(CS%sfc_IDs, G, GV, US, CS%diag, CS%time_in_thermo_cycle, &
                                      sfc_state_diag, CS%tv, ssh, CS%ave_ssh_ibc)
@@ -1198,7 +1203,6 @@ subroutine step_MOM(forces_in, fluxes_in, sfc_state, Time_start, time_int_in, CS
                               G, US, CS%sum_output_CSp)
 
   if (MOM_state_is_synchronized(CS)) then
-    !$omp target update from(u, v, h)
     call write_energy(CS%u, CS%v, CS%h, CS%tv, Time_local, CS%nstep_tot, &
                       G, GV, US, CS%sum_output_CSp, CS%tracer_flow_CSp, &
                       dt_forcing=real_to_time(time_interval, unscale=US%T_to_s) )
@@ -1503,6 +1507,7 @@ subroutine step_MOM_dynamics(forces, p_surf_begin, p_surf_end, dt, dt_tr_adv, &
 
   ! apply the submesoscale mixed layer restratification parameterization
   if (CS%mixedlayer_restrat) then
+    !$omp target update from(h, CS%uhtr, CS%vhtr)
     if (CS%debug) then
       call hchksum(h,"Pre-mixedlayer_restrat h", G%HI, haloshift=1, unscale=GV%H_to_MKS)
       call uvchksum("Pre-mixedlayer_restrat uhtr", &
@@ -1606,9 +1611,12 @@ subroutine step_MOM_tracer_dyn(CS, G, GV, US, h, Time_local)
   integer :: halo_sz ! The size of a halo where data must be valid.
   logical :: x_first ! If true, advect tracers first in the x-direction, then y.
   logical :: showCallTree
+  integer :: i, j, k
+
   showCallTree = callTree_showQuery()
 
   if (CS%debug) then
+    !$omp target update from(h, CS%uhtr, CS%vhtr)
     call cpu_clock_begin(id_clock_other)
     call hchksum(h,"Pre-advection h", G%HI, haloshift=1, unscale=GV%H_to_MKS)
     call uvchksum("Pre-advection uhtr", CS%uhtr, CS%vhtr, G%HI, &
@@ -1627,11 +1635,11 @@ subroutine step_MOM_tracer_dyn(CS, G, GV, US, h, Time_local)
   call enable_averages(CS%t_dyn_rel_adv, Time_local, CS%diag)
 
   if (CS%use_particles .and. CS%use_uh_particles .and. (.not. CS%uh_particles_bug)) then
+    !$omp target update from(CS%uhtr, CS%vhtr, CS%h)
     ! Run particles using thickness-weighted velocity
     call particles_run(CS%particles, Time_local, CS%uhtr, CS%vhtr, CS%h, &
                        CS%tv, CS%t_dyn_rel_adv, CS%use_uh_particles)
   endif
-
 
   if (CS%alternate_first_direction) then
     ! This calculation of the value of G%first_direction from the start of the accumulation of
@@ -1650,9 +1658,11 @@ subroutine step_MOM_tracer_dyn(CS, G, GV, US, h, Time_local)
   if (CS%debug) call MOM_tracer_chksum("Post-diffuse ", CS%tracer_Reg, G)
   if (showCallTree) call callTree_waypoint("finished tracer advection/diffusion (step_MOM)")
   if (associated(CS%OBC)) then
+    !$omp target update from(CS%uhtr, CS%vhtr)
     call pass_vector(CS%uhtr, CS%vhtr, G%Domain)
     call update_segment_tracer_reservoirs(G, GV, CS%uhtr, CS%vhtr, h, CS%OBC, &
                      CS%tracer_Reg)
+    !$omp target update to(CS%uhtr, CS%vhtr)
   endif
   call cpu_clock_end(id_clock_tracer) ; call cpu_clock_end(id_clock_thermo)
 
@@ -1669,8 +1679,14 @@ subroutine step_MOM_tracer_dyn(CS, G, GV, US, h, Time_local)
   ! Reset the accumulated transports to 0 and record that the dynamics
   ! and advective times now agree.
   call cpu_clock_begin(id_clock_thermo) ; call cpu_clock_begin(id_clock_tracer)
-  CS%uhtr(:,:,:) = 0.0
-  CS%vhtr(:,:,:) = 0.0
+
+  do concurrent (k=1:GV%ke, j=G%jsd:G%jed, I=G%IsdB:G%IedB)
+    CS%uhtr(I,j,k) = 0.
+  enddo
+  do concurrent (k=1:GV%ke, J=G%JsdB:G%JedB, i=G%isd:G%ied)
+    CS%vhtr(i,J,k) = 0.
+  enddo
+
   CS%n_dyn_steps_in_adv = 0
   CS%t_dyn_rel_adv = 0.0
   call cpu_clock_end(id_clock_tracer) ; call cpu_clock_end(id_clock_thermo)
@@ -1704,6 +1720,7 @@ subroutine step_MOM_tracer_dyn(CS, G, GV, US, h, Time_local)
 
     ! Update derived thermodynamic quantities.
     if (allocated(CS%tv%SpV_avg)) then
+      !$omp target update from(h)
       call calc_derived_thermo(CS%tv, h, G, GV, US, halo=halo_sz, debug=CS%debug)
     endif
   endif
@@ -2095,7 +2112,6 @@ subroutine post_diabatic_halo_updates(CS, G, GV, US, u, v, h, tv)
   if (associated(tv%S)) &
     call create_group_pass(pass_uv_T_S_h, tv%S, G%Domain, halo=dynamics_stencil)
   call create_group_pass(pass_uv_T_S_h, h, G%Domain, halo=dynamics_stencil)
-  ! TODO: Safe? what about T and S?
   call do_group_pass(pass_uv_T_S_h, G%Domain, clock=id_clock_pass, omp_offload=.true.)
 
   if (associated(tv%frazil) .and. (.not.tv%frazil_was_reset) .and. CS%vertex_shear) &
@@ -3693,8 +3709,10 @@ subroutine initialize_MOM(Time, Time_init, param_file, dirs, CS, &
   !$omp target enter data map(alloc: CS%VarMix)
   call VarMix_init(Time, G, GV, US, param_file, diag, CS%VarMix)
 
-  !$omp target enter data map(to: CS%set_visc_CSp)
+  allocate(CS%set_visc_CSp)
+  !$omp target enter data map(alloc: CS%set_visc_CSp)
   call set_visc_init(Time, G, GV, US, param_file, diag, CS%visc, CS%set_visc_CSp, restart_CSp, CS%OBC)
+
   call thickness_diffuse_init(Time, G, GV, US, param_file, diag, CS%CDp, CS%thickness_diffuse_CSp)
   if (CS%interface_filter) &
     call interface_filter_init(Time, G, GV, US, param_file, diag, CS%CDp, CS%interface_filter_CSp)
@@ -3966,6 +3984,7 @@ subroutine finish_MOM_initialization(Time, dirs, CS)
     deallocate(restart_CSp_tmp)
   endif
 
+  !$omp target update to(CS%u, CS%v, CS%h)
   call write_energy(CS%u, CS%v, CS%h, CS%tv, Time, 0, G, GV, US, &
                     CS%sum_output_CSp, CS%tracer_flow_CSp)
 
@@ -4131,6 +4150,7 @@ subroutine adjust_ssh_for_p_atm(tv, G, GV, US, ssh, p_atm, use_EOS)
   is = G%isc ; ie = G%iec ; js = G%jsc ; je = G%jec
   EOSdom(:) = EOS_domain(G%HI)
   if (associated(p_atm)) then
+    !$omp target update from(ssh)
     calc_rho = use_EOS .and. associated(tv%eqn_of_state)
     ! Correct the output sea surface height for the contribution from the ice pressure.
     do j=js,je
@@ -4148,8 +4168,8 @@ subroutine adjust_ssh_for_p_atm(tv, G, GV, US, ssh, p_atm, use_EOS)
         enddo
       endif
     enddo
+    !$omp target update to(ssh)
   endif
-
 end subroutine adjust_ssh_for_p_atm
 
 !> Set the surface (return) properties of the ocean model by
@@ -4731,6 +4751,7 @@ subroutine MOM_end(CS)
 
   call set_visc_end(CS%visc, CS%set_visc_CSp)
   !$omp target exit data map(delete: CS%visc, CS%set_visc_CSp)
+  deallocate(CS%set_visc_CSp)
   deallocate(CS%visc)
 
   call MEKE_end(CS%MEKE)
