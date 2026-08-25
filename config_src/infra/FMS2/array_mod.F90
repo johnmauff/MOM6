@@ -209,14 +209,11 @@ subroutine read_binary(this, unit)
   ! --- Null case ---
   if (n == -1) then
     if (associated(this%data)) deallocate(this%data)
-    if (associated(this%shape)) deallocate(this%shape)
-    if (associated(this%lb)) deallocate(this%lb)
-    if (associated(this%ub)) deallocate(this%ub)
+    if (allocated(this%shape)) deallocate(this%shape)
+    if (allocated(this%lb)) deallocate(this%lb)
+    if (allocated(this%ub)) deallocate(this%ub)
 
     nullify(this%data)
-    nullify(this%shape)
-    nullify(this%lb)
-    nullify(this%ub)
     this%rank = 0
     return
   endif
@@ -224,9 +221,9 @@ subroutine read_binary(this, unit)
   this%rank = n
 
   ! --- Clean old allocations ---
-  if (associated(this%shape)) deallocate(this%shape)
-  if (associated(this%lb)) deallocate(this%lb)
-  if (associated(this%ub)) deallocate(this%ub)
+  if (allocated(this%shape)) deallocate(this%shape)
+  if (allocated(this%lb)) deallocate(this%lb)
+  if (allocated(this%ub)) deallocate(this%ub)
   if (associated(this%data)) deallocate(this%data)
 
   ! --- Allocate metadata ---
