@@ -20,6 +20,12 @@ GSW_COMMIT ?= 29e64d652786e1d076a05128c920f394202bfe10
 CVMIX_URL ?= https://github.com/mom-ocean/CVMix-src.git
 CVMIX_COMMIT ?= 14939c5704d57b4d68d86b57b13161ea59ab6b5c
 
+GSW_URL ?= https://github.com/mom-ocean/GSW-Fortran.git
+GSW_COMMIT ?= 29e64d652786e1d076a05128c920f394202bfe10
+
+CVMIX_URL ?= https://github.com/mom-ocean/CVMix-src.git
+CVMIX_COMMIT ?= 65ef5c73bc7f5663d5688f75c3855d431da4baea
+
 
 # List of source files to link this Makefile's dependencies to model Makefiles
 # Assumes a depth of two, and the following extensions: F90 inc c h

@@ -132,8 +132,6 @@ subroutine advect_tracer(h_end, uhtr, vhtr, OBC, dt, G, GV, US, CS, Reg, x_first
        "register_tracer must be called before advect_tracer.")
   if (Reg%ntr==0) return
 
-  !$omp target update to(uhtr, vhtr, h_end)
-
   !$omp target enter data map(to: OBC, Reg, Reg%Tr(:)) map(alloc: domore_u, domore_v, uhr, vhr, uh_neglect, &
   !$omp   vh_neglect, hprev, local_advect_scheme)
 
@@ -185,8 +183,6 @@ subroutine advect_tracer(h_end, uhtr, vhtr, OBC, dt, G, GV, US, CS, Reg, x_first
     call create_group_pass(CS%pass_uhr_vhr_t_hprev, Reg%Tr(m)%t, G%Domain)
   enddo
   call cpu_clock_end(id_clock_pass)
-
-  !!$omp target enter data map(to: local_advect_scheme)
 
   ! This initializes the halos of uhr and vhr because pass_vector might do
   ! calculations on them, even though they are never used.
@@ -344,11 +340,8 @@ subroutine advect_tracer(h_end, uhtr, vhtr, OBC, dt, G, GV, US, CS, Reg, x_first
           domore_k_tmp = 1
         enddo
         domore_k(k) = domore_k_tmp
-
       endif ; enddo
-
     else
-
       do k=1,nz ; if (domore_k(k) > 0) then
         ! First, advect meridionally.
         call advect_y(Reg%Tr, hprev, vhr, vh_neglect, OBC, domore_v, ntr, Idt, &
