@@ -5,9 +5,8 @@
 !> Routines for error handling and I/O management
 module MOM_error_infra
 
-use mpp_mod, only : mpp_error, mpp_stdlog=>stdlog, mpp_stdout=>stdout
+use mpp_mod, only : mpp_error, mpp_pe, mpp_root_pe, mpp_stdlog=>stdlog, mpp_stdout=>stdout
 use mpp_mod, only : NOTE, WARNING, FATAL
-use MOM_coms_helpers, only : is_root_pe
 
 implicit none ; private
 
@@ -35,5 +34,11 @@ end function stdout
 integer function stdlog()
   stdlog = mpp_stdlog()
 end function stdlog
+
+!> is_root_pe returns .true. if the current PE is the root PE.
+logical function is_root_pe()
+  is_root_pe = .false.
+  if (mpp_pe() == mpp_root_pe()) is_root_pe = .true.
+end function is_root_pe
 
 end module MOM_error_infra
