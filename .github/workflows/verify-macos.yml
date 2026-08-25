@@ -108,7 +108,7 @@ jobs:
           make -C .testing -j PKG= build/deps/lib/libcvmix.a
 
       - name: Compile MOM6 supporting OpenMP
-        run: make -C .testing build/openmp/MOM6
+        run: make -C .testing -j build/openmp/MOM6
 
       - name: Prepare artifact
         run: tar -cf mom6-openmp.tar .testing/build/openmp/MOM6
