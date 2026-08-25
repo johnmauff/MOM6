@@ -28,9 +28,9 @@ module array_mod
   type :: RealArray_t
      real(kind=real64), pointer, contiguous :: data(:) => null() !< Storage ptr for array container
      integer :: rank = 0                            !< The number of dimensions
-     integer, allocatable, target :: shape(:)       !< An array of dimension extents
-     integer, allocatable, target :: lb(:)          !< Lower bounds
-     integer, allocatable, target :: ub(:)          !< Upper bounds
+     integer, allocatable :: shape(:)               !< An array of dimension extents
+     integer, allocatable :: lb(:)                  !< Lower bounds
+     integer, allocatable :: ub(:)                  !< Upper bounds
    contains
      procedure :: allocReal                    !< Allocate memory in container
      procedure :: freeReal                     !< Deallocates memory from a container
@@ -69,9 +69,9 @@ module array_mod
   type :: IntArray_t
      integer, pointer, contiguous :: data(:) => null() !< Storage ptr for array container
      integer :: rank = 0                     !< The number of dimensions
-     integer, allocatable, target :: shape(:) !< An array of dimension extents
-     integer, allocatable, target :: lb(:)    !< Lower bounds
-     integer, allocatable, target :: ub(:)    !< Upper bounds
+     integer, allocatable :: shape(:)        !< An array of dimension extents
+     integer, allocatable :: lb(:)           !< Lower bounds
+     integer, allocatable :: ub(:)           !< Upper bounds
    contains
      procedure :: allocInt                   !< Allocates  memory in container
      procedure :: freeInt                    !< Deallocates memory from a container
