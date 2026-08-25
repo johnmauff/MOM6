@@ -39,9 +39,9 @@ module array_mod
   type :: RealArray_t
      real(kind=real64), pointer, contiguous :: data(:) => null() !< Storage ptr for array container
      integer :: rank = 0                            !< The number of dimensions
-     integer, allocatable :: shape(:)               !< An array of dimension extents
-     integer, allocatable :: lb(:)                  !< Lower bounds
-     integer, allocatable :: ub(:)                  !< Upper bounds
+     integer, allocatable, target :: shape(:)       !< An array of dimension extents
+     integer, allocatable, target :: lb(:)          !< Lower bounds
+     integer, allocatable, target :: ub(:)          !< Upper bounds
    contains
      procedure :: allocReal                    !< Allocate memory in container
      procedure :: freeReal                     !< Deallocates memory from a container
@@ -80,9 +80,9 @@ module array_mod
   type :: IntArray_t
      integer, pointer, contiguous :: data(:) => null() !< Storage ptr for array container
      integer :: rank = 0                     !< The number of dimensions
-     integer, allocatable :: shape(:)        !< An array of dimension extents
-     integer, allocatable :: lb(:)           !< Lower bounds
-     integer, allocatable :: ub(:)           !< Upper bounds
+     integer, allocatable, target :: shape(:) !< An array of dimension extents
+     integer, allocatable, target :: lb(:)    !< Lower bounds
+     integer, allocatable, target :: ub(:)    !< Upper bounds
    contains
      procedure :: allocInt                   !< Allocates  memory in container
      procedure :: freeInt                    !< Deallocates memory from a container
@@ -118,9 +118,9 @@ module array_mod
   type :: LogicalArray_t
      logical, pointer, contiguous :: data(:) => null() !< Storage ptr for array container
      integer :: rank = 0                     !< The number of dimensions
-     integer, pointer :: shape(:) => null()  !< An array of dimension extents
-     integer, pointer :: lb(:) => null()     !< Lower bounds
-     integer, pointer :: ub(:) => null()     !< Upper bounds
+     integer, allocatable, target :: shape(:) !< An array of dimension extents
+     integer, allocatable, target :: lb(:)    !< Lower bounds
+     integer, allocatable, target :: ub(:)    !< Upper bounds
    contains
      procedure :: allocLogical                       !< Allocates memory in container
      procedure :: freeLogical                        !< Deallocates memory from a container
@@ -1102,9 +1102,9 @@ subroutine allocLogical(this, dims,lb,ub,source)
   logical, intent(in), optional :: source      !< Initial value for all elements
 
   if (associated(this%data))  deallocate(this%data)
-  if (associated(this%shape)) deallocate(this%shape)
-  if (associated(this%lb))    deallocate(this%lb)
-  if (associated(this%ub))    deallocate(this%ub)
+  if (allocated(this%shape)) deallocate(this%shape)
+  if (allocated(this%lb))    deallocate(this%lb)
+  if (allocated(this%ub))    deallocate(this%ub)
 
   if(present(ub) .and. present(lb) .and. .not. present(dims)) then
     if(size(lb) .ne. size(ub)) then
@@ -1143,9 +1143,9 @@ subroutine freeLogical(this)
   class(LogicalArray_t), intent(inout) :: this  !< The array container to deallocate
 
   if (associated(this%data))  deallocate(this%data)
-  if (associated(this%shape)) deallocate(this%shape)
-  if (associated(this%lb))    deallocate(this%lb)
-  if (associated(this%ub))    deallocate(this%ub)
+  if (allocated(this%shape)) deallocate(this%shape)
+  if (allocated(this%lb))    deallocate(this%lb)
+  if (allocated(this%ub))    deallocate(this%ub)
   this%rank = 0
 end subroutine freeLogical
 
@@ -1356,7 +1356,7 @@ subroutine viewLogical1D(this, a)
    logical, pointer :: a(:)                   !< The Fortran pointer array to associate
 
    if (this%rank /= 1) call MOM_err(FATAL, "viewLogical1D: rank mismatch")
-   if (.not. associated(this%shape)) call MOM_err(FATAL, "viewLogical1D: shape not allocated")
+   if (.not. allocated(this%shape)) call MOM_err(FATAL, "viewLogical1D: shape not allocated")
 
    ! Zero copy no allocation
    a(this%lb(1):this%ub(1)) => this%data
@@ -1398,7 +1398,7 @@ subroutine viewLogical2D(this,a)
    logical, intent(inout), pointer :: a(:,:)   !< The Fortran pointer array to associate
 
    if (this%rank /= 2) call MOM_err(FATAL, "viewLogical2D: rank mismatch")
-   if (.not. associated(this%shape)) call MOM_err(FATAL, "viewLogical2D: shape not allocated")
+   if (.not. allocated(this%shape)) call MOM_err(FATAL, "viewLogical2D: shape not allocated")
 
    ! Zero copy no allocation
    a(this%lb(1):this%ub(1), this%lb(2):this%ub(2)) => this%data
@@ -1441,7 +1441,7 @@ subroutine viewLogical3D(this,a)
    logical, intent(inout), pointer :: a(:,:,:)  !< The Fortran pointer array
 
    if (this%rank /= 3) call MOM_err(FATAL, "viewLogical3D: rank mismatch")
-   if (.not. associated(this%shape)) call MOM_err(FATAL, "viewLogical3D: shape not allocated")
+   if (.not. allocated(this%shape)) call MOM_err(FATAL, "viewLogical3D: shape not allocated")
 
    ! Zero copy no allocation
    a(this%lb(1):this%ub(1), this%lb(2):this%ub(2), &
@@ -1486,7 +1486,7 @@ subroutine viewLogical4D(this,a)
    logical, intent(inout), pointer :: a(:,:,:,:)  !< The Fortran pointer array
 
    if (this%rank /= 4) call MOM_err(FATAL, "viewLogical4D: rank mismatch")
-   if (.not. associated(this%shape)) call MOM_err(FATAL, "viewLogical4D: shape not allocated")
+   if (.not. allocated(this%shape)) call MOM_err(FATAL, "viewLogical4D: shape not allocated")
 
    ! Zero copy no allocation
    a(this%lb(1):this%ub(1), this%lb(2):this%ub(2), &
