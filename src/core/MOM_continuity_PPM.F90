@@ -156,7 +156,7 @@ implicit none ; private
 #include <MOM_memory.h>
 
 public continuity_PPM, continuity_PPM_init, continuity_PPM_stencil
-public continuity_fluxes, continuity_adjust_vel
+public continuity_PPM_3d_fluxes, continuity_PPM_2d_fluxes, continuity_PPM_adjust_vel
 public zonal_mass_flux, meridional_mass_flux
 public zonal_edge_thickness, meridional_edge_thickness
 public continuity_zonal_convergence, continuity_meridional_convergence
@@ -213,12 +213,6 @@ type, public :: cont_loop_bounds_type ; private
   integer :: ish, ieh, jsh, jeh
   !>@}
 end type cont_loop_bounds_type
-
-!> Finds the thickness fluxes from the continuity solver or their vertical sum without
-!! actually updating the layer thicknesses.
-interface continuity_fluxes
-  module procedure continuity_3d_fluxes, continuity_2d_fluxes
-end interface continuity_fluxes
 
 contains
 
@@ -350,7 +344,7 @@ end subroutine continuity_PPM
 !! layer thicknesses.  Because the fluxes in the two directions are calculated based on the
 !! input thicknesses, which are not updated between the direcitons, the fluxes returned here
 !! are not the same as those that would be returned by a call to continuity.
-subroutine continuity_3d_fluxes(u, v, h, uh, vh, dt, G, GV, US, CS, OBC, pbv)
+subroutine continuity_PPM_3d_fluxes(u, v, h, uh, vh, dt, G, GV, US, CS, OBC, pbv)
   type(ocean_grid_type),   intent(inout) :: G   !< Ocean grid structure.
   type(verticalGrid_type), intent(in)    :: GV  !< Vertical grid structure.
   real, dimension(SZIB_(G),SZJ_(G),SZK_(GV)), &
@@ -390,13 +384,13 @@ subroutine continuity_3d_fluxes(u, v, h, uh, vh, dt, G, GV, US, CS, OBC, pbv)
   ! Free the continuity solver iteration box
   call bxC%free()
 
-end subroutine continuity_3d_fluxes
+end subroutine continuity_PPM_3d_fluxes
 
 !> Find the vertical sum of the thickness fluxes from the continuity solver without actually
 !! updating the layer thicknesses.  Because the fluxes in the two directions are calculated
 !! based on the input thicknesses, which are not updated between the directions, the fluxes
 !! returned here are not the same as those that would be returned by a call to continuity.
-subroutine continuity_2d_fluxes(u, v, h, uhbt, vhbt, dt, G, GV, US, CS, OBC, pbv)
+subroutine continuity_PPM_2d_fluxes(u, v, h, uhbt, vhbt, dt, G, GV, US, CS, OBC, pbv)
   type(ocean_grid_type),   intent(inout) :: G   !< Ocean grid structure.
   type(verticalGrid_type), intent(in)    :: GV  !< Vertical grid structure.
   real, dimension(SZIB_(G),SZJ_(G),SZK_(GV)), &
@@ -436,11 +430,11 @@ subroutine continuity_2d_fluxes(u, v, h, uhbt, vhbt, dt, G, GV, US, CS, OBC, pbv
   ! Free the continuity solver iteration box
   call bxC%free()
 
-end subroutine continuity_2d_fluxes
+end subroutine continuity_PPM_2d_fluxes
 
 !> Correct the velocities to give the specified depth-integrated transports by applying a
 !! barotropic acceleration (subject to viscous drag) to the velocities.
-subroutine continuity_adjust_vel(u, v, h, dt, G, GV, US, CS, OBC, pbv, uhbt, vhbt, visc_rem_u, visc_rem_v)
+subroutine continuity_PPM_adjust_vel(u, v, h, dt, G, GV, US, CS, OBC, pbv, uhbt, vhbt, visc_rem_u, visc_rem_v)
   type(ocean_grid_type),   intent(inout) :: G   !< Ocean grid structure.
   type(verticalGrid_type), intent(in)    :: GV  !< Vertical grid structure.
   real, dimension(SZIB_(G),SZJ_(G),SZK_(GV)), &
@@ -514,7 +508,7 @@ subroutine continuity_adjust_vel(u, v, h, dt, G, GV, US, CS, OBC, pbv, uhbt, vhb
   ! Free the continuity solver iteration box
   call bxC%free()
 
-end subroutine continuity_adjust_vel
+end subroutine continuity_PPM_adjust_vel
 
 
 !> Updates the thicknesses due to zonal thickness fluxes.
