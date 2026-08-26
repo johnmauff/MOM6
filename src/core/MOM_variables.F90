@@ -1,6 +1,7 @@
 ! This file is part of MOM6, the Modular Ocean Model version 6.
 ! See the LICENSE file for licensing information.
 ! SPDX-License-Identifier: Apache-2.0
+!!SKILLS: 0.3
 
 !> Provides transparent structures with groups of MOM6 variables and supporting routines
 module MOM_variables
@@ -17,6 +18,7 @@ use MOM_grid,          only : ocean_grid_type
 use MOM_unit_scaling,  only : unit_scale_type
 use MOM_verticalGrid,  only : verticalGrid_type
 use MOM_tracer_types,  only : tracer_type
+use array_mod,         only : RealArray_t
 
 implicit none ; private
 
@@ -315,35 +317,35 @@ end type vertvisc_type
 !> Container for information about the summed layer transports
 !! and how they will vary as the barotropic velocity is changed.
 type, public :: BT_cont_type
-  real, allocatable :: FA_u_EE(:,:) !< The effective open face area for zonal barotropic transport
+  type(RealArray_t) :: FA_u_EE !< The effective open face area for zonal barotropic transport
                                     !! drawing from locations far to the east [H L ~> m2 or kg m-1].
-  real, allocatable :: FA_u_E0(:,:) !< The effective open face area for zonal barotropic transport
+  type(RealArray_t) :: FA_u_E0 !< The effective open face area for zonal barotropic transport
                                     !! drawing from nearby to the east [H L ~> m2 or kg m-1].
-  real, allocatable :: FA_u_W0(:,:) !< The effective open face area for zonal barotropic transport
+  type(RealArray_t) :: FA_u_W0 !< The effective open face area for zonal barotropic transport
                                     !! drawing from nearby to the west [H L ~> m2 or kg m-1].
-  real, allocatable :: FA_u_WW(:,:) !< The effective open face area for zonal barotropic transport
+  type(RealArray_t) :: FA_u_WW !< The effective open face area for zonal barotropic transport
                                     !! drawing from locations far to the west [H L ~> m2 or kg m-1].
-  real, allocatable :: uBT_WW(:,:)  !< uBT_WW is the barotropic velocity [L T-1 ~> m s-1], beyond which the
+  type(RealArray_t) :: uBT_WW  !< uBT_WW is the barotropic velocity [L T-1 ~> m s-1], beyond which the
                                     !! marginal open face area is FA_u_WW.  uBT_WW must be non-negative.
-  real, allocatable :: uBT_EE(:,:)  !< uBT_EE is a barotropic velocity [L T-1 ~> m s-1], beyond which the
+  type(RealArray_t) :: uBT_EE  !< uBT_EE is a barotropic velocity [L T-1 ~> m s-1], beyond which the
                                     !! marginal open face area is FA_u_EE. uBT_EE must be non-positive.
-  real, allocatable :: FA_v_NN(:,:) !< The effective open face area for meridional barotropic transport
+  type(RealArray_t) :: FA_v_NN !< The effective open face area for meridional barotropic transport
                                     !! drawing from locations far to the north [H L ~> m2 or kg m-1].
-  real, allocatable :: FA_v_N0(:,:) !< The effective open face area for meridional barotropic transport
+  type(RealArray_t) :: FA_v_N0 !< The effective open face area for meridional barotropic transport
                                     !! drawing from nearby to the north [H L ~> m2 or kg m-1].
-  real, allocatable :: FA_v_S0(:,:) !< The effective open face area for meridional barotropic transport
+  type(RealArray_t) :: FA_v_S0 !< The effective open face area for meridional barotropic transport
                                     !! drawing from nearby to the south [H L ~> m2 or kg m-1].
-  real, allocatable :: FA_v_SS(:,:) !< The effective open face area for meridional barotropic transport
+  type(RealArray_t) :: FA_v_SS !< The effective open face area for meridional barotropic transport
                                     !! drawing from locations far to the south [H L ~> m2 or kg m-1].
-  real, allocatable :: vBT_SS(:,:)  !< vBT_SS is the barotropic velocity, [L T-1 ~> m s-1], beyond which the
+  type(RealArray_t) :: vBT_SS  !< vBT_SS is the barotropic velocity, [L T-1 ~> m s-1], beyond which the
                                     !! marginal open face area is FA_v_SS. vBT_SS must be non-negative.
-  real, allocatable :: vBT_NN(:,:)  !< vBT_NN is the barotropic velocity, [L T-1 ~> m s-1], beyond which the
+  type(RealArray_t) :: vBT_NN  !< vBT_NN is the barotropic velocity, [L T-1 ~> m s-1], beyond which the
                                     !! marginal open face area is FA_v_NN.  vBT_NN must be non-positive.
-  real, allocatable :: h_u(:,:,:)   !< An effective thickness at zonal faces, taking into account the effects
+  type(RealArray_t) :: h_u     !< An effective thickness at zonal faces, taking into account the effects
                                     !! of vertical viscosity and fractional open areas [H ~> m or kg m-2].
                                     !! This is primarily used as a non-normalized weight in determining
                                     !! the depth averaged accelerations for the barotropic solver.
-  real, allocatable :: h_v(:,:,:)   !< An effective thickness at meridional faces, taking into account the effects
+  type(RealArray_t) :: h_v     !< An effective thickness at meridional faces, taking into account the effects
                                     !! of vertical viscosity and fractional open areas [H ~> m or kg m-2].
                                     !! This is primarily used as a non-normalized weight in determining
                                     !! the depth averaged accelerations for the barotropic solver.
@@ -580,30 +582,30 @@ subroutine alloc_BT_cont_type(BT_cont, G, GV, alloc_faces)
 
   allocate(BT_cont)
   !$omp target enter data map(to: BT_cont)
-  allocate(BT_cont%FA_u_WW(IsdB:IedB,jsd:jed), source=0.0)
-  allocate(BT_cont%FA_u_W0(IsdB:IedB,jsd:jed), source=0.0)
-  allocate(BT_cont%FA_u_E0(IsdB:IedB,jsd:jed), source=0.0)
-  allocate(BT_cont%FA_u_EE(IsdB:IedB,jsd:jed), source=0.0)
-  allocate(BT_cont%uBT_WW(IsdB:IedB,jsd:jed), source=0.0)
-  allocate(BT_cont%uBT_EE(IsdB:IedB,jsd:jed), source=0.0)
-  !$omp target enter data map(to: BT_cont%FA_u_WW, BT_cont%FA_u_W0)
-  !$omp target enter data map(to: BT_cont%FA_u_E0, BT_cont%FA_u_EE)
-  !$omp target enter data map(to: BT_cont%uBT_WW, BT_cont%uBT_EE)
+  call BT_cont%FA_u_WW%alloc(lb=[IsdB,jsd], ub=[IedB,jed], source=0.0)
+  call BT_cont%FA_u_W0%alloc(lb=[IsdB,jsd], ub=[IedB,jed], source=0.0)
+  call BT_cont%FA_u_E0%alloc(lb=[IsdB,jsd], ub=[IedB,jed], source=0.0)
+  call BT_cont%FA_u_EE%alloc(lb=[IsdB,jsd], ub=[IedB,jed], source=0.0)
+  call BT_cont%uBT_WW%alloc(lb=[IsdB,jsd], ub=[IedB,jed], source=0.0)
+  call BT_cont%uBT_EE%alloc(lb=[IsdB,jsd], ub=[IedB,jed], source=0.0)
+  !$omp target enter data map(to: BT_cont%FA_u_WW%data, BT_cont%FA_u_W0%data)
+  !$omp target enter data map(to: BT_cont%FA_u_E0%data, BT_cont%FA_u_EE%data)
+  !$omp target enter data map(to: BT_cont%uBT_WW%data, BT_cont%uBT_EE%data)
 
-  allocate(BT_cont%FA_v_SS(isd:ied,JsdB:JedB), source=0.0)
-  allocate(BT_cont%FA_v_S0(isd:ied,JsdB:JedB), source=0.0)
-  allocate(BT_cont%FA_v_N0(isd:ied,JsdB:JedB), source=0.0)
-  allocate(BT_cont%FA_v_NN(isd:ied,JsdB:JedB), source=0.0)
-  allocate(BT_cont%vBT_SS(isd:ied,JsdB:JedB), source=0.0)
-  allocate(BT_cont%vBT_NN(isd:ied,JsdB:JedB), source=0.0)
-  !$omp target enter data map(to: BT_cont%FA_v_SS, BT_cont%FA_v_S0)
-  !$omp target enter data map(to: BT_cont%FA_v_N0, BT_cont%FA_v_NN)
-  !$omp target enter data map(to: BT_cont%vBT_SS, BT_cont%vBT_NN)
+  call BT_cont%FA_v_SS%alloc(lb=[isd,JsdB], ub=[ied,JedB], source=0.0)
+  call BT_cont%FA_v_S0%alloc(lb=[isd,JsdB], ub=[ied,JedB], source=0.0)
+  call BT_cont%FA_v_N0%alloc(lb=[isd,JsdB], ub=[ied,JedB], source=0.0)
+  call BT_cont%FA_v_NN%alloc(lb=[isd,JsdB], ub=[ied,JedB], source=0.0)
+  call BT_cont%vBT_SS%alloc(lb=[isd,JsdB], ub=[ied,JedB], source=0.0)
+  call BT_cont%vBT_NN%alloc(lb=[isd,JsdB], ub=[ied,JedB], source=0.0)
+  !$omp target enter data map(to: BT_cont%FA_v_SS%data, BT_cont%FA_v_S0%data)
+  !$omp target enter data map(to: BT_cont%FA_v_N0%data, BT_cont%FA_v_NN%data)
+  !$omp target enter data map(to: BT_cont%vBT_SS%data, BT_cont%vBT_NN%data)
 
   if (present(alloc_faces)) then ; if (alloc_faces) then
-    allocate(BT_cont%h_u(IsdB:IedB,jsd:jed,1:nz), source=0.0)
-    allocate(BT_cont%h_v(isd:ied,JsdB:JedB,1:nz), source=0.0)
-    !$omp target enter data map(to: BT_cont%h_u, BT_cont%h_v)
+    call BT_cont%h_u%alloc(lb=[IsdB,jsd,1], ub=[IedB,jed,nz], source=0.0)
+    call BT_cont%h_v%alloc(lb=[isd,JsdB,1], ub=[ied,JedB,nz], source=0.0)
+    !$omp target enter data map(to: BT_cont%h_u%data, BT_cont%h_v%data)
   endif ; endif
 
 end subroutine alloc_BT_cont_type
@@ -614,24 +616,24 @@ subroutine dealloc_BT_cont_type(BT_cont)
 
   if (.not.associated(BT_cont)) return
 
-  !$omp target exit data map(delete: BT_cont%FA_u_EE, BT_cont%FA_u_E0)
-  !$omp target exit data map(delete: BT_cont%FA_u_W0, BT_cont%FA_u_WW)
-  !$omp target exit data map(delete: BT_cont%uBT_WW, BT_cont%uBT_EE)
-  deallocate(BT_cont%FA_u_EE) ; deallocate(BT_cont%FA_u_E0)
-  deallocate(BT_cont%FA_u_W0) ; deallocate(BT_cont%FA_u_WW)
-  deallocate(BT_cont%uBT_WW)  ; deallocate(BT_cont%uBT_EE)
+  !$omp target exit data map(delete: BT_cont%FA_u_EE%data, BT_cont%FA_u_E0%data)
+  !$omp target exit data map(delete: BT_cont%FA_u_W0%data, BT_cont%FA_u_WW%data)
+  !$omp target exit data map(delete: BT_cont%uBT_WW%data, BT_cont%uBT_EE%data)
+  call BT_cont%FA_u_EE%free() ; call BT_cont%FA_u_E0%free()
+  call BT_cont%FA_u_W0%free() ; call BT_cont%FA_u_WW%free()
+  call BT_cont%uBT_WW%free()  ; call BT_cont%uBT_EE%free()
 
-  !$omp target exit data map(delete: BT_cont%FA_v_NN, BT_cont%FA_v_N0)
-  !$omp target exit data map(delete: BT_cont%FA_v_S0, BT_cont%FA_v_SS)
-  !$omp target exit data map(delete: BT_cont%vBT_SS, BT_cont%vBT_NN)
-  deallocate(BT_cont%FA_v_NN) ; deallocate(BT_cont%FA_v_N0)
-  deallocate(BT_cont%FA_v_S0) ; deallocate(BT_cont%FA_v_SS)
-  deallocate(BT_cont%vBT_SS)  ; deallocate(BT_cont%vBT_NN)
+  !$omp target exit data map(delete: BT_cont%FA_v_NN%data, BT_cont%FA_v_N0%data)
+  !$omp target exit data map(delete: BT_cont%FA_v_S0%data, BT_cont%FA_v_SS%data)
+  !$omp target exit data map(delete: BT_cont%vBT_SS%data, BT_cont%vBT_NN%data)
+  call BT_cont%FA_v_NN%free() ; call BT_cont%FA_v_N0%free()
+  call BT_cont%FA_v_S0%free() ; call BT_cont%FA_v_SS%free()
+  call BT_cont%vBT_SS%free()  ; call BT_cont%vBT_NN%free()
 
   ! These are always allocated in pairs.
-  if (allocated(BT_cont%h_u) .and. allocated(BT_cont%h_v)) then
-    !$omp target exit data map(delete: BT_cont%h_u, BT_cont%h_v)
-    deallocate(BT_cont%h_u, BT_cont%h_v)
+  if (BT_cont%h_u%associated() .and. BT_cont%h_v%associated()) then
+    !$omp target exit data map(delete: BT_cont%h_u%data, BT_cont%h_v%data)
+    call BT_cont%h_u%free() ; call BT_cont%h_v%free()
   endif
 
   !$omp target exit data map(delete: BT_cont)

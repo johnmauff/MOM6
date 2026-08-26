@@ -1,6 +1,7 @@
 ! This file is part of MOM6, the Modular Ocean Model version 6.
 ! See the LICENSE file for licensing information.
 ! SPDX-License-Identifier: Apache-2.0
+!!SKILLS: 0.3
 
 #include "do_concurrent_compat.h"
 
@@ -953,12 +954,21 @@ subroutine zonal_mass_flux(bxC, u, h_in, h_W, h_E, uh, dt, G, GV, US, CS, OBC, p
   logical :: local_specified_BC, local_Flather_OBC, local_open_BC, any_simple_OBC  ! OBC-related logicals
   logical, dimension(SZIB_(G), SZJ_(G)) :: do_I  ! Indicates points to work on when finding uhbt/BT_cont
   logical, dimension(SZIB_(G), SZJ_(G)) :: simple_OBC_pt  ! Indicates points in a row with specified transport OBCs
+  real, dimension(:,:), contiguous, pointer :: FA_u_W0, FA_u_E0, FA_u_WW, FA_u_EE, uBT_WW, uBT_EE
+  real, dimension(:,:,:), contiguous, pointer :: h_u
 
   call cpu_clock_begin(id_clock_correct)
+
+  nullify(FA_u_W0, FA_u_E0, FA_u_WW, FA_u_EE, uBT_WW, uBT_EE, h_u)
 
   use_visc_rem = present(visc_rem_u)
 
   set_BT_cont = .false. ; if (present(BT_cont)) set_BT_cont = (associated(BT_cont))
+  if (set_BT_cont) then
+    call BT_cont%FA_u_W0%view(FA_u_W0) ; call BT_cont%FA_u_E0%view(FA_u_E0)
+    call BT_cont%FA_u_WW%view(FA_u_WW) ; call BT_cont%FA_u_EE%view(FA_u_EE)
+    call BT_cont%uBT_WW%view(uBT_WW)   ; call BT_cont%uBT_EE%view(uBT_EE)
+  endif
 
   local_specified_BC = .false. ; local_Flather_OBC = .false. ; local_open_BC = .false.
   if (associated(OBC)) then ; if (OBC%OBC_pe) then
@@ -1178,9 +1188,9 @@ subroutine zonal_mass_flux(bxC, u, h_in, h_W, h_E, uh, dt, G, GV, US, CS, OBC, p
               if ((abs(OBC%segment(l_seg)%normal_vel(I,j,k)) > 0.0) .and. (OBC%segment(l_seg)%specified)) &
                 FAuI = FAuI + OBC%segment(l_seg)%normal_trans(I,j,k) / OBC%segment(l_seg)%normal_vel(I,j,k)
             enddo
-            BT_cont%FA_u_W0(I,j) = FAuI ; BT_cont%FA_u_E0(I,j) = FAuI
-            BT_cont%FA_u_WW(I,j) = FAuI ; BT_cont%FA_u_EE(I,j) = FAuI
-            BT_cont%uBT_WW(I,j) = 0.0 ; BT_cont%uBT_EE(I,j) = 0.0
+            FA_u_W0(I,j) = FAuI ; FA_u_E0(I,j) = FAuI
+            FA_u_WW(I,j) = FAuI ; FA_u_EE(I,j) = FAuI
+            uBT_WW(I,j) = 0.0 ; uBT_EE(I,j) = 0.0
           endif
         enddo
       endif
@@ -1197,29 +1207,30 @@ subroutine zonal_mass_flux(bxC, u, h_in, h_W, h_E, uh, dt, G, GV, US, CS, OBC, p
           do concurrent (j = OBC%segment(n)%HI%Jsd:OBC%segment(n)%HI%Jed)
             FA_u = 0.0
             do k=1,nz ; FA_u = FA_u + h_in(i,j,k)*(G%dy_Cu(I,j)*por_face_areaU(I,j,k)) ; enddo
-            BT_cont%FA_u_W0(I,j) = FA_u ; BT_cont%FA_u_E0(I,j) = FA_u
-            BT_cont%FA_u_WW(I,j) = FA_u ; BT_cont%FA_u_EE(I,j) = FA_u
-            BT_cont%uBT_WW(I,j) = 0.0 ; BT_cont%uBT_EE(I,j) = 0.0
+            FA_u_W0(I,j) = FA_u ; FA_u_E0(I,j) = FA_u
+            FA_u_WW(I,j) = FA_u ; FA_u_EE(I,j) = FA_u
+            uBT_WW(I,j) = 0.0 ; uBT_EE(I,j) = 0.0
           enddo
         else
           do concurrent (j = OBC%segment(n)%HI%Jsd:OBC%segment(n)%HI%Jed)
             FA_u = 0.0
             do k=1,nz ; FA_u = FA_u + h_in(i+1,j,k)*(G%dy_Cu(I,j)*por_face_areaU(I,j,k)) ; enddo
-            BT_cont%FA_u_W0(I,j) = FA_u ; BT_cont%FA_u_E0(I,j) = FA_u
-            BT_cont%FA_u_WW(I,j) = FA_u ; BT_cont%FA_u_EE(I,j) = FA_u
-            BT_cont%uBT_WW(I,j) = 0.0 ; BT_cont%uBT_EE(I,j) = 0.0
+            FA_u_W0(I,j) = FA_u ; FA_u_E0(I,j) = FA_u
+            FA_u_WW(I,j) = FA_u ; FA_u_EE(I,j) = FA_u
+            uBT_WW(I,j) = 0.0 ; uBT_EE(I,j) = 0.0
           enddo
         endif
       endif
     enddo
   endif
 
-  if  (set_BT_cont) then ; if (allocated(BT_cont%h_u)) then
+  if  (set_BT_cont) then ; if (BT_cont%h_u%associated()) then
+    call BT_cont%h_u%view(h_u)
     if (present(u_cor)) then
-      call zonal_flux_thickness(bxC, u_cor, h_in, h_W, h_E, BT_cont%h_u, dt, G, GV, US, &
+      call zonal_flux_thickness(bxC, u_cor, h_in, h_W, h_E, h_u, dt, G, GV, US, &
                                 CS%vol_CFL, CS%marginal_faces, OBC, por_face_areaU, visc_rem_u_tmp)
     else
-      call zonal_flux_thickness(bxC, u, h_in, h_W, h_E, BT_cont%h_u, dt, G, GV, US, &
+      call zonal_flux_thickness(bxC, u, h_in, h_W, h_E, h_u, dt, G, GV, US, &
                                 CS%vol_CFL, CS%marginal_faces, OBC, por_face_areaU, visc_rem_u_tmp)
     endif
   endif ; endif
@@ -1814,10 +1825,15 @@ subroutine set_zonal_BT_cont(bxC, u, h_in, h_W, h_E, BT_cont, du0, uh_tot_0, duh
   integer :: ieh      !< End of i index range.
   integer :: jsh      !< Start of j index range.
   integer :: jeh      !< End of j index range.
+  real, dimension(SZIB_(G),SZJ_(G)) :: FA_u_W0, FA_u_E0, FA_u_WW, FA_u_EE, uBT_WW, uBT_EE
 
   ish = bxC%idxS(1) ; ieh = bxC%idxE(1) ; jsh = bxC%idxS(2) ; jeh = bxC%idxE(2) ; nz  = bxC%idxE(3)
   Idt = 1.0 / dt
   min_visc_rem = 0.1 ; CFL_min = 1e-6
+
+  call BT_cont%FA_u_W0%copy2F(FA_u_W0) ; call BT_cont%FA_u_E0%copy2F(FA_u_E0)
+  call BT_cont%FA_u_WW%copy2F(FA_u_WW) ; call BT_cont%FA_u_EE%copy2F(FA_u_EE)
+  call BT_cont%uBT_WW%copy2F(uBT_WW)   ; call BT_cont%uBT_EE%copy2F(uBT_EE)
 
   !$omp target enter data map(alloc: duL, duR, du_CFL, FAmt_L, FAmT_R, FAmt_0, uhtot_L, uhtot_R)
 
@@ -1876,9 +1892,9 @@ subroutine set_zonal_BT_cont(bxC, u, h_in, h_W, h_E, BT_cont, du0, uh_tot_0, duh
         if (FA_avg > max(FA_0, FAmt_L(I))) then ; FA_avg = max(FA_0, FAmt_L(I))
         elseif (FA_avg < min(FA_0, FAmt_L(I))) then ; FA_0 = FA_avg ; endif
 
-        BT_cont%FA_u_W0(I,j) = FA_0 ; BT_cont%FA_u_WW(I,j) = FAmt_L(I)
-        if (abs(FA_0-FAmt_L(I)) <= 1e-12*FA_0) then ; BT_cont%uBT_WW(I,j) = 0.0 ; else
-          BT_cont%uBT_WW(I,j) = (1.5 * (duL(I) - du0(I,j))) * &
+        FA_u_W0(I,j) = FA_0 ; FA_u_WW(I,j) = FAmt_L(I)
+        if (abs(FA_0-FAmt_L(I)) <= 1e-12*FA_0) then ; uBT_WW(I,j) = 0.0 ; else
+          uBT_WW(I,j) = (1.5 * (duL(I) - du0(I,j))) * &
                                 ((FAmt_L(I) - FA_avg) / (FAmt_L(I) - FA_0))
         endif
 
@@ -1888,20 +1904,24 @@ subroutine set_zonal_BT_cont(bxC, u, h_in, h_W, h_E, BT_cont, du0, uh_tot_0, duh
         if (FA_avg > max(FA_0, FAmt_R(I))) then ; FA_avg = max(FA_0, FAmt_R(I))
         elseif (FA_avg < min(FA_0, FAmt_R(I))) then ; FA_0 = FA_avg ; endif
 
-        BT_cont%FA_u_E0(I,j) = FA_0 ; BT_cont%FA_u_EE(I,j) = FAmt_R(I)
-        if (abs(FAmt_R(I) - FA_0) <= 1e-12*FA_0) then ; BT_cont%uBT_EE(I,j) = 0.0 ; else
-          BT_cont%uBT_EE(I,j) = (1.5 * (duR(I) - du0(I,j))) * &
+        FA_u_E0(I,j) = FA_0 ; FA_u_EE(I,j) = FAmt_R(I)
+        if (abs(FAmt_R(I) - FA_0) <= 1e-12*FA_0) then ; uBT_EE(I,j) = 0.0 ; else
+          uBT_EE(I,j) = (1.5 * (duR(I) - du0(I,j))) * &
                                 ((FAmt_R(I) - FA_avg) / (FAmt_R(I) - FA_0))
         endif
       else
-        BT_cont%FA_u_W0(I,j) = 0.0 ; BT_cont%FA_u_WW(I,j) = 0.0
-        BT_cont%FA_u_E0(I,j) = 0.0 ; BT_cont%FA_u_EE(I,j) = 0.0
-        BT_cont%uBT_WW(I,j) = 0.0 ; BT_cont%uBT_EE(I,j) = 0.0
+        FA_u_W0(I,j) = 0.0 ; FA_u_WW(I,j) = 0.0
+        FA_u_E0(I,j) = 0.0 ; FA_u_EE(I,j) = 0.0
+        uBT_WW(I,j) = 0.0 ; uBT_EE(I,j) = 0.0
       endif
     enddo
   enddo
 
   !$omp target exit data map(release: duL, duR, du_CFL, FAmt_L, FAmT_R, FAmt_0, uhtot_L, uhtot_R)
+
+  call BT_cont%FA_u_W0%copy2Array(FA_u_W0) ; call BT_cont%FA_u_E0%copy2Array(FA_u_E0)
+  call BT_cont%FA_u_WW%copy2Array(FA_u_WW) ; call BT_cont%FA_u_EE%copy2Array(FA_u_EE)
+  call BT_cont%uBT_WW%copy2Array(uBT_WW)   ; call BT_cont%uBT_EE%copy2Array(uBT_EE)
 
 end subroutine set_zonal_BT_cont
 
@@ -1971,12 +1991,21 @@ subroutine meridional_mass_flux(bxC, v, h_in, h_S, h_N, vh, dt, G, GV, US, CS, O
   logical, dimension(SZI_(G),SZJB_(G)) :: simple_OBC_pt  ! Indicates points in a row with specified transport OBCs
   type(OBC_segment_type), pointer :: segment => NULL()
   real :: FAvi, FA_v    ! A sum of meridional face areas [H L ~> m2 or kg m-1].
+  real, dimension(:,:), contiguous, pointer :: FA_v_S0, FA_v_N0, FA_v_SS, FA_v_NN, vBT_SS, vBT_NN
+  real, dimension(:,:,:), contiguous, pointer :: h_v
 
   call cpu_clock_begin(id_clock_correct)
+
+  nullify(FA_v_S0, FA_v_N0, FA_v_SS, FA_v_NN, vBT_SS, vBT_NN, h_v)
 
   use_visc_rem = present(visc_rem_v)
 
   set_BT_cont = .false. ; if (present(BT_cont)) set_BT_cont = (associated(BT_cont))
+  if (set_BT_cont) then
+    call BT_cont%FA_v_S0%view(FA_v_S0) ; call BT_cont%FA_v_N0%view(FA_v_N0)
+    call BT_cont%FA_v_SS%view(FA_v_SS) ; call BT_cont%FA_v_NN%view(FA_v_NN)
+    call BT_cont%vBT_SS%view(vBT_SS)   ; call BT_cont%vBT_NN%view(vBT_NN)
+  endif
 
   local_specified_BC = .false. ; local_Flather_OBC = .false. ; local_open_BC = .false.
   if (associated(OBC)) then ; if (OBC%OBC_pe) then
@@ -2193,9 +2222,9 @@ subroutine meridional_mass_flux(bxC, v, h_in, h_S, h_N, vh, dt, G, GV, US, CS, O
             if ((abs(segment%normal_vel(i,J,k)) > 0.0) .and. (segment%specified)) &
               FAvi = FAvi + segment%normal_trans(i,J,k) / segment%normal_vel(i,J,k)
           enddo
-          BT_cont%FA_v_S0(i,J) = FAvi ; BT_cont%FA_v_N0(i,J) = FAvi
-          BT_cont%FA_v_SS(i,J) = FAvi ; BT_cont%FA_v_NN(i,J) = FAvi
-          BT_cont%vBT_SS(i,J) = 0.0 ; BT_cont%vBT_NN(i,J) = 0.0
+          FA_v_S0(i,J) = FAvi ; FA_v_N0(i,J) = FAvi
+          FA_v_SS(i,J) = FAvi ; FA_v_NN(i,J) = FAvi
+          vBT_SS(i,J) = 0.0 ; vBT_NN(i,J) = 0.0
         enddo
       endif ! any_simple_OBC
     endif ! set_BT_cont
@@ -2211,29 +2240,30 @@ subroutine meridional_mass_flux(bxC, v, h_in, h_S, h_N, vh, dt, G, GV, US, CS, O
           do concurrent (i = OBC%segment(n)%HI%Isd:OBC%segment(n)%HI%Ied)
             FA_v = 0.0
             do k=1,nz ; FA_v = FA_v + h_in(i,j,k)*(G%dx_Cv(i,J)*por_face_areaV(i,J,k)) ; enddo
-            BT_cont%FA_v_S0(i,J) = FA_v ; BT_cont%FA_v_N0(i,J) = FA_v
-            BT_cont%FA_v_SS(i,J) = FA_v ; BT_cont%FA_v_NN(i,J) = FA_v
-            BT_cont%vBT_SS(i,J) = 0.0 ; BT_cont%vBT_NN(i,J) = 0.0
+            FA_v_S0(i,J) = FA_v ; FA_v_N0(i,J) = FA_v
+            FA_v_SS(i,J) = FA_v ; FA_v_NN(i,J) = FA_v
+            vBT_SS(i,J) = 0.0 ; vBT_NN(i,J) = 0.0
           enddo
         else
           do concurrent (i = OBC%segment(n)%HI%Isd:OBC%segment(n)%HI%Ied)
             FA_v = 0.0
             do k=1,nz ; FA_v = FA_v + h_in(i,j+1,k)*(G%dx_Cv(i,J)*por_face_areaV(i,J,k)) ; enddo
-            BT_cont%FA_v_S0(i,J) = FA_v ; BT_cont%FA_v_N0(i,J) = FA_v
-            BT_cont%FA_v_SS(i,J) = FA_v ; BT_cont%FA_v_NN(i,J) = FA_v
-            BT_cont%vBT_SS(i,J) = 0.0 ; BT_cont%vBT_NN(i,J) = 0.0
+            FA_v_S0(i,J) = FA_v ; FA_v_N0(i,J) = FA_v
+            FA_v_SS(i,J) = FA_v ; FA_v_NN(i,J) = FA_v
+            vBT_SS(i,J) = 0.0 ; vBT_NN(i,J) = 0.0
           enddo
         endif
       endif
     enddo
   endif
 
-  if (set_BT_cont) then ; if (allocated(BT_cont%h_v)) then
+  if (set_BT_cont) then ; if (BT_cont%h_v%associated()) then
+    call BT_cont%h_v%view(h_v)
     if (present(v_cor)) then
-      call meridional_flux_thickness(bxC, v_cor, h_in, h_S, h_N, BT_cont%h_v, dt, G, GV, US, &
+      call meridional_flux_thickness(bxC, v_cor, h_in, h_S, h_N, h_v, dt, G, GV, US, &
                                     CS%vol_CFL, CS%marginal_faces, OBC, por_face_areaV, visc_rem_v_tmp)
     else
-      call meridional_flux_thickness(bxC, v, h_in, h_S, h_N, BT_cont%h_v, dt, G, GV, US, &
+      call meridional_flux_thickness(bxC, v, h_in, h_S, h_N, h_v, dt, G, GV, US, &
                                     CS%vol_CFL, CS%marginal_faces, OBC, por_face_areaV, visc_rem_v_tmp)
     endif
   endif ; endif
@@ -2723,10 +2753,15 @@ subroutine set_merid_BT_cont(bxC, v, h_in, h_S, h_N, BT_cont, dv0, vh_tot_0, dvh
   integer :: ieh  !< End of i index range.
   integer :: jsh  !< Start of j index range.
   integer :: jeh  !< End of j index range.
+  real, dimension(SZI_(G),SZJB_(G)) :: FA_v_S0, FA_v_N0, FA_v_SS, FA_v_NN, vBT_SS, vBT_NN
 
   ish = bxC%idxS(1) ; ieh = bxC%idxE(1) ; jsh = bxC%idxS(2) ; jeh = bxC%idxE(2) ; nz  = bxC%idxE(3)
   Idt = 1.0 / dt
   min_visc_rem = 0.1 ; CFL_min = 1e-6
+
+  call BT_cont%FA_v_S0%copy2F(FA_v_S0) ; call BT_cont%FA_v_N0%copy2F(FA_v_N0)
+  call BT_cont%FA_v_SS%copy2F(FA_v_SS) ; call BT_cont%FA_v_NN%copy2F(FA_v_NN)
+  call BT_cont%vBT_SS%copy2F(vBT_SS)   ; call BT_cont%vBT_NN%copy2F(vBT_NN)
 
   !$omp target enter data map(alloc: dvL, dvR, dv_CFL, FAmt_L, FAmt_R, FAmt_0, vhtot_L, vhtot_R)
 
@@ -2786,9 +2821,9 @@ subroutine set_merid_BT_cont(bxC, v, h_in, h_S, h_N, BT_cont, dv0, vh_tot_0, dvh
           FA_avg = vhtot_L(i) / (dvL(i) - dv0(i,J))
         if (FA_avg > max(FA_0, FAmt_L(i))) then ; FA_avg = max(FA_0, FAmt_L(i))
         elseif (FA_avg < min(FA_0, FAmt_L(i))) then ; FA_0 = FA_avg ; endif
-        BT_cont%FA_v_S0(i,J) = FA_0 ; BT_cont%FA_v_SS(i,J) = FAmt_L(i)
-        if (abs(FA_0-FAmt_L(i)) <= 1e-12*FA_0) then ; BT_cont%vBT_SS(i,J) = 0.0 ; else
-          BT_cont%vBT_SS(i,J) = (1.5 * (dvL(i) - dv0(i,J))) * &
+        FA_v_S0(i,J) = FA_0 ; FA_v_SS(i,J) = FAmt_L(i)
+        if (abs(FA_0-FAmt_L(i)) <= 1e-12*FA_0) then ; vBT_SS(i,J) = 0.0 ; else
+          vBT_SS(i,J) = (1.5 * (dvL(i) - dv0(i,J))) * &
                       ((FAmt_L(i) - FA_avg) / (FAmt_L(i) - FA_0))
         endif
 
@@ -2797,20 +2832,24 @@ subroutine set_merid_BT_cont(bxC, v, h_in, h_S, h_N, BT_cont, dv0, vh_tot_0, dvh
           FA_avg = vhtot_R(i) / (dvR(i) - dv0(i,j))
         if (FA_avg > max(FA_0, FAmt_R(i))) then ; FA_avg = max(FA_0, FAmt_R(i))
         elseif (FA_avg < min(FA_0, FAmt_R(i))) then ; FA_0 = FA_avg ; endif
-        BT_cont%FA_v_N0(i,J) = FA_0 ; BT_cont%FA_v_NN(i,J) = FAmt_R(i)
-        if (abs(FAmt_R(i) - FA_0) <= 1e-12*FA_0) then ; BT_cont%vBT_NN(i,J) = 0.0 ; else
-          BT_cont%vBT_NN(i,J) = (1.5 * (dvR(i) - dv0(i,j))) * &
+        FA_v_N0(i,J) = FA_0 ; FA_v_NN(i,J) = FAmt_R(i)
+        if (abs(FAmt_R(i) - FA_0) <= 1e-12*FA_0) then ; vBT_NN(i,J) = 0.0 ; else
+          vBT_NN(i,J) = (1.5 * (dvR(i) - dv0(i,j))) * &
                       ((FAmt_R(i) - FA_avg) / (FAmt_R(i) - FA_0))
         endif
       else
-        BT_cont%FA_v_S0(i,J) = 0.0 ; BT_cont%FA_v_SS(i,J) = 0.0
-        BT_cont%FA_v_N0(i,J) = 0.0 ; BT_cont%FA_v_NN(i,J) = 0.0
-        BT_cont%vBT_SS(i,J) = 0.0 ; BT_cont%vBT_NN(i,J) = 0.0
+        FA_v_S0(i,J) = 0.0 ; FA_v_SS(i,J) = 0.0
+        FA_v_N0(i,J) = 0.0 ; FA_v_NN(i,J) = 0.0
+        vBT_SS(i,J) = 0.0 ; vBT_NN(i,J) = 0.0
       endif
     enddo
   enddo
 
   !$omp target exit data map(release: dvL, dvR, dv_CFL, FAmt_L, FAmt_R, FAmt_0, vhtot_L, vhtot_R)
+
+  call BT_cont%FA_v_S0%copy2Array(FA_v_S0) ; call BT_cont%FA_v_N0%copy2Array(FA_v_N0)
+  call BT_cont%FA_v_SS%copy2Array(FA_v_SS) ; call BT_cont%FA_v_NN%copy2Array(FA_v_NN)
+  call BT_cont%vBT_SS%copy2Array(vBT_SS)   ; call BT_cont%vBT_NN%copy2Array(vBT_NN)
 
 end subroutine set_merid_BT_cont
 

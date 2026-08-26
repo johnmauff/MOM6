@@ -1,6 +1,7 @@
 ! This file is part of MOM6, the Modular Ocean Model version 6.
 ! See the LICENSE file for licensing information.
 ! SPDX-License-Identifier: Apache-2.0
+!!SKILLS: 0.3
 
 !> Time step the adiabatic dynamic core of MOM using RK2 method with greater use of the
 !! time-filtered velocities and less inheritance of tedencies from the previous step in the
@@ -402,6 +403,8 @@ subroutine step_MOM_dyn_split_RK2b(u_av, v_av, h, tv, visc, Time_local, dt, forc
   logical :: BT_cont_BT_thick ! If true, use the BT_cont_type to estimate the
                               ! relative weightings of the layers in calculating
                               ! the barotropic accelerations.
+  real, dimension(:,:,:), contiguous, pointer :: h_u, h_v ! Views of CS%BT_cont%h_u/h_v, when present
+                              ! [H ~> m or kg m-2].
   !---For group halo pass
   logical :: showCallTree, sym
 
@@ -460,9 +463,13 @@ subroutine step_MOM_dyn_split_RK2b(u_av, v_av, h, tv, visc, Time_local, dt, forc
     enddo ; enddo ; enddo
   endif
 
+  nullify(h_u, h_v)
   BT_cont_BT_thick = .false.
   if (associated(CS%BT_cont)) BT_cont_BT_thick = &
-    (allocated(CS%BT_cont%h_u) .and. allocated(CS%BT_cont%h_v))
+    (CS%BT_cont%h_u%associated() .and. CS%BT_cont%h_v%associated())
+  if (BT_cont_BT_thick) then
+    call CS%BT_cont%h_u%view(h_u) ; call CS%BT_cont%h_v%view(h_v)
+  endif
 
   if (CS%split_bottom_stress) then
     taux_bot => CS%taux_bot ; tauy_bot => CS%tauy_bot
@@ -681,7 +688,7 @@ subroutine step_MOM_dyn_split_RK2b(u_av, v_av, h, tv, visc, Time_local, dt, forc
                   visc_rem_u=CS%visc_rem_u, visc_rem_v=CS%visc_rem_v, BT_cont=CS%BT_cont)
   call cpu_clock_end(id_clock_continuity)
   if (BT_cont_BT_thick) then
-    call btcalc(h, G, GV, CS%barotropic_CSp, CS%BT_cont%h_u, CS%BT_cont%h_v, &
+    call btcalc(h, G, GV, CS%barotropic_CSp, h_u, h_v, &
                 OBC=CS%OBC)
   endif
   if (showCallTree) call callTree_wayPoint("done with continuity[BT_cont] (step_MOM_dyn_split_RK2b)")
@@ -867,7 +874,7 @@ subroutine step_MOM_dyn_split_RK2b(u_av, v_av, h, tv, visc, Time_local, dt, forc
   endif
 
   if (BT_cont_BT_thick) then
-    call btcalc(h, G, GV, CS%barotropic_CSp, CS%BT_cont%h_u, CS%BT_cont%h_v, &
+    call btcalc(h, G, GV, CS%barotropic_CSp, h_u, h_v, &
                 OBC=CS%OBC)
     if (showCallTree) call callTree_wayPoint("done with btcalc[BT_cont_BT_thick] (step_MOM_dyn_split_RK2b)")
   endif

@@ -1,6 +1,7 @@
 ! This file is part of MOM6, the Modular Ocean Model version 6.
 ! See the LICENSE file for licensing information.
 ! SPDX-License-Identifier: Apache-2.0
+!!SKILLS: 0.3
 
 #include "do_concurrent_compat.h"
 
@@ -753,6 +754,9 @@ subroutine btstep(U_in, V_in, eta_in, dt, bc_accel_u, bc_accel_v, forces, pbce, 
   integer :: i, j, k, n
   integer :: is, ie, js, je, nz, Isq, Ieq, Jsq, Jeq
   integer :: isd, ied, jsd, jed, IsdB, IedB, JsdB, JedB
+  real, dimension(:,:), contiguous, pointer :: FA_u_EE, FA_u_E0, FA_u_W0, FA_u_WW, uBT_EE, uBT_WW
+  real, dimension(:,:), contiguous, pointer :: FA_v_NN, FA_v_N0, FA_v_S0, FA_v_SS, vBT_NN, vBT_SS
+  real, dimension(:,:,:), contiguous, pointer :: h_u, h_v
 
   if (.not.CS%module_is_initialized) call MOM_error(FATAL, &
       "btstep: Module MOM_barotropic must be initialized before it is used.")
@@ -768,8 +772,20 @@ subroutine btstep(U_in, V_in, eta_in, dt, bc_accel_u, bc_accel_v, forces, pbce, 
   Idt = 1.0 / dt
   accel_underflow = CS%vel_underflow * Idt
 
+  nullify(FA_u_EE, FA_u_E0, FA_u_W0, FA_u_WW, uBT_EE, uBT_WW)
+  nullify(FA_v_NN, FA_v_N0, FA_v_S0, FA_v_SS, vBT_NN, vBT_SS)
+  nullify(h_u, h_v)
+
   use_BT_cont = associated(BT_cont)
   integral_BT_cont = use_BT_cont .and. CS%integral_BT_cont
+  if (use_BT_cont) then
+    call BT_cont%FA_u_EE%view(FA_u_EE) ; call BT_cont%FA_u_E0%view(FA_u_E0)
+    call BT_cont%FA_u_W0%view(FA_u_W0) ; call BT_cont%FA_u_WW%view(FA_u_WW)
+    call BT_cont%uBT_EE%view(uBT_EE)   ; call BT_cont%uBT_WW%view(uBT_WW)
+    call BT_cont%FA_v_NN%view(FA_v_NN) ; call BT_cont%FA_v_N0%view(FA_v_N0)
+    call BT_cont%FA_v_S0%view(FA_v_S0) ; call BT_cont%FA_v_SS%view(FA_v_SS)
+    call BT_cont%vBT_NN%view(vBT_NN)   ; call BT_cont%vBT_SS%view(vBT_SS)
+  endif
 
   interp_eta_PF = associated(eta_PF_start)
 
@@ -2236,34 +2252,34 @@ subroutine btstep(U_in, V_in, eta_in, dt, bc_accel_u, bc_accel_v, forces, pbce, 
     if (CS%id_etaPF_anom > 0) call post_data(CS%id_etaPF_anom, e_anom(isd:ied,jsd:jed), CS%diag)
 
     if (use_BT_cont) then
-      if (CS%id_BTC_FA_u_EE > 0) call post_data(CS%id_BTC_FA_u_EE, BT_cont%FA_u_EE, CS%diag)
-      if (CS%id_BTC_FA_u_E0 > 0) call post_data(CS%id_BTC_FA_u_E0, BT_cont%FA_u_E0, CS%diag)
-      if (CS%id_BTC_FA_u_W0 > 0) call post_data(CS%id_BTC_FA_u_W0, BT_cont%FA_u_W0, CS%diag)
-      if (CS%id_BTC_FA_u_WW > 0) call post_data(CS%id_BTC_FA_u_WW, BT_cont%FA_u_WW, CS%diag)
-      if (CS%id_BTC_uBT_EE > 0) call post_data(CS%id_BTC_uBT_EE, BT_cont%uBT_EE, CS%diag)
-      if (CS%id_BTC_uBT_WW > 0) call post_data(CS%id_BTC_uBT_WW, BT_cont%uBT_WW, CS%diag)
+      if (CS%id_BTC_FA_u_EE > 0) call post_data(CS%id_BTC_FA_u_EE, FA_u_EE, CS%diag)
+      if (CS%id_BTC_FA_u_E0 > 0) call post_data(CS%id_BTC_FA_u_E0, FA_u_E0, CS%diag)
+      if (CS%id_BTC_FA_u_W0 > 0) call post_data(CS%id_BTC_FA_u_W0, FA_u_W0, CS%diag)
+      if (CS%id_BTC_FA_u_WW > 0) call post_data(CS%id_BTC_FA_u_WW, FA_u_WW, CS%diag)
+      if (CS%id_BTC_uBT_EE > 0) call post_data(CS%id_BTC_uBT_EE, uBT_EE, CS%diag)
+      if (CS%id_BTC_uBT_WW > 0) call post_data(CS%id_BTC_uBT_WW, uBT_WW, CS%diag)
       if (CS%id_BTC_FA_u_rat0 > 0) then
         tmp_u(:,:) = 0.0
         do j=js,je ; do I=is-1,ie
-          if ((G%mask2dCu(I,j) > 0.0) .and. (BT_cont%FA_u_W0(I,j) > 0.0)) then
-            tmp_u(I,j) = (BT_cont%FA_u_E0(I,j)/ BT_cont%FA_u_W0(I,j))
+          if ((G%mask2dCu(I,j) > 0.0) .and. (FA_u_W0(I,j) > 0.0)) then
+            tmp_u(I,j) = (FA_u_E0(I,j)/ FA_u_W0(I,j))
           else
             tmp_u(I,j) = 1.0
           endif
         enddo ; enddo
         call post_data(CS%id_BTC_FA_u_rat0, tmp_u, CS%diag)
       endif
-      if (CS%id_BTC_FA_v_NN > 0) call post_data(CS%id_BTC_FA_v_NN, BT_cont%FA_v_NN, CS%diag)
-      if (CS%id_BTC_FA_v_N0 > 0) call post_data(CS%id_BTC_FA_v_N0, BT_cont%FA_v_N0, CS%diag)
-      if (CS%id_BTC_FA_v_S0 > 0) call post_data(CS%id_BTC_FA_v_S0, BT_cont%FA_v_S0, CS%diag)
-      if (CS%id_BTC_FA_v_SS > 0) call post_data(CS%id_BTC_FA_v_SS, BT_cont%FA_v_SS, CS%diag)
-      if (CS%id_BTC_vBT_NN > 0) call post_data(CS%id_BTC_vBT_NN, BT_cont%vBT_NN, CS%diag)
-      if (CS%id_BTC_vBT_SS > 0) call post_data(CS%id_BTC_vBT_SS, BT_cont%vBT_SS, CS%diag)
+      if (CS%id_BTC_FA_v_NN > 0) call post_data(CS%id_BTC_FA_v_NN, FA_v_NN, CS%diag)
+      if (CS%id_BTC_FA_v_N0 > 0) call post_data(CS%id_BTC_FA_v_N0, FA_v_N0, CS%diag)
+      if (CS%id_BTC_FA_v_S0 > 0) call post_data(CS%id_BTC_FA_v_S0, FA_v_S0, CS%diag)
+      if (CS%id_BTC_FA_v_SS > 0) call post_data(CS%id_BTC_FA_v_SS, FA_v_SS, CS%diag)
+      if (CS%id_BTC_vBT_NN > 0) call post_data(CS%id_BTC_vBT_NN, vBT_NN, CS%diag)
+      if (CS%id_BTC_vBT_SS > 0) call post_data(CS%id_BTC_vBT_SS, vBT_SS, CS%diag)
       if (CS%id_BTC_FA_v_rat0 > 0) then
         tmp_v(:,:) = 0.0
         do J=js-1,je ; do i=is,ie
-          if ((G%mask2dCv(i,J) > 0.0) .and. (BT_cont%FA_v_S0(i,J) > 0.0)) then
-            tmp_v(i,J) = (BT_cont%FA_v_N0(i,J)/ BT_cont%FA_v_S0(i,J))
+          if ((G%mask2dCv(i,J) > 0.0) .and. (FA_v_S0(i,J) > 0.0)) then
+            tmp_v(i,J) = (FA_v_N0(i,J)/ FA_v_S0(i,J))
           else
             tmp_v(i,J) = 1.0
           endif
@@ -2274,32 +2290,32 @@ subroutine btstep(U_in, V_in, eta_in, dt, bc_accel_u, bc_accel_v, forces, pbce, 
         tmp_h(:,:) = 0.0
         do j=js,je ; do i=is,ie
           tmp_h(i,j) = 1.0
-          if ((G%mask2dCu(I,j) > 0.0) .and. (BT_cont%FA_u_W0(I,j) > 0.0) .and. (BT_cont%FA_u_E0(I,j) > 0.0)) then
-            if (BT_cont%FA_u_W0(I,j) > BT_cont%FA_u_E0(I,j)) then
-              tmp_h(i,j) = max(tmp_h(i,j), (BT_cont%FA_u_W0(I,j)/ BT_cont%FA_u_E0(I,j)))
+          if ((G%mask2dCu(I,j) > 0.0) .and. (FA_u_W0(I,j) > 0.0) .and. (FA_u_E0(I,j) > 0.0)) then
+            if (FA_u_W0(I,j) > FA_u_E0(I,j)) then
+              tmp_h(i,j) = max(tmp_h(i,j), (FA_u_W0(I,j)/ FA_u_E0(I,j)))
             else
-              tmp_h(i,j) = max(tmp_h(i,j), (BT_cont%FA_u_E0(I,j)/ BT_cont%FA_u_W0(I,j)))
+              tmp_h(i,j) = max(tmp_h(i,j), (FA_u_E0(I,j)/ FA_u_W0(I,j)))
             endif
           endif
-          if ((G%mask2dCu(I-1,j) > 0.0) .and. (BT_cont%FA_u_W0(I-1,j) > 0.0) .and. (BT_cont%FA_u_E0(I-1,j) > 0.0)) then
-            if (BT_cont%FA_u_W0(I-1,j) > BT_cont%FA_u_E0(I-1,j)) then
-              tmp_h(i,j) = max(tmp_h(i,j), (BT_cont%FA_u_W0(I-1,j)/ BT_cont%FA_u_E0(I-1,j)))
+          if ((G%mask2dCu(I-1,j) > 0.0) .and. (FA_u_W0(I-1,j) > 0.0) .and. (FA_u_E0(I-1,j) > 0.0)) then
+            if (FA_u_W0(I-1,j) > FA_u_E0(I-1,j)) then
+              tmp_h(i,j) = max(tmp_h(i,j), (FA_u_W0(I-1,j)/ FA_u_E0(I-1,j)))
             else
-              tmp_h(i,j) = max(tmp_h(i,j), (BT_cont%FA_u_E0(I-1,j)/ BT_cont%FA_u_W0(I-1,j)))
+              tmp_h(i,j) = max(tmp_h(i,j), (FA_u_E0(I-1,j)/ FA_u_W0(I-1,j)))
             endif
           endif
-          if ((G%mask2dCv(i,J) > 0.0) .and. (BT_cont%FA_v_S0(i,J) > 0.0) .and. (BT_cont%FA_v_N0(i,J) > 0.0)) then
-            if (BT_cont%FA_v_S0(i,J) > BT_cont%FA_v_N0(i,J)) then
-              tmp_h(i,j) = max(tmp_h(i,j), (BT_cont%FA_v_S0(i,J)/ BT_cont%FA_v_N0(i,J)))
+          if ((G%mask2dCv(i,J) > 0.0) .and. (FA_v_S0(i,J) > 0.0) .and. (FA_v_N0(i,J) > 0.0)) then
+            if (FA_v_S0(i,J) > FA_v_N0(i,J)) then
+              tmp_h(i,j) = max(tmp_h(i,j), (FA_v_S0(i,J)/ FA_v_N0(i,J)))
             else
-              tmp_h(i,j) = max(tmp_h(i,j), (BT_cont%FA_v_N0(i,J)/ BT_cont%FA_v_S0(i,J)))
+              tmp_h(i,j) = max(tmp_h(i,j), (FA_v_N0(i,J)/ FA_v_S0(i,J)))
             endif
           endif
-          if ((G%mask2dCv(i,J-1) > 0.0) .and. (BT_cont%FA_v_S0(i,J-1) > 0.0) .and. (BT_cont%FA_v_N0(i,J-1) > 0.0)) then
-            if (BT_cont%FA_v_S0(i,J-1) > BT_cont%FA_v_N0(i,J-1)) then
-              tmp_h(i,j) = max(tmp_h(i,j), (BT_cont%FA_v_S0(i,J-1)/ BT_cont%FA_v_N0(i,J-1)))
+          if ((G%mask2dCv(i,J-1) > 0.0) .and. (FA_v_S0(i,J-1) > 0.0) .and. (FA_v_N0(i,J-1) > 0.0)) then
+            if (FA_v_S0(i,J-1) > FA_v_N0(i,J-1)) then
+              tmp_h(i,j) = max(tmp_h(i,j), (FA_v_S0(i,J-1)/ FA_v_N0(i,J-1)))
             else
-              tmp_h(i,j) = max(tmp_h(i,j), (BT_cont%FA_v_N0(i,J-1)/ BT_cont%FA_v_S0(i,J-1)))
+              tmp_h(i,j) = max(tmp_h(i,j), (FA_v_N0(i,J-1)/ FA_v_S0(i,J-1)))
             endif
           endif
         enddo ; enddo
@@ -2334,13 +2350,15 @@ subroutine btstep(U_in, V_in, eta_in, dt, bc_accel_u, bc_accel_v, forces, pbce, 
   endif
 
   if (use_BT_cont .and. associated(ADp%diag_hu)) then
+    if (BT_cont%h_u%associated()) call BT_cont%h_u%view(h_u)
     do concurrent (k=1:nz, j=js:je, I=is-1:ie)
-      ADp%diag_hu(I,j,k) = BT_cont%h_u(I,j,k)
+      ADp%diag_hu(I,j,k) = h_u(I,j,k)
     enddo
   endif
   if (use_BT_cont .and. associated(ADp%diag_hv)) then
+    if (BT_cont%h_v%associated()) call BT_cont%h_v%view(h_v)
     do concurrent (k=1:nz, J=js-1:je, i=is:ie)
-      ADp%diag_hv(i,J,k) = BT_cont%h_v(i,J,k)
+      ADp%diag_hv(i,J,k) = h_v(i,J,k)
     enddo
   endif
   if (associated(ADp%visc_rem_u)) then
@@ -5242,10 +5260,21 @@ subroutine set_local_BT_cont_types(BT_cont, BTCL_u, BTCL_v, G, US, MS, BT_Domain
   real, parameter :: C1_3 = 1.0/3.0  ! [nondim]
   integer :: i, j, is, ie, js, je, hs
   real :: tmp
+  real, dimension(:,:), contiguous, pointer :: uBT_EE_bt, uBT_WW_bt
+  real, dimension(:,:), contiguous, pointer :: FA_u_EE_bt, FA_u_E0_bt, FA_u_W0_bt, FA_u_WW_bt
+  real, dimension(:,:), contiguous, pointer :: vBT_NN_bt, vBT_SS_bt
+  real, dimension(:,:), contiguous, pointer :: FA_v_NN_bt, FA_v_N0_bt, FA_v_S0_bt, FA_v_SS_bt
 
   is = G%isc ; ie = G%iec ; js = G%jsc ; je = G%jec
   hs = max(halo,0)
   dt = 1.0 ; if (present(dt_baroclinic)) dt = dt_baroclinic
+
+  call BT_cont%uBT_EE%view(uBT_EE_bt) ; call BT_cont%uBT_WW%view(uBT_WW_bt)
+  call BT_cont%FA_u_EE%view(FA_u_EE_bt) ; call BT_cont%FA_u_E0%view(FA_u_E0_bt)
+  call BT_cont%FA_u_W0%view(FA_u_W0_bt) ; call BT_cont%FA_u_WW%view(FA_u_WW_bt)
+  call BT_cont%vBT_NN%view(vBT_NN_bt) ; call BT_cont%vBT_SS%view(vBT_SS_bt)
+  call BT_cont%FA_v_NN%view(FA_v_NN_bt) ; call BT_cont%FA_v_N0%view(FA_v_N0_bt)
+  call BT_cont%FA_v_S0%view(FA_v_S0_bt) ; call BT_cont%FA_v_SS%view(FA_v_SS_bt)
 
   !$omp target enter data &
   !$omp   map(alloc: u_polarity, uBT_EE, uBT_WW, FA_u_EE, FA_u_E0, FA_u_W0, FA_u_WW, &
@@ -5263,14 +5292,14 @@ subroutine set_local_BT_cont_types(BT_cont, BTCL_u, BTCL_v, G, US, MS, BT_Domain
     FA_v_NN(i,j) = 0.0 ; FA_v_N0(i,j) = 0.0 ; FA_v_S0(i,j) = 0.0 ; FA_v_SS(i,j) = 0.0
   enddo
   do concurrent (j=js:je, I=is-1:ie)
-    uBT_EE(I,j) = BT_cont%uBT_EE(I,j) ; uBT_WW(I,j) = BT_cont%uBT_WW(I,j)
-    FA_u_EE(I,j) = BT_cont%FA_u_EE(I,j) ; FA_u_E0(I,j) = BT_cont%FA_u_E0(I,j)
-    FA_u_W0(I,j) = BT_cont%FA_u_W0(I,j) ; FA_u_WW(I,j) = BT_cont%FA_u_WW(I,j)
+    uBT_EE(I,j) = uBT_EE_bt(I,j) ; uBT_WW(I,j) = uBT_WW_bt(I,j)
+    FA_u_EE(I,j) = FA_u_EE_bt(I,j) ; FA_u_E0(I,j) = FA_u_E0_bt(I,j)
+    FA_u_W0(I,j) = FA_u_W0_bt(I,j) ; FA_u_WW(I,j) = FA_u_WW_bt(I,j)
   enddo
   do concurrent (J=js-1:je, i=is:ie)
-    vBT_NN(i,J) = BT_cont%vBT_NN(i,J) ; vBT_SS(i,J) = BT_cont%vBT_SS(i,J)
-    FA_v_NN(i,J) = BT_cont%FA_v_NN(i,J) ; FA_v_N0(i,J) = BT_cont%FA_v_N0(i,J)
-    FA_v_S0(i,J) = BT_cont%FA_v_S0(i,J) ; FA_v_SS(i,J) = BT_cont%FA_v_SS(i,J)
+    vBT_NN(i,J) = vBT_NN_bt(i,J) ; vBT_SS(i,J) = vBT_SS_bt(i,J)
+    FA_v_NN(i,J) = FA_v_NN_bt(i,J) ; FA_v_N0(i,J) = FA_v_N0_bt(i,J)
+    FA_v_S0(i,J) = FA_v_S0_bt(i,J) ; FA_v_SS(i,J) = FA_v_SS_bt(i,J)
   enddo
 
   if (id_clock_calc_pre > 0) call cpu_clock_end(id_clock_calc_pre)
@@ -5476,16 +5505,23 @@ subroutine BT_cont_to_face_areas(BT_cont, Datu, Datv, G, US, MS, halo)
 
   ! Local variables
   integer :: i, j, is, ie, js, je, hs
+  real, dimension(:,:), contiguous, pointer :: FA_u_EE, FA_u_E0, FA_u_W0, FA_u_WW
+  real, dimension(:,:), contiguous, pointer :: FA_v_NN, FA_v_N0, FA_v_S0, FA_v_SS
   is = G%isc ; ie = G%iec ; js = G%jsc ; je = G%jec
   hs = 1 ; if (present(halo)) hs = max(halo,0)
 
+  call BT_cont%FA_u_EE%view(FA_u_EE) ; call BT_cont%FA_u_E0%view(FA_u_E0)
+  call BT_cont%FA_u_W0%view(FA_u_W0) ; call BT_cont%FA_u_WW%view(FA_u_WW)
+  call BT_cont%FA_v_NN%view(FA_v_NN) ; call BT_cont%FA_v_N0%view(FA_v_N0)
+  call BT_cont%FA_v_S0%view(FA_v_S0) ; call BT_cont%FA_v_SS%view(FA_v_SS)
+
   do concurrent (j=js-hs:je+hs, I=is-1-hs:ie+hs)
-    Datu(I,j) = max(BT_cont%FA_u_EE(I,j), BT_cont%FA_u_E0(I,j), &
-                    BT_cont%FA_u_W0(I,j), BT_cont%FA_u_WW(I,j))
+    Datu(I,j) = max(FA_u_EE(I,j), FA_u_E0(I,j), &
+                    FA_u_W0(I,j), FA_u_WW(I,j))
   enddo
   do concurrent (J=js-1-hs:je+hs, i=is-hs:ie+hs)
-    Datv(i,J) = max(BT_cont%FA_v_NN(i,J), BT_cont%FA_v_N0(i,J), &
-                    BT_cont%FA_v_S0(i,J), BT_cont%FA_v_SS(i,J))
+    Datv(i,J) = max(FA_v_NN(i,J), FA_v_N0(i,J), &
+                    FA_v_S0(i,J), FA_v_SS(i,J))
   enddo
 
 end subroutine BT_cont_to_face_areas
