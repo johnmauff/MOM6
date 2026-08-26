@@ -1539,6 +1539,7 @@ subroutine initialize_dyn_split_RK2(u, v, h, tv, uh, vh, eta, Time, G, GV, US, p
   integer :: i, j, k, is, ie, js, je, isd, ied, jsd, jed, nz
   integer :: IsdB, IedB, JsdB, JedB
   integer :: nc           ! Number of tidal constituents to be harmonically analyzed
+  real, dimension(:,:,:), contiguous, pointer :: h_u, h_v ! Views of CS%BT_cont%h_u/h_v [H ~> m or kg m-2].
   is   = G%isc  ; ie   = G%iec  ; js   = G%jsc  ; je   = G%jec ; nz = GV%ke
   isd  = G%isd  ; ied  = G%ied  ; jsd  = G%jsd  ; jed  = G%jed
   IsdB = G%IsdB ; IedB = G%IedB ; JsdB = G%JsdB ; JedB = G%JedB
@@ -1753,6 +1754,10 @@ subroutine initialize_dyn_split_RK2(u, v, h, tv, uh, vh, eta, Time, G, GV, US, p
   call barotropic_init(u, v, h, Time, G, GV, US, param_file, diag, &
                        CS%barotropic_CSp, restart_CS, calc_dtbt, CS%BT_cont, &
                        CS%OBC, CS%SAL_CSp, HA_CSp)
+
+  nullify(h_u, h_v)
+  if (CS%BT_cont%h_u%associated()) call CS%BT_cont%h_u%view(h_u)
+  if (CS%BT_cont%h_v%associated()) call CS%BT_cont%h_v%view(h_v)
 
   if (.not. query_initialized(CS%diffu, "diffu", restart_CS) .or. &
       .not. query_initialized(CS%diffv, "diffv", restart_CS)) then
