@@ -1380,9 +1380,10 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, &
       enddo
     endif
 
+    call du_a%allocView(du, lb=[u_a%lb(1),u_a%lb(2)], ub=[u_a%ub(1),u_a%ub(2)], source=0.0)
+
     if (uhbt_a%associated()) then
       ! Find du and uh.
-      call du_a%allocView(du, lb=[u_a%lb(1),u_a%lb(2)], ub=[u_a%ub(1),u_a%ub(2)], source=0.0)
       call zonal_flux_adjust(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a, duhdu_tot_0_a, du_a, &
                             du_max_CFL_a, du_min_CFL_a, dt, dy_Cu_a, IareaT_a, IdxT_a, CS, &
                             visc_rem_u_tmp_a, &
@@ -1407,11 +1408,9 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, &
           enddo
         endif ! du-corrected
       enddo
-      call du_a%free()
     endif
     if (set_BT_cont) then
       ! Diagnose the zero-transport correction, du0.
-      call du_a%alloc(lb=[u_a%lb(1),u_a%lb(2)], ub=[u_a%ub(1),u_a%ub(2)], source=0.0)
       call zonal_flux_adjust(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a, duhdu_tot_0_a, du_a, &
                             du_max_CFL_a, du_min_CFL_a, dt, dy_Cu_a, IareaT_a, IdxT_a, CS, &
                             visc_rem_u_tmp_a, &
@@ -1421,7 +1420,6 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, &
                               dxCu_a, dy_Cu_a, IareaT_a, IdxT_a, CS, &
                               visc_rem_u_tmp_a, &
                               visc_rem_max_a, do_I_a, por_face_areaU_a)
-      call du_a%free()
       if (any_simple_OBC) then
         ! untested
         do concurrent (j=jsh:jeh, I=ish-1:ieh)
@@ -1440,6 +1438,7 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, &
         enddo
       endif
     endif
+    call du_a%free()
     call uh_tot_0_a%free() ; call duhdu_tot_0_a%free() ; call du_max_CFL_a%free()
     call du_min_CFL_a%free() ; call visc_rem_max_a%free() ; call do_I_a%free()
   endif
@@ -2548,9 +2547,10 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, &
       enddo
     endif ! local_specified_BC .or. local_Flather_OBC
 
+    call dv_a%allocView(dv, lb=[v_a%lb(1),v_a%lb(2)], ub=[v_a%ub(1),v_a%ub(2)], source=0.0)
+
     if (vhbt_a%associated()) then
       ! Find dv and vh.
-      call dv_a%allocView(dv, lb=[v_a%lb(1),v_a%lb(2)], ub=[v_a%ub(1),v_a%ub(2)], source=0.0)
       call meridional_flux_adjust(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_a, dvhdv_tot_0_a, dv_a, &
                              dv_max_CFL_a, dv_min_CFL_a, dt, dx_Cv_a, IareaT_a, IdyT_a, CS, &
                              visc_rem_v_tmp_a, &
@@ -2575,12 +2575,10 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, &
           enddo
         endif ! dv-corrected
       enddo
-      call dv_a%free()
     endif
 
     if (set_BT_cont) then
     ! Diagnose the zero-transport correction, dv0.
-      call dv_a%alloc(lb=[v_a%lb(1),v_a%lb(2)], ub=[v_a%ub(1),v_a%ub(2)], source=0.0)
       call meridional_flux_adjust(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_a, dvhdv_tot_0_a, dv_a, &
                             dv_max_CFL_a, dv_min_CFL_a, dt, dx_Cv_a, IareaT_a, IdyT_a, CS, &
                             visc_rem_v_tmp_a, &
@@ -2589,7 +2587,6 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, &
                              dvhdv_tot_0_a, dv_max_CFL_a, dv_min_CFL_a, dt, &
                              dyCv_a, dx_Cv_a, IareaT_a, IdyT_a, CS, &
                              visc_rem_v_tmp_a, visc_rem_max_a, do_I_a, por_face_areaV_a)
-      call dv_a%free()
 
       if (any_simple_OBC) then
         ! untested
@@ -2607,6 +2604,7 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, &
         enddo
       endif ! any_simple_OBC
     endif ! set_BT_cont
+    call dv_a%free()
     call vh_tot_0_a%free() ; call dvhdv_tot_0_a%free() ; call dv_max_CFL_a%free()
     call dv_min_CFL_a%free() ; call visc_rem_max_a%free() ; call do_I_a%free()
   endif ! vhbt_a%associated() or set_BT_cont
