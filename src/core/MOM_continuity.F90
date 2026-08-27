@@ -25,6 +25,7 @@ use MOM_open_boundary, only : ocean_OBC_type
 use MOM_unit_scaling, only : unit_scale_type
 use MOM_variables, only : BT_cont_type, porous_barrier_type
 use MOM_verticalGrid, only : verticalGrid_type
+use array_mod, only : RealArray_t
 
 implicit none ; private
 
@@ -108,8 +109,77 @@ subroutine continuity(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt, v
                  optional, intent(out)   :: dv_cor !< The meridional velocity increments from v that give vhbt
                                                  !! as the depth-integrated transports [L T-1 ~> m s-1].
 
-  call continuity_PPM(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt, vhbt, &
-                       visc_rem_u, visc_rem_v, u_cor, v_cor, BT_cont, du_cor, dv_cor)
+  type(RealArray_t) :: u_a, v_a, hin_a, h_a, uh_a, vh_a
+  type(RealArray_t), pointer :: uhbt_a, vhbt_a, visc_rem_u_a, visc_rem_v_a
+  type(RealArray_t), pointer :: u_cor_a, v_cor_a, du_cor_a, dv_cor_a
+
+  call u_a%alloc(lb=LBOUND(u), ub=UBOUND(u), source=u)
+  call v_a%alloc(lb=LBOUND(v), ub=UBOUND(v), source=v)
+  call hin_a%alloc(lb=LBOUND(hin), ub=UBOUND(hin), source=hin)
+  call h_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
+  call uh_a%alloc(lb=LBOUND(uh), ub=UBOUND(uh), source=uh)
+  call vh_a%alloc(lb=LBOUND(vh), ub=UBOUND(vh), source=vh)
+
+  nullify(uhbt_a, vhbt_a, visc_rem_u_a, visc_rem_v_a, u_cor_a, v_cor_a, du_cor_a, dv_cor_a)
+  if (present(uhbt)) then
+    allocate(uhbt_a) ; call uhbt_a%alloc(lb=LBOUND(uhbt), ub=UBOUND(uhbt), source=uhbt)
+  endif
+  if (present(vhbt)) then
+    allocate(vhbt_a) ; call vhbt_a%alloc(lb=LBOUND(vhbt), ub=UBOUND(vhbt), source=vhbt)
+  endif
+  if (present(visc_rem_u)) then
+    allocate(visc_rem_u_a)
+    call visc_rem_u_a%alloc(lb=LBOUND(visc_rem_u), ub=UBOUND(visc_rem_u), source=visc_rem_u)
+  endif
+  if (present(visc_rem_v)) then
+    allocate(visc_rem_v_a)
+    call visc_rem_v_a%alloc(lb=LBOUND(visc_rem_v), ub=UBOUND(visc_rem_v), source=visc_rem_v)
+  endif
+  if (present(u_cor)) then
+    allocate(u_cor_a) ; call u_cor_a%alloc(lb=LBOUND(u_cor), ub=UBOUND(u_cor), source=u_cor)
+  endif
+  if (present(v_cor)) then
+    allocate(v_cor_a) ; call v_cor_a%alloc(lb=LBOUND(v_cor), ub=UBOUND(v_cor), source=v_cor)
+  endif
+  if (present(du_cor)) then
+    allocate(du_cor_a) ; call du_cor_a%alloc(lb=LBOUND(du_cor), ub=UBOUND(du_cor), source=du_cor)
+  endif
+  if (present(dv_cor)) then
+    allocate(dv_cor_a) ; call dv_cor_a%alloc(lb=LBOUND(dv_cor), ub=UBOUND(dv_cor), source=dv_cor)
+  endif
+
+  call continuity_PPM(u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, G, GV, US, CS, OBC, pbv, &
+                       uhbt_a=uhbt_a, vhbt_a=vhbt_a, visc_rem_u_a=visc_rem_u_a, &
+                       visc_rem_v_a=visc_rem_v_a, u_cor_a=u_cor_a, v_cor_a=v_cor_a, &
+                       BT_cont=BT_cont, du_cor_a=du_cor_a, dv_cor_a=dv_cor_a)
+
+  call h_a%copy2F(h)
+  call uh_a%copy2F(uh)
+  call vh_a%copy2F(vh)
+
+  call u_a%free()
+  call v_a%free()
+  call hin_a%free()
+  call h_a%free()
+  call uh_a%free()
+  call vh_a%free()
+
+  if (associated(u_cor_a)) then
+    call u_cor_a%copy2F(u_cor) ; call u_cor_a%free() ; deallocate(u_cor_a)
+  endif
+  if (associated(v_cor_a)) then
+    call v_cor_a%copy2F(v_cor) ; call v_cor_a%free() ; deallocate(v_cor_a)
+  endif
+  if (associated(du_cor_a)) then
+    call du_cor_a%copy2F(du_cor) ; call du_cor_a%free() ; deallocate(du_cor_a)
+  endif
+  if (associated(dv_cor_a)) then
+    call dv_cor_a%copy2F(dv_cor) ; call dv_cor_a%free() ; deallocate(dv_cor_a)
+  endif
+  if (associated(uhbt_a)) then ; call uhbt_a%free() ; deallocate(uhbt_a) ; endif
+  if (associated(vhbt_a)) then ; call vhbt_a%free() ; deallocate(vhbt_a) ; endif
+  if (associated(visc_rem_u_a)) then ; call visc_rem_u_a%free() ; deallocate(visc_rem_u_a) ; endif
+  if (associated(visc_rem_v_a)) then ; call visc_rem_v_a%free() ; deallocate(visc_rem_v_a) ; endif
 
 end subroutine continuity
 
@@ -138,7 +208,24 @@ subroutine continuity_3d_fluxes(u, v, h, uh, vh, dt, G, GV, US, CS, OBC, pbv)
   type(ocean_OBC_type),    pointer       :: OBC !< Open boundaries control structure.
   type(porous_barrier_type), intent(in)  :: pbv !< porous barrier fractional cell metrics
 
-  call continuity_PPM_3d_fluxes(u, v, h, uh, vh, dt, G, GV, US, CS, OBC, pbv)
+  type(RealArray_t) :: u_a, v_a, h_a, uh_a, vh_a
+
+  call u_a%alloc(lb=LBOUND(u), ub=UBOUND(u), source=u)
+  call v_a%alloc(lb=LBOUND(v), ub=UBOUND(v), source=v)
+  call h_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
+  call uh_a%alloc(lb=LBOUND(uh), ub=UBOUND(uh), source=uh)
+  call vh_a%alloc(lb=LBOUND(vh), ub=UBOUND(vh), source=vh)
+
+  call continuity_PPM_3d_fluxes(u_a, v_a, h_a, uh_a, vh_a, dt, G, GV, US, CS, OBC, pbv)
+
+  call uh_a%copy2F(uh)
+  call vh_a%copy2F(vh)
+
+  call u_a%free()
+  call v_a%free()
+  call h_a%free()
+  call uh_a%free()
+  call vh_a%free()
 
 end subroutine continuity_3d_fluxes
 
@@ -167,7 +254,24 @@ subroutine continuity_2d_fluxes(u, v, h, uhbt, vhbt, dt, G, GV, US, CS, OBC, pbv
   type(ocean_OBC_type),    pointer       :: OBC !< Open boundaries control structure.
   type(porous_barrier_type), intent(in)  :: pbv !< porous barrier fractional cell metrics
 
-  call continuity_PPM_2d_fluxes(u, v, h, uhbt, vhbt, dt, G, GV, US, CS, OBC, pbv)
+  type(RealArray_t) :: u_a, v_a, h_a, uhbt_a, vhbt_a
+
+  call u_a%alloc(lb=LBOUND(u), ub=UBOUND(u), source=u)
+  call v_a%alloc(lb=LBOUND(v), ub=UBOUND(v), source=v)
+  call h_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
+  call uhbt_a%alloc(lb=LBOUND(uhbt), ub=UBOUND(uhbt), source=uhbt)
+  call vhbt_a%alloc(lb=LBOUND(vhbt), ub=UBOUND(vhbt), source=vhbt)
+
+  call continuity_PPM_2d_fluxes(u_a, v_a, h_a, uhbt_a, vhbt_a, dt, G, GV, US, CS, OBC, pbv)
+
+  call uhbt_a%copy2F(uhbt)
+  call vhbt_a%copy2F(vhbt)
+
+  call u_a%free()
+  call v_a%free()
+  call h_a%free()
+  call uhbt_a%free()
+  call vhbt_a%free()
 
 end subroutine continuity_2d_fluxes
 
@@ -216,7 +320,38 @@ subroutine continuity_adjust_vel(u, v, h, dt, G, GV, US, CS, OBC, pbv, uhbt, vhb
                                                 !! column is under an ice shelf, this also goes to 0
                                                 !! at the top due to the no-slip boundary condition there.
 
-  call continuity_PPM_adjust_vel(u, v, h, dt, G, GV, US, CS, OBC, pbv, uhbt, vhbt, visc_rem_u, visc_rem_v)
+  type(RealArray_t) :: u_a, v_a, h_a, uhbt_a, vhbt_a
+  type(RealArray_t), pointer :: visc_rem_u_a, visc_rem_v_a
+
+  call u_a%alloc(lb=LBOUND(u), ub=UBOUND(u), source=u)
+  call v_a%alloc(lb=LBOUND(v), ub=UBOUND(v), source=v)
+  call h_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
+  call uhbt_a%alloc(lb=LBOUND(uhbt), ub=UBOUND(uhbt), source=uhbt)
+  call vhbt_a%alloc(lb=LBOUND(vhbt), ub=UBOUND(vhbt), source=vhbt)
+
+  nullify(visc_rem_u_a, visc_rem_v_a)
+  if (present(visc_rem_u)) then
+    allocate(visc_rem_u_a)
+    call visc_rem_u_a%alloc(lb=LBOUND(visc_rem_u), ub=UBOUND(visc_rem_u), source=visc_rem_u)
+  endif
+  if (present(visc_rem_v)) then
+    allocate(visc_rem_v_a)
+    call visc_rem_v_a%alloc(lb=LBOUND(visc_rem_v), ub=UBOUND(visc_rem_v), source=visc_rem_v)
+  endif
+
+  call continuity_PPM_adjust_vel(u_a, v_a, h_a, dt, G, GV, US, CS, OBC, pbv, uhbt_a, vhbt_a, &
+                                 visc_rem_u_a=visc_rem_u_a, visc_rem_v_a=visc_rem_v_a)
+
+  call u_a%copy2F(u)
+  call v_a%copy2F(v)
+
+  call u_a%free()
+  call v_a%free()
+  call h_a%free()
+  call uhbt_a%free()
+  call vhbt_a%free()
+  if (associated(visc_rem_u_a)) then ; call visc_rem_u_a%free() ; deallocate(visc_rem_u_a) ; endif
+  if (associated(visc_rem_v_a)) then ; call visc_rem_v_a%free() ; deallocate(visc_rem_v_a) ; endif
 
 end subroutine continuity_adjust_vel
 
