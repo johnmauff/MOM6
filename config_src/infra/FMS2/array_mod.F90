@@ -141,6 +141,8 @@ module array_mod
                 allocViewLogical1D, allocViewLogical2D, &
                 allocViewLogical3D, allocViewLogical4D
      generic   :: free => freeLogical          !< Generic interface for deallocate
+     procedure :: write_binary => write_binaryLogical  !< write variable to a binary file
+     procedure :: read_binary => read_binaryLogical     !< read variable from a binary file
   end type LogicalArray_t
 
 contains
@@ -244,6 +246,106 @@ subroutine read_binary(this, unit)
   endif
 
 end subroutine read_binary
+
+!< This subroutine writes an LogicalArray_t variable to a binary file
+subroutine write_binaryLogical(this, unit)
+  class(LogicalArray_t), intent(in) :: this  !< The LogicalArray_t variable to write to disk
+  integer,               intent(in) :: unit  !< The file unit
+
+  ! local variables
+  integer :: i
+  integer :: n
+
+  ! --- Null case ---
+  if (.not. associated(this%data)) then
+    write(unit) -1   ! rank = -1 signals null
+    return
+  endif
+
+  ! --- Rank ---
+  n = this%rank
+  write(unit) n
+
+  ! --- Write shape ---
+  do i=1,n
+    write(unit) this%shape(i)
+  enddo
+
+  ! --- Write bounds ---
+  do i=1,n
+    write(unit) this%lb(i)
+    write(unit) this%ub(i)
+  enddo
+
+  ! --- Write data size ---
+  write(unit) size(this%data)
+
+  ! --- Write payload ---
+  write(unit) this%data
+
+end subroutine write_binaryLogical
+
+!< This subroutine reads an LogicalArray_t variable from a binary file
+subroutine read_binaryLogical(this, unit)
+  class(LogicalArray_t), intent(inout) :: this  !< The LogicalArray_t variable to read from disk
+  integer,               intent(in)    :: unit  !< the file unit
+
+  ! local variables
+  integer :: i
+  integer :: n
+  integer :: total_size
+
+  ! --- Read rank ---
+  read(unit) n
+
+  ! --- Null case ---
+  if (n == -1) then
+    if (associated(this%data)) deallocate(this%data)
+    if (allocated(this%shape)) deallocate(this%shape)
+    if (allocated(this%lb)) deallocate(this%lb)
+    if (allocated(this%ub)) deallocate(this%ub)
+
+    nullify(this%data)
+    this%rank = 0
+    return
+  endif
+
+  this%rank = n
+
+  ! --- Clean old allocations ---
+  if (allocated(this%shape)) deallocate(this%shape)
+  if (allocated(this%lb)) deallocate(this%lb)
+  if (allocated(this%ub)) deallocate(this%ub)
+  if (associated(this%data)) deallocate(this%data)
+
+  ! --- Allocate metadata ---
+  allocate(this%shape(n))
+  allocate(this%lb(n))
+  allocate(this%ub(n))
+
+  ! --- Read shape ---
+  do i=1,n
+    read(unit) this%shape(i)
+  enddo
+
+  ! --- Read bounds ---
+  do i=1,n
+    read(unit) this%lb(i)
+    read(unit) this%ub(i)
+  enddo
+
+  ! --- Read data size ---
+  read(unit) total_size
+
+  ! --- Allocate and read data ---
+  if (total_size > 0) then
+    allocate(this%data(total_size))
+    read(unit) this%data
+  else
+    nullify(this%data)
+  endif
+
+end subroutine read_binaryLogical
 
 !< Function to convert a Fortran structure to a C structure
 !function to_c_Real(this) result(cdesc)

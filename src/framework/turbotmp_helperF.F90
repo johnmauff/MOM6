@@ -4,7 +4,7 @@ module turbotmp_helperF
   use MOM_error_infra, only : MOM_err, FATAL
   use, intrinsic :: iso_fortran_env, only : int64, real64
   use iso_c_binding, only : c_int
-  use array_mod, only : RealArray_t
+  use array_mod, only : RealArray_t, LogicalArray_t
   use box_mod, only : Box_t
 
   implicit none
@@ -47,6 +47,7 @@ module turbotmp_helperF
 
        ! Write side
        procedure :: add_realarray    !< Write a RealArray_t variable to the capture file
+       procedure :: add_logicalarray !< Write a LogicalArray_t variable to the capture file
        procedure :: add_box          !< Write a Box_t variable to the capture file
        procedure :: add_real         !< Write a real scalar variable to the capture file
        procedure :: add_integer      !< Write an integer scalar variable to the capture file
@@ -54,6 +55,7 @@ module turbotmp_helperF
 
        ! Read side
        procedure :: get_realarray    !< Read a RealArray_t variable from the capture file
+       procedure :: get_logicalarray !< Read a LogicalArray_t variable from the capture file
        procedure :: get_box          !< Read a Box_t variable from the capture file
        procedure :: get_real         !< Read a real scalar variable from the capture file
        procedure :: get_integer      !< Read an integer scalar variable from the capture file
@@ -62,9 +64,11 @@ module turbotmp_helperF
        procedure :: find_entry       !< Query the locaiton of the variable in the binary
                                      !! capture file
        !> Generic interface to add a variable
-       generic   :: add => add_realarray, add_box, add_real, add_integer, add_logical
+       generic   :: add => add_realarray, add_logicalarray, add_box, &
+                            add_real, add_integer, add_logical
        !> Generic interface to get a variable
-       generic   :: get => get_realarray, get_box, get_real, get_integer, get_logical
+       generic   :: get => get_realarray, get_logicalarray, get_box, &
+                            get_real, get_integer, get_logical
    end type io_recorder
 
 contains
@@ -408,6 +412,60 @@ subroutine get_realarray(this, name, val)
   call val%read_binary(this%unit_bin)
 
 end subroutine get_realarray
+
+!< Write a variable of type LogicalArray_t
+subroutine add_logicalarray(this, name, val)
+  class(io_recorder), intent(inout) :: this    !< The state recorder class
+  character(*), intent(in) :: name             !< The name of the variable
+  type(LogicalArray_t), intent(in) :: val      !< The LogicalArray_t array to write
+
+  ! local variables
+  integer(kind=int64) :: pos
+
+  ! --- Get current file position ---
+  inquire(unit=this%unit_bin, pos=pos)
+
+  ! --- Register metadata ---
+  call this%add_entry(name, 'LogicalArray_t', pos)
+
+  ! --- Write binary payload ---
+  call val%write_binary(this%unit_bin)
+
+end subroutine add_logicalarray
+
+!< Read a variable of type LogicalArray_t
+subroutine get_logicalarray(this, name, val)
+  class(io_recorder), intent(inout) :: this    !< The state recorder class
+  character(*), intent(in) :: name             !< The name of the variable
+  type(LogicalArray_t), intent(inout) :: val   !< The LogicalArray_t array to read
+
+  ! local variables
+  integer :: idx
+  integer(kind=int64) :: pos
+  character(len=256) :: mesg
+
+  ! --- Find metadata entry ---
+  idx = this%find_entry(name)
+  if (idx < 0) then
+    write(mesg,'("tim_helperF::get_logicalarray variable ",A," not found ")') TRIM(name)
+    call MOM_err(FATAL,mesg)
+  endif
+
+  ! --- Optional type check ---
+  if (trim(this%entries(idx)%type_name) /= 'LogicalArray_t') then
+    write(mesg,'("tim_helperF::get_logicalarray variable ",A," type mismatch ")') TRIM(name)
+    call MOM_err(FATAL,mesg)
+  endif
+
+  pos = this%entries(idx)%offset
+
+  ! --- Seek to position ---
+  read(this%unit_bin, pos=pos)
+
+  ! --- Delegate to type ---
+  call val%read_binary(this%unit_bin)
+
+end subroutine get_logicalarray
 
 !< Record and write a variable of type box_t
 subroutine add_box(this, name, val)
