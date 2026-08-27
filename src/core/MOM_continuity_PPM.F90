@@ -651,7 +651,7 @@ end subroutine continuity_PPM_adjust_vel
 
 
 !> Updates the thicknesses due to zonal thickness fluxes.
-subroutine continuity_zonal_convergence(bxC, h, uh, dt, G, GV, hin, hmin)
+subroutine continuity_zonal_convergence(bxC, h, uh, dt, G, GV, hin_a, hmin)
   type(box_t), intent(in) :: bxC                 !< Iteration box for continuity solver
   type(ocean_grid_type),       intent(in)    :: G    !< Ocean's grid structure
   type(verticalGrid_type),     intent(in)    :: GV   !< Ocean's vertical grid structure
@@ -696,7 +696,7 @@ subroutine continuity_zonal_convergence(bxC, h, uh, dt, G, GV, hin, hmin)
 end subroutine continuity_zonal_convergence
 
 !> Updates the thicknesses due to meridional thickness fluxes.
-subroutine continuity_meridional_convergence(bxC, h, vh, dt, G, GV, hin, hmin)
+subroutine continuity_meridional_convergence(bxC, h, vh, dt, G, GV, hin_a, hmin)
   type(box_t), intent(in) :: bxC                 !< Iteration box for continuity solver
   type(ocean_grid_type),       intent(in)    :: G    !< Ocean's grid structure
   type(verticalGrid_type),     intent(in)    :: GV   !< Ocean's vertical grid structure
@@ -2606,10 +2606,10 @@ subroutine meridional_flux_thickness(bxC, v, h, h_S, h_N, h_v, dt, G, GV, US, vo
   integer :: i, j, k, ish, ieh, jsh, jeh, n, nz
   real :: dh
   real, dimension(:,:,:), contiguous, pointer :: visc_rem_v
+  type(box_t) :: bxV
 
   nullify(visc_rem_v)
   if (present(visc_rem_v_a)) call visc_rem_v_a%view(visc_rem_v)
-  type(box_t) :: bxV
 
   ish = bxC%idxS(1) ; ieh = bxC%idxE(1) ; jsh = bxC%idxS(2) ; jeh = bxC%idxE(2) ; nz  = bxC%idxE(3)
 
