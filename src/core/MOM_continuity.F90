@@ -19,7 +19,7 @@ use MOM_continuity_PPM, only : continuity_zonal_convergence, continuity_meridion
 use MOM_continuity_PPM, only : zonal_flux_thickness, meridional_flux_thickness
 use MOM_continuity_PPM, only : zonal_BT_mass_flux, meridional_BT_mass_flux
 use MOM_continuity_PPM, only : set_continuity_loop_bounds, cont_loop_bounds_type
-use MOM_continuity_PPM, only : set_continuity_box
+use box_mod, only : Box_t
 use MOM_grid, only : ocean_grid_type
 use MOM_open_boundary, only : ocean_OBC_type
 use MOM_unit_scaling, only : unit_scale_type
@@ -40,7 +40,6 @@ public continuity_zonal_convergence, continuity_meridional_convergence
 public zonal_flux_thickness, meridional_flux_thickness
 public zonal_BT_mass_flux, meridional_BT_mass_flux
 public set_continuity_loop_bounds, cont_loop_bounds_type
-public set_continuity_box
 
 !> Finds the thickness fluxes from the continuity solver or their vertical sum without
 !! actually updating the layer thicknesses.
@@ -112,6 +111,11 @@ subroutine continuity(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt, v
   type(RealArray_t) :: u_a, v_a, hin_a, h_a, uh_a, vh_a
   type(RealArray_t), pointer :: uhbt_a, vhbt_a, visc_rem_u_a, visc_rem_v_a
   type(RealArray_t), pointer :: u_cor_a, v_cor_a, du_cor_a, dv_cor_a
+  type(RealArray_t) :: mask2dT_a, dy_Cu_a, IareaT_a, IdxT_a, areaT_a, dxT_a
+  type(RealArray_t) :: mask2dCu_a, dxCu_a, dx_Cv_a, IdyT_a, dyT_a, mask2dCv_a, dyCv_a
+  type(Box_t) :: bx0
+  integer :: stencil
+  logical :: x_first
 
   call u_a%alloc(lb=LBOUND(u), ub=UBOUND(u), source=u)
   call v_a%alloc(lb=LBOUND(v), ub=UBOUND(v), source=v)
@@ -119,6 +123,25 @@ subroutine continuity(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt, v
   call h_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
   call uh_a%alloc(lb=LBOUND(uh), ub=UBOUND(uh), source=uh)
   call vh_a%alloc(lb=LBOUND(vh), ub=UBOUND(vh), source=vh)
+
+  call bx0%safe_alloc(ndims=3)
+  call bx0%set(idxS=[G%isc,G%jsc,1], idxE=[G%iec,G%jec,GV%ke])
+  stencil = continuity_stencil(CS)
+  x_first = (MOD(G%first_direction,2) == 0)
+
+  call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
+  call dy_Cu_a%alloc(lb=LBOUND(G%dy_Cu), ub=UBOUND(G%dy_Cu), source=G%dy_Cu)
+  call IareaT_a%alloc(lb=LBOUND(G%IareaT), ub=UBOUND(G%IareaT), source=G%IareaT)
+  call IdxT_a%alloc(lb=LBOUND(G%IdxT), ub=UBOUND(G%IdxT), source=G%IdxT)
+  call areaT_a%alloc(lb=LBOUND(G%areaT), ub=UBOUND(G%areaT), source=G%areaT)
+  call dxT_a%alloc(lb=LBOUND(G%dxT), ub=UBOUND(G%dxT), source=G%dxT)
+  call mask2dCu_a%alloc(lb=LBOUND(G%mask2dCu), ub=UBOUND(G%mask2dCu), source=G%mask2dCu)
+  call dxCu_a%alloc(lb=LBOUND(G%dxCu), ub=UBOUND(G%dxCu), source=G%dxCu)
+  call dx_Cv_a%alloc(lb=LBOUND(G%dx_Cv), ub=UBOUND(G%dx_Cv), source=G%dx_Cv)
+  call IdyT_a%alloc(lb=LBOUND(G%IdyT), ub=UBOUND(G%IdyT), source=G%IdyT)
+  call dyT_a%alloc(lb=LBOUND(G%dyT), ub=UBOUND(G%dyT), source=G%dyT)
+  call mask2dCv_a%alloc(lb=LBOUND(G%mask2dCv), ub=UBOUND(G%mask2dCv), source=G%mask2dCv)
+  call dyCv_a%alloc(lb=LBOUND(G%dyCv), ub=UBOUND(G%dyCv), source=G%dyCv)
 
   nullify(uhbt_a, vhbt_a, visc_rem_u_a, visc_rem_v_a, u_cor_a, v_cor_a, du_cor_a, dv_cor_a)
   if (present(uhbt)) then
@@ -148,7 +171,10 @@ subroutine continuity(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt, v
     allocate(dv_cor_a) ; call dv_cor_a%alloc(lb=LBOUND(dv_cor), ub=UBOUND(dv_cor), source=dv_cor)
   endif
 
-  call continuity_PPM(u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, G, GV, US, CS, OBC, pbv, &
+  call continuity_PPM(u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, bx0, stencil, x_first, &
+                       mask2dT_a, dy_Cu_a, IareaT_a, IdxT_a, areaT_a, dxT_a, &
+                       mask2dCu_a, dxCu_a, dx_Cv_a, IdyT_a, dyT_a, mask2dCv_a, dyCv_a, &
+                       G%isd, G%ied, GV%Angstrom_H, GV%H_subroundoff, CS, OBC, pbv, &
                        uhbt_a=uhbt_a, vhbt_a=vhbt_a, visc_rem_u_a=visc_rem_u_a, &
                        visc_rem_v_a=visc_rem_v_a, u_cor_a=u_cor_a, v_cor_a=v_cor_a, &
                        BT_cont=BT_cont, du_cor_a=du_cor_a, dv_cor_a=dv_cor_a)
@@ -163,6 +189,12 @@ subroutine continuity(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt, v
   call h_a%free()
   call uh_a%free()
   call vh_a%free()
+
+  call mask2dT_a%free() ; call dy_Cu_a%free() ; call IareaT_a%free() ; call IdxT_a%free()
+  call areaT_a%free() ; call dxT_a%free() ; call mask2dCu_a%free() ; call dxCu_a%free()
+  call dx_Cv_a%free() ; call IdyT_a%free() ; call dyT_a%free() ; call mask2dCv_a%free()
+  call dyCv_a%free()
+  call bx0%free()
 
   if (associated(u_cor_a)) then
     call u_cor_a%copy2F(u_cor) ; call u_cor_a%free() ; deallocate(u_cor_a)
@@ -209,6 +241,9 @@ subroutine continuity_3d_fluxes(u, v, h, uh, vh, dt, G, GV, US, CS, OBC, pbv)
   type(porous_barrier_type), intent(in)  :: pbv !< porous barrier fractional cell metrics
 
   type(RealArray_t) :: u_a, v_a, h_a, uh_a, vh_a
+  type(RealArray_t) :: mask2dT_a, dy_Cu_a, IareaT_a, IdxT_a, areaT_a, dxT_a
+  type(RealArray_t) :: mask2dCu_a, dxCu_a, dx_Cv_a, IdyT_a, dyT_a, mask2dCv_a, dyCv_a
+  type(Box_t) :: bxC
 
   call u_a%alloc(lb=LBOUND(u), ub=UBOUND(u), source=u)
   call v_a%alloc(lb=LBOUND(v), ub=UBOUND(v), source=v)
@@ -216,7 +251,28 @@ subroutine continuity_3d_fluxes(u, v, h, uh, vh, dt, G, GV, US, CS, OBC, pbv)
   call uh_a%alloc(lb=LBOUND(uh), ub=UBOUND(uh), source=uh)
   call vh_a%alloc(lb=LBOUND(vh), ub=UBOUND(vh), source=vh)
 
-  call continuity_PPM_3d_fluxes(u_a, v_a, h_a, uh_a, vh_a, dt, G, GV, US, CS, OBC, pbv)
+  call bxC%safe_alloc(ndims=3)
+  call bxC%set(idxS=[G%isc,G%jsc,1], idxE=[G%iec,G%jec,GV%ke])
+
+  call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
+  call dy_Cu_a%alloc(lb=LBOUND(G%dy_Cu), ub=UBOUND(G%dy_Cu), source=G%dy_Cu)
+  call IareaT_a%alloc(lb=LBOUND(G%IareaT), ub=UBOUND(G%IareaT), source=G%IareaT)
+  call IdxT_a%alloc(lb=LBOUND(G%IdxT), ub=UBOUND(G%IdxT), source=G%IdxT)
+  call areaT_a%alloc(lb=LBOUND(G%areaT), ub=UBOUND(G%areaT), source=G%areaT)
+  call dxT_a%alloc(lb=LBOUND(G%dxT), ub=UBOUND(G%dxT), source=G%dxT)
+  call mask2dCu_a%alloc(lb=LBOUND(G%mask2dCu), ub=UBOUND(G%mask2dCu), source=G%mask2dCu)
+  call dxCu_a%alloc(lb=LBOUND(G%dxCu), ub=UBOUND(G%dxCu), source=G%dxCu)
+  call dx_Cv_a%alloc(lb=LBOUND(G%dx_Cv), ub=UBOUND(G%dx_Cv), source=G%dx_Cv)
+  call IdyT_a%alloc(lb=LBOUND(G%IdyT), ub=UBOUND(G%IdyT), source=G%IdyT)
+  call dyT_a%alloc(lb=LBOUND(G%dyT), ub=UBOUND(G%dyT), source=G%dyT)
+  call mask2dCv_a%alloc(lb=LBOUND(G%mask2dCv), ub=UBOUND(G%mask2dCv), source=G%mask2dCv)
+  call dyCv_a%alloc(lb=LBOUND(G%dyCv), ub=UBOUND(G%dyCv), source=G%dyCv)
+
+  call continuity_PPM_3d_fluxes(u_a, v_a, h_a, uh_a, vh_a, dt, bxC, &
+                                mask2dT_a, dy_Cu_a, IareaT_a, IdxT_a, areaT_a, dxT_a, &
+                                mask2dCu_a, dxCu_a, dx_Cv_a, IdyT_a, dyT_a, mask2dCv_a, &
+                                dyCv_a, G%isd, G%ied, GV%Angstrom_H, GV%H_subroundoff, &
+                                CS, OBC, pbv)
 
   call uh_a%copy2F(uh)
   call vh_a%copy2F(vh)
@@ -226,6 +282,12 @@ subroutine continuity_3d_fluxes(u, v, h, uh, vh, dt, G, GV, US, CS, OBC, pbv)
   call h_a%free()
   call uh_a%free()
   call vh_a%free()
+
+  call mask2dT_a%free() ; call dy_Cu_a%free() ; call IareaT_a%free() ; call IdxT_a%free()
+  call areaT_a%free() ; call dxT_a%free() ; call mask2dCu_a%free() ; call dxCu_a%free()
+  call dx_Cv_a%free() ; call IdyT_a%free() ; call dyT_a%free() ; call mask2dCv_a%free()
+  call dyCv_a%free()
+  call bxC%free()
 
 end subroutine continuity_3d_fluxes
 
@@ -255,6 +317,8 @@ subroutine continuity_2d_fluxes(u, v, h, uhbt, vhbt, dt, G, GV, US, CS, OBC, pbv
   type(porous_barrier_type), intent(in)  :: pbv !< porous barrier fractional cell metrics
 
   type(RealArray_t) :: u_a, v_a, h_a, uhbt_a, vhbt_a
+  type(RealArray_t) :: mask2dT_a, dy_Cu_a, IareaT_a, IdxT_a, dx_Cv_a, IdyT_a
+  type(Box_t) :: bxC
 
   call u_a%alloc(lb=LBOUND(u), ub=UBOUND(u), source=u)
   call v_a%alloc(lb=LBOUND(v), ub=UBOUND(v), source=v)
@@ -262,7 +326,19 @@ subroutine continuity_2d_fluxes(u, v, h, uhbt, vhbt, dt, G, GV, US, CS, OBC, pbv
   call uhbt_a%alloc(lb=LBOUND(uhbt), ub=UBOUND(uhbt), source=uhbt)
   call vhbt_a%alloc(lb=LBOUND(vhbt), ub=UBOUND(vhbt), source=vhbt)
 
-  call continuity_PPM_2d_fluxes(u_a, v_a, h_a, uhbt_a, vhbt_a, dt, G, GV, US, CS, OBC, pbv)
+  call bxC%safe_alloc(ndims=3)
+  call bxC%set(idxS=[G%isc,G%jsc,1], idxE=[G%iec,G%jec,GV%ke])
+
+  call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
+  call dy_Cu_a%alloc(lb=LBOUND(G%dy_Cu), ub=UBOUND(G%dy_Cu), source=G%dy_Cu)
+  call IareaT_a%alloc(lb=LBOUND(G%IareaT), ub=UBOUND(G%IareaT), source=G%IareaT)
+  call IdxT_a%alloc(lb=LBOUND(G%IdxT), ub=UBOUND(G%IdxT), source=G%IdxT)
+  call dx_Cv_a%alloc(lb=LBOUND(G%dx_Cv), ub=UBOUND(G%dx_Cv), source=G%dx_Cv)
+  call IdyT_a%alloc(lb=LBOUND(G%IdyT), ub=UBOUND(G%IdyT), source=G%IdyT)
+
+  call continuity_PPM_2d_fluxes(u_a, v_a, h_a, uhbt_a, vhbt_a, dt, bxC, &
+                                mask2dT_a, dy_Cu_a, IareaT_a, IdxT_a, dx_Cv_a, IdyT_a, &
+                                GV%Angstrom_H, CS, OBC, pbv)
 
   call uhbt_a%copy2F(uhbt)
   call vhbt_a%copy2F(vhbt)
@@ -272,6 +348,10 @@ subroutine continuity_2d_fluxes(u, v, h, uhbt, vhbt, dt, G, GV, US, CS, OBC, pbv
   call h_a%free()
   call uhbt_a%free()
   call vhbt_a%free()
+
+  call mask2dT_a%free() ; call dy_Cu_a%free() ; call IareaT_a%free() ; call IdxT_a%free()
+  call dx_Cv_a%free() ; call IdyT_a%free()
+  call bxC%free()
 
 end subroutine continuity_2d_fluxes
 
@@ -322,12 +402,32 @@ subroutine continuity_adjust_vel(u, v, h, dt, G, GV, US, CS, OBC, pbv, uhbt, vhb
 
   type(RealArray_t) :: u_a, v_a, h_a, uhbt_a, vhbt_a
   type(RealArray_t), pointer :: visc_rem_u_a, visc_rem_v_a
+  type(RealArray_t) :: mask2dT_a, dy_Cu_a, IareaT_a, IdxT_a, areaT_a, dxT_a
+  type(RealArray_t) :: mask2dCu_a, dxCu_a, dx_Cv_a, IdyT_a, dyT_a, mask2dCv_a, dyCv_a
+  type(Box_t) :: bxC
 
   call u_a%alloc(lb=LBOUND(u), ub=UBOUND(u), source=u)
   call v_a%alloc(lb=LBOUND(v), ub=UBOUND(v), source=v)
   call h_a%alloc(lb=LBOUND(h), ub=UBOUND(h), source=h)
   call uhbt_a%alloc(lb=LBOUND(uhbt), ub=UBOUND(uhbt), source=uhbt)
   call vhbt_a%alloc(lb=LBOUND(vhbt), ub=UBOUND(vhbt), source=vhbt)
+
+  call bxC%safe_alloc(ndims=3)
+  call bxC%set(idxS=[G%isc,G%jsc,1], idxE=[G%iec,G%jec,GV%ke])
+
+  call mask2dT_a%alloc(lb=LBOUND(G%mask2dT), ub=UBOUND(G%mask2dT), source=G%mask2dT)
+  call dy_Cu_a%alloc(lb=LBOUND(G%dy_Cu), ub=UBOUND(G%dy_Cu), source=G%dy_Cu)
+  call IareaT_a%alloc(lb=LBOUND(G%IareaT), ub=UBOUND(G%IareaT), source=G%IareaT)
+  call IdxT_a%alloc(lb=LBOUND(G%IdxT), ub=UBOUND(G%IdxT), source=G%IdxT)
+  call areaT_a%alloc(lb=LBOUND(G%areaT), ub=UBOUND(G%areaT), source=G%areaT)
+  call dxT_a%alloc(lb=LBOUND(G%dxT), ub=UBOUND(G%dxT), source=G%dxT)
+  call mask2dCu_a%alloc(lb=LBOUND(G%mask2dCu), ub=UBOUND(G%mask2dCu), source=G%mask2dCu)
+  call dxCu_a%alloc(lb=LBOUND(G%dxCu), ub=UBOUND(G%dxCu), source=G%dxCu)
+  call dx_Cv_a%alloc(lb=LBOUND(G%dx_Cv), ub=UBOUND(G%dx_Cv), source=G%dx_Cv)
+  call IdyT_a%alloc(lb=LBOUND(G%IdyT), ub=UBOUND(G%IdyT), source=G%IdyT)
+  call dyT_a%alloc(lb=LBOUND(G%dyT), ub=UBOUND(G%dyT), source=G%dyT)
+  call mask2dCv_a%alloc(lb=LBOUND(G%mask2dCv), ub=UBOUND(G%mask2dCv), source=G%mask2dCv)
+  call dyCv_a%alloc(lb=LBOUND(G%dyCv), ub=UBOUND(G%dyCv), source=G%dyCv)
 
   nullify(visc_rem_u_a, visc_rem_v_a)
   if (present(visc_rem_u)) then
@@ -339,7 +439,11 @@ subroutine continuity_adjust_vel(u, v, h, dt, G, GV, US, CS, OBC, pbv, uhbt, vhb
     call visc_rem_v_a%alloc(lb=LBOUND(visc_rem_v), ub=UBOUND(visc_rem_v), source=visc_rem_v)
   endif
 
-  call continuity_PPM_adjust_vel(u_a, v_a, h_a, dt, G, GV, US, CS, OBC, pbv, uhbt_a, vhbt_a, &
+  call continuity_PPM_adjust_vel(u_a, v_a, h_a, dt, bxC, &
+                                 mask2dT_a, dy_Cu_a, IareaT_a, IdxT_a, areaT_a, dxT_a, &
+                                 mask2dCu_a, dxCu_a, dx_Cv_a, IdyT_a, dyT_a, mask2dCv_a, &
+                                 dyCv_a, G%isd, G%ied, GV%Angstrom_H, GV%H_subroundoff, &
+                                 CS, OBC, pbv, uhbt_a, vhbt_a, &
                                  visc_rem_u_a=visc_rem_u_a, visc_rem_v_a=visc_rem_v_a)
 
   call u_a%copy2F(u)
@@ -352,6 +456,12 @@ subroutine continuity_adjust_vel(u, v, h, dt, G, GV, US, CS, OBC, pbv, uhbt, vhb
   call vhbt_a%free()
   if (associated(visc_rem_u_a)) then ; call visc_rem_u_a%free() ; deallocate(visc_rem_u_a) ; endif
   if (associated(visc_rem_v_a)) then ; call visc_rem_v_a%free() ; deallocate(visc_rem_v_a) ; endif
+
+  call mask2dT_a%free() ; call dy_Cu_a%free() ; call IareaT_a%free() ; call IdxT_a%free()
+  call areaT_a%free() ; call dxT_a%free() ; call mask2dCu_a%free() ; call dxCu_a%free()
+  call dx_Cv_a%free() ; call IdyT_a%free() ; call dyT_a%free() ; call mask2dCv_a%free()
+  call dyCv_a%free()
+  call bxC%free()
 
 end subroutine continuity_adjust_vel
 
