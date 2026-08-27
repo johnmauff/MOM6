@@ -109,8 +109,8 @@ subroutine continuity(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt, v
                                                  !! as the depth-integrated transports [L T-1 ~> m s-1].
 
   type(RealArray_t) :: u_a, v_a, hin_a, h_a, uh_a, vh_a
-  type(RealArray_t), pointer :: uhbt_a, vhbt_a, visc_rem_u_a, visc_rem_v_a
-  type(RealArray_t), pointer :: u_cor_a, v_cor_a, du_cor_a, dv_cor_a
+  type(RealArray_t) :: uhbt_a, vhbt_a, visc_rem_u_a, visc_rem_v_a
+  type(RealArray_t) :: u_cor_a, v_cor_a, du_cor_a, dv_cor_a
   type(RealArray_t) :: mask2dT_a, dy_Cu_a, IareaT_a, IdxT_a, areaT_a, dxT_a
   type(RealArray_t) :: mask2dCu_a, dxCu_a, dx_Cv_a, IdyT_a, dyT_a, mask2dCv_a, dyCv_a
   type(Box_t) :: bx0
@@ -143,33 +143,16 @@ subroutine continuity(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt, v
   call mask2dCv_a%alloc(lb=LBOUND(G%mask2dCv), ub=UBOUND(G%mask2dCv), source=G%mask2dCv)
   call dyCv_a%alloc(lb=LBOUND(G%dyCv), ub=UBOUND(G%dyCv), source=G%dyCv)
 
-  nullify(uhbt_a, vhbt_a, visc_rem_u_a, visc_rem_v_a, u_cor_a, v_cor_a, du_cor_a, dv_cor_a)
-  if (present(uhbt)) then
-    allocate(uhbt_a) ; call uhbt_a%alloc(lb=LBOUND(uhbt), ub=UBOUND(uhbt), source=uhbt)
-  endif
-  if (present(vhbt)) then
-    allocate(vhbt_a) ; call vhbt_a%alloc(lb=LBOUND(vhbt), ub=UBOUND(vhbt), source=vhbt)
-  endif
-  if (present(visc_rem_u)) then
-    allocate(visc_rem_u_a)
+  if (present(uhbt)) call uhbt_a%alloc(lb=LBOUND(uhbt), ub=UBOUND(uhbt), source=uhbt)
+  if (present(vhbt)) call vhbt_a%alloc(lb=LBOUND(vhbt), ub=UBOUND(vhbt), source=vhbt)
+  if (present(visc_rem_u)) &
     call visc_rem_u_a%alloc(lb=LBOUND(visc_rem_u), ub=UBOUND(visc_rem_u), source=visc_rem_u)
-  endif
-  if (present(visc_rem_v)) then
-    allocate(visc_rem_v_a)
+  if (present(visc_rem_v)) &
     call visc_rem_v_a%alloc(lb=LBOUND(visc_rem_v), ub=UBOUND(visc_rem_v), source=visc_rem_v)
-  endif
-  if (present(u_cor)) then
-    allocate(u_cor_a) ; call u_cor_a%alloc(lb=LBOUND(u_cor), ub=UBOUND(u_cor), source=u_cor)
-  endif
-  if (present(v_cor)) then
-    allocate(v_cor_a) ; call v_cor_a%alloc(lb=LBOUND(v_cor), ub=UBOUND(v_cor), source=v_cor)
-  endif
-  if (present(du_cor)) then
-    allocate(du_cor_a) ; call du_cor_a%alloc(lb=LBOUND(du_cor), ub=UBOUND(du_cor), source=du_cor)
-  endif
-  if (present(dv_cor)) then
-    allocate(dv_cor_a) ; call dv_cor_a%alloc(lb=LBOUND(dv_cor), ub=UBOUND(dv_cor), source=dv_cor)
-  endif
+  if (present(u_cor)) call u_cor_a%alloc(lb=LBOUND(u_cor), ub=UBOUND(u_cor), source=u_cor)
+  if (present(v_cor)) call v_cor_a%alloc(lb=LBOUND(v_cor), ub=UBOUND(v_cor), source=v_cor)
+  if (present(du_cor)) call du_cor_a%alloc(lb=LBOUND(du_cor), ub=UBOUND(du_cor), source=du_cor)
+  if (present(dv_cor)) call dv_cor_a%alloc(lb=LBOUND(dv_cor), ub=UBOUND(dv_cor), source=dv_cor)
 
   call continuity_PPM(u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, bx0, stencil, x_first, &
                        mask2dT_a, dy_Cu_a, IareaT_a, IdxT_a, areaT_a, dxT_a, &
@@ -196,22 +179,12 @@ subroutine continuity(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt, v
   call dyCv_a%free()
   call bx0%free()
 
-  if (associated(u_cor_a)) then
-    call u_cor_a%copy2F(u_cor) ; call u_cor_a%free() ; deallocate(u_cor_a)
-  endif
-  if (associated(v_cor_a)) then
-    call v_cor_a%copy2F(v_cor) ; call v_cor_a%free() ; deallocate(v_cor_a)
-  endif
-  if (associated(du_cor_a)) then
-    call du_cor_a%copy2F(du_cor) ; call du_cor_a%free() ; deallocate(du_cor_a)
-  endif
-  if (associated(dv_cor_a)) then
-    call dv_cor_a%copy2F(dv_cor) ; call dv_cor_a%free() ; deallocate(dv_cor_a)
-  endif
-  if (associated(uhbt_a)) then ; call uhbt_a%free() ; deallocate(uhbt_a) ; endif
-  if (associated(vhbt_a)) then ; call vhbt_a%free() ; deallocate(vhbt_a) ; endif
-  if (associated(visc_rem_u_a)) then ; call visc_rem_u_a%free() ; deallocate(visc_rem_u_a) ; endif
-  if (associated(visc_rem_v_a)) then ; call visc_rem_v_a%free() ; deallocate(visc_rem_v_a) ; endif
+  if (u_cor_a%associated()) call u_cor_a%copy2F(u_cor)
+  if (v_cor_a%associated()) call v_cor_a%copy2F(v_cor)
+  if (du_cor_a%associated()) call du_cor_a%copy2F(du_cor)
+  if (dv_cor_a%associated()) call dv_cor_a%copy2F(dv_cor)
+  call u_cor_a%free() ; call v_cor_a%free() ; call du_cor_a%free() ; call dv_cor_a%free()
+  call uhbt_a%free() ; call vhbt_a%free() ; call visc_rem_u_a%free() ; call visc_rem_v_a%free()
 
 end subroutine continuity
 
@@ -401,7 +374,7 @@ subroutine continuity_adjust_vel(u, v, h, dt, G, GV, US, CS, OBC, pbv, uhbt, vhb
                                                 !! at the top due to the no-slip boundary condition there.
 
   type(RealArray_t) :: u_a, v_a, h_a, uhbt_a, vhbt_a
-  type(RealArray_t), pointer :: visc_rem_u_a, visc_rem_v_a
+  type(RealArray_t) :: visc_rem_u_a, visc_rem_v_a
   type(RealArray_t) :: mask2dT_a, dy_Cu_a, IareaT_a, IdxT_a, areaT_a, dxT_a
   type(RealArray_t) :: mask2dCu_a, dxCu_a, dx_Cv_a, IdyT_a, dyT_a, mask2dCv_a, dyCv_a
   type(Box_t) :: bxC
@@ -429,15 +402,10 @@ subroutine continuity_adjust_vel(u, v, h, dt, G, GV, US, CS, OBC, pbv, uhbt, vhb
   call mask2dCv_a%alloc(lb=LBOUND(G%mask2dCv), ub=UBOUND(G%mask2dCv), source=G%mask2dCv)
   call dyCv_a%alloc(lb=LBOUND(G%dyCv), ub=UBOUND(G%dyCv), source=G%dyCv)
 
-  nullify(visc_rem_u_a, visc_rem_v_a)
-  if (present(visc_rem_u)) then
-    allocate(visc_rem_u_a)
+  if (present(visc_rem_u)) &
     call visc_rem_u_a%alloc(lb=LBOUND(visc_rem_u), ub=UBOUND(visc_rem_u), source=visc_rem_u)
-  endif
-  if (present(visc_rem_v)) then
-    allocate(visc_rem_v_a)
+  if (present(visc_rem_v)) &
     call visc_rem_v_a%alloc(lb=LBOUND(visc_rem_v), ub=UBOUND(visc_rem_v), source=visc_rem_v)
-  endif
 
   call continuity_PPM_adjust_vel(u_a, v_a, h_a, dt, bxC, &
                                  mask2dT_a, dy_Cu_a, IareaT_a, IdxT_a, areaT_a, dxT_a, &
@@ -454,8 +422,7 @@ subroutine continuity_adjust_vel(u, v, h, dt, G, GV, US, CS, OBC, pbv, uhbt, vhb
   call h_a%free()
   call uhbt_a%free()
   call vhbt_a%free()
-  if (associated(visc_rem_u_a)) then ; call visc_rem_u_a%free() ; deallocate(visc_rem_u_a) ; endif
-  if (associated(visc_rem_v_a)) then ; call visc_rem_v_a%free() ; deallocate(visc_rem_v_a) ; endif
+  call visc_rem_u_a%free() ; call visc_rem_v_a%free()
 
   call mask2dT_a%free() ; call dy_Cu_a%free() ; call IareaT_a%free() ; call IdxT_a%free()
   call areaT_a%free() ; call dxT_a%free() ; call mask2dCu_a%free() ; call dxCu_a%free()
