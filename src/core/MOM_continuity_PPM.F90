@@ -168,8 +168,6 @@ public set_continuity_box
 !>@{ CPU time clock IDs
 integer :: id_clock_reconstruct, id_clock_update, id_clock_correct
 !>@}
-
-!> Control structure for mom_continuity_ppm
 !> Options controlling the edge-value reconstruction scheme used by the continuity solver.
 type, public :: reconstruction_CS
   logical :: upwind_1st      !< If true, use a first-order upwind scheme.
@@ -183,9 +181,9 @@ end type reconstruction_CS
 
 !> bind(C) mirror of reconstruction_CS, field-for-field, same order.
 type, bind(C) :: reconstruction_CS_C
-  logical(c_bool) :: upwind_1st
-  logical(c_bool) :: monotonic
-  logical(c_bool) :: simple_2nd
+  logical(c_bool) :: upwind_1st  !< If true, use a first-order upwind scheme.
+  logical(c_bool) :: monotonic   !< If true, use the Colella & Woodward monotonic limiter.
+  logical(c_bool) :: simple_2nd  !< If true, use a simple second order interpolation.
 end type reconstruction_CS_C
 
 !> Options controlling the transport adjustment and barotropic-consistency
@@ -217,16 +215,18 @@ end type transport_adjust_CS
 
 !> bind(C) mirror of transport_adjust_CS, field-for-field, same order.
 type, bind(C) :: transport_adjust_CS_C
-  real(c_double)  :: tol_eta
-  real(c_double)  :: tol_vel
-  real(c_double)  :: CFL_limit_adjust
-  logical(c_bool) :: aggress_adjust
-  logical(c_bool) :: vol_CFL
-  logical(c_bool) :: better_iter
-  logical(c_bool) :: use_visc_rem_max
-  logical(c_bool) :: marginal_faces
+  real(c_double)  :: tol_eta            !< The tolerance for free-surface height discrepancies.
+  real(c_double)  :: tol_vel            !< The tolerance for barotropic velocity discrepancies.
+  real(c_double)  :: CFL_limit_adjust   !< The maximum CFL of the adjusted velocities.
+  logical(c_bool) :: aggress_adjust     !< If true, allow a larger relative CFL change.
+  logical(c_bool) :: vol_CFL            !< If true, use the ratio of open face lengths to
+                                        !! tracer cell areas when estimating CFL numbers.
+  logical(c_bool) :: better_iter        !< If true, use a velocity-based iteration criterion.
+  logical(c_bool) :: use_visc_rem_max   !< If true, use limiting bounds for viscous columns.
+  logical(c_bool) :: marginal_faces     !< If true, use marginal face areas as barotropic weights.
 end type transport_adjust_CS_C
 
+!> Control structure for mom_continuity_ppm
 type, public :: continuity_PPM_CS ; private
   logical :: initialized = .false. !< True if this control structure has been initialized.
   type(diag_ctrl), pointer :: diag !< Diagnostics control structure.
