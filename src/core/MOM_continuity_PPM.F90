@@ -356,14 +356,6 @@ subroutine continuity_PPM(u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, bx0, stencil, x_
                                                  !! transports [L T-1 ~> m s-1].
 
   ! Local variables
-  real :: h_W(h_a%lb(1):h_a%ub(1), h_a%lb(2):h_a%ub(2), h_a%lb(3):h_a%ub(3))
-     ! West edge thicknesses in the zonal PPM reconstruction [H ~> m or kg m-2]
-  real :: h_E(h_a%lb(1):h_a%ub(1), h_a%lb(2):h_a%ub(2), h_a%lb(3):h_a%ub(3))
-     ! East edge thicknesses in the zonal PPM reconstruction [H ~> m or kg m-2]
-  real :: h_S(h_a%lb(1):h_a%ub(1), h_a%lb(2):h_a%ub(2), h_a%lb(3):h_a%ub(3))
-     ! South edge thicknesses in the meridional PPM reconstruction [H ~> m or kg m-2]
-  real :: h_N(h_a%lb(1):h_a%ub(1), h_a%lb(2):h_a%ub(2), h_a%lb(3):h_a%ub(3))
-     ! North edge thicknesses in the meridional PPM reconstruction [H ~> m or kg m-2]
   real :: h_min  ! The minimum layer thickness [H ~> m or kg m-2].  h_min could be 0.
   type(Box_t) :: bxC                ! An iteration box
   real, dimension(:,:,:), contiguous, pointer :: u, v, hin, h, uh, vh
@@ -386,13 +378,11 @@ subroutine continuity_PPM(u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, bx0, stencil, x_
       "MOM_continuity_PPM: Either both visc_rem_u and visc_rem_v or neither "// &
       "one must be present in call to continuity_PPM.")
 
-  !$omp target enter data map(alloc: h_W, h_E, h_S, h_N)
-
   if (x_first) then
     !  First advect zonally, with loop bounds that accomodate the subsequent meridional advection.
     bxC = bx0%grow(dim=2, n=stencil)
-    call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W), source=h_W)
-    call h_E_a%alloc(lb=LBOUND(h_E), ub=UBOUND(h_E), source=h_E)
+    call h_W_a%alloc(lb=[h_a%lb(1),h_a%lb(2),h_a%lb(3)], ub=[h_a%ub(1),h_a%ub(2),h_a%ub(3)])
+    call h_E_a%alloc(lb=[h_a%lb(1),h_a%lb(2),h_a%lb(3)], ub=[h_a%ub(1),h_a%ub(2),h_a%ub(3)])
     call zonal_edge_thickness(bxC, hin_a, h_W_a, h_E_a, mask2dT_a, Angstrom_H, &
                               CS%reconstruction_CS, OBC)
     call por_face_areaU_a%alloc(lb=LBOUND(pbv%por_face_areaU), ub=UBOUND(pbv%por_face_areaU), &
@@ -410,8 +400,8 @@ subroutine continuity_PPM(u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, bx0, stencil, x_
 
     !  Now advect meridionally, using the updated thicknesses to determine the fluxes.
     bxC = bx0
-    call h_S_a%alloc(lb=LBOUND(h_S), ub=UBOUND(h_S), source=h_S)
-    call h_N_a%alloc(lb=LBOUND(h_N), ub=UBOUND(h_N), source=h_N)
+    call h_S_a%alloc(lb=[h_a%lb(1),h_a%lb(2),h_a%lb(3)], ub=[h_a%ub(1),h_a%ub(2),h_a%ub(3)])
+    call h_N_a%alloc(lb=[h_a%lb(1),h_a%lb(2),h_a%lb(3)], ub=[h_a%ub(1),h_a%ub(2),h_a%ub(3)])
     call meridional_edge_thickness(bxC, h_a, h_S_a, h_N_a, mask2dT_a, Angstrom_H, &
                                    CS%reconstruction_CS, OBC)
     call por_face_areaV_a%alloc(lb=LBOUND(pbv%por_face_areaV), ub=UBOUND(pbv%por_face_areaV), &
@@ -428,8 +418,8 @@ subroutine continuity_PPM(u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, bx0, stencil, x_
   else  ! .not. x_first
     !  First advect meridionally, with loop bounds that accomodate the subsequent zonal advection.
     bxC = bx0%grow(dim=1, n=stencil)
-    call h_S_a%alloc(lb=LBOUND(h_S), ub=UBOUND(h_S), source=h_S)
-    call h_N_a%alloc(lb=LBOUND(h_N), ub=UBOUND(h_N), source=h_N)
+    call h_S_a%alloc(lb=[h_a%lb(1),h_a%lb(2),h_a%lb(3)], ub=[h_a%ub(1),h_a%ub(2),h_a%ub(3)])
+    call h_N_a%alloc(lb=[h_a%lb(1),h_a%lb(2),h_a%lb(3)], ub=[h_a%ub(1),h_a%ub(2),h_a%ub(3)])
     call meridional_edge_thickness(bxC, hin_a, h_S_a, h_N_a, mask2dT_a, Angstrom_H, &
                                    CS%reconstruction_CS, OBC)
     call por_face_areaV_a%alloc(lb=LBOUND(pbv%por_face_areaV), ub=UBOUND(pbv%por_face_areaV), &
@@ -445,8 +435,8 @@ subroutine continuity_PPM(u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, bx0, stencil, x_
 
     !  Now advect zonally, using the updated thicknesses to determine the fluxes.
     bxC = bx0
-    call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W), source=h_W)
-    call h_E_a%alloc(lb=LBOUND(h_E), ub=UBOUND(h_E), source=h_E)
+    call h_W_a%alloc(lb=[h_a%lb(1),h_a%lb(2),h_a%lb(3)], ub=[h_a%ub(1),h_a%ub(2),h_a%ub(3)])
+    call h_E_a%alloc(lb=[h_a%lb(1),h_a%lb(2),h_a%lb(3)], ub=[h_a%ub(1),h_a%ub(2),h_a%ub(3)])
     call zonal_edge_thickness(bxC, h_a, h_W_a, h_E_a, mask2dT_a, Angstrom_H, &
                               CS%reconstruction_CS, OBC)
     call por_face_areaU_a%alloc(lb=LBOUND(pbv%por_face_areaU), ub=UBOUND(pbv%por_face_areaU), &
@@ -462,7 +452,6 @@ subroutine continuity_PPM(u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, bx0, stencil, x_
 
   ! Free the continuity solver iteration box
   call bxC%free()
-  !$omp target exit data map(delete: h_W, h_E, h_S, h_N)
 
 end subroutine continuity_PPM
 
@@ -511,14 +500,6 @@ subroutine continuity_PPM_3d_fluxes(u_a, v_a, h_a, uh_a, vh_a, dt, bxC, &
   type(porous_barrier_type), intent(in)  :: pbv !< porous barrier fractional cell metrics
 
   ! Local variables
-  real :: h_W(h_a%lb(1):h_a%ub(1), h_a%lb(2):h_a%ub(2), h_a%lb(3):h_a%ub(3))
-     ! West edge thicknesses in the zonal PPM reconstruction [H ~> m or kg m-2]
-  real :: h_E(h_a%lb(1):h_a%ub(1), h_a%lb(2):h_a%ub(2), h_a%lb(3):h_a%ub(3))
-     ! East edge thicknesses in the zonal PPM reconstruction [H ~> m or kg m-2]
-  real :: h_S(h_a%lb(1):h_a%ub(1), h_a%lb(2):h_a%ub(2), h_a%lb(3):h_a%ub(3))
-     ! South edge thicknesses in the meridional PPM reconstruction [H ~> m or kg m-2]
-  real :: h_N(h_a%lb(1):h_a%ub(1), h_a%lb(2):h_a%ub(2), h_a%lb(3):h_a%ub(3))
-     ! North edge thicknesses in the meridional PPM reconstruction [H ~> m or kg m-2]
   real, dimension(:,:,:), contiguous, pointer :: u, v, h, uh, vh
   type(RealArray_t) :: h_W_a, h_E_a, h_S_a, h_N_a
   type(RealArray_t) :: por_face_areaU_a, por_face_areaV_a
@@ -529,8 +510,8 @@ subroutine continuity_PPM_3d_fluxes(u_a, v_a, h_a, uh_a, vh_a, dt, bxC, &
   call uh_a%view(uh)
   call vh_a%view(vh)
 
-  call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W), source=h_W)
-  call h_E_a%alloc(lb=LBOUND(h_E), ub=UBOUND(h_E), source=h_E)
+  call h_W_a%alloc(lb=[h_a%lb(1),h_a%lb(2),h_a%lb(3)], ub=[h_a%ub(1),h_a%ub(2),h_a%ub(3)])
+  call h_E_a%alloc(lb=[h_a%lb(1),h_a%lb(2),h_a%lb(3)], ub=[h_a%ub(1),h_a%ub(2),h_a%ub(3)])
   call zonal_edge_thickness(bxC, h_a, h_W_a, h_E_a, mask2dT_a, Angstrom_H, &
                             CS%reconstruction_CS, OBC)
   call por_face_areaU_a%alloc(lb=LBOUND(pbv%por_face_areaU), ub=UBOUND(pbv%por_face_areaU), &
@@ -541,8 +522,8 @@ subroutine continuity_PPM_3d_fluxes(u_a, v_a, h_a, uh_a, vh_a, dt, bxC, &
                        OBC, por_face_areaU_a)
   call h_W_a%free() ; call h_E_a%free() ; call por_face_areaU_a%free()
 
-  call h_S_a%alloc(lb=LBOUND(h_S), ub=UBOUND(h_S), source=h_S)
-  call h_N_a%alloc(lb=LBOUND(h_N), ub=UBOUND(h_N), source=h_N)
+  call h_S_a%alloc(lb=[h_a%lb(1),h_a%lb(2),h_a%lb(3)], ub=[h_a%ub(1),h_a%ub(2),h_a%ub(3)])
+  call h_N_a%alloc(lb=[h_a%lb(1),h_a%lb(2),h_a%lb(3)], ub=[h_a%ub(1),h_a%ub(2),h_a%ub(3)])
   call meridional_edge_thickness(bxC, h_a, h_S_a, h_N_a, mask2dT_a, Angstrom_H, &
                                  CS%reconstruction_CS, OBC)
   call por_face_areaV_a%alloc(lb=LBOUND(pbv%por_face_areaV), ub=UBOUND(pbv%por_face_areaV), &
@@ -586,14 +567,6 @@ subroutine continuity_PPM_2d_fluxes(u_a, v_a, h_a, uhbt_a, vhbt_a, dt, bxC, &
   type(porous_barrier_type), intent(in)  :: pbv !< porous barrier fractional cell metrics
 
   ! Local variables
-  real :: h_W(h_a%lb(1):h_a%ub(1), h_a%lb(2):h_a%ub(2), h_a%lb(3):h_a%ub(3))
-     ! West edge thicknesses in the zonal PPM reconstruction [H ~> m or kg m-2]
-  real :: h_E(h_a%lb(1):h_a%ub(1), h_a%lb(2):h_a%ub(2), h_a%lb(3):h_a%ub(3))
-     ! East edge thicknesses in the zonal PPM reconstruction [H ~> m or kg m-2]
-  real :: h_S(h_a%lb(1):h_a%ub(1), h_a%lb(2):h_a%ub(2), h_a%lb(3):h_a%ub(3))
-     ! South edge thicknesses in the meridional PPM reconstruction [H ~> m or kg m-2]
-  real :: h_N(h_a%lb(1):h_a%ub(1), h_a%lb(2):h_a%ub(2), h_a%lb(3):h_a%ub(3))
-     ! North edge thicknesses in the meridional PPM reconstruction [H ~> m or kg m-2]
   real, dimension(:,:,:), contiguous, pointer :: u, v, h
   type(RealArray_t) :: h_W_a, h_E_a, h_S_a, h_N_a
   type(RealArray_t) :: por_face_areaU_a, por_face_areaV_a
@@ -602,8 +575,8 @@ subroutine continuity_PPM_2d_fluxes(u_a, v_a, h_a, uhbt_a, vhbt_a, dt, bxC, &
   call v_a%view(v)
   call h_a%view(h)
 
-  call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W), source=h_W)
-  call h_E_a%alloc(lb=LBOUND(h_E), ub=UBOUND(h_E), source=h_E)
+  call h_W_a%alloc(lb=[h_a%lb(1),h_a%lb(2),h_a%lb(3)], ub=[h_a%ub(1),h_a%ub(2),h_a%ub(3)])
+  call h_E_a%alloc(lb=[h_a%lb(1),h_a%lb(2),h_a%lb(3)], ub=[h_a%ub(1),h_a%ub(2),h_a%ub(3)])
   call zonal_edge_thickness(bxC, h_a, h_W_a, h_E_a, mask2dT_a, Angstrom_H, &
                             CS%reconstruction_CS, OBC)
   call por_face_areaU_a%alloc(lb=LBOUND(pbv%por_face_areaU), ub=UBOUND(pbv%por_face_areaU), &
@@ -613,8 +586,8 @@ subroutine continuity_PPM_2d_fluxes(u_a, v_a, h_a, uhbt_a, vhbt_a, dt, bxC, &
                           OBC, por_face_areaU_a)
   call h_W_a%free() ; call h_E_a%free() ; call por_face_areaU_a%free()
 
-  call h_S_a%alloc(lb=LBOUND(h_S), ub=UBOUND(h_S), source=h_S)
-  call h_N_a%alloc(lb=LBOUND(h_N), ub=UBOUND(h_N), source=h_N)
+  call h_S_a%alloc(lb=[h_a%lb(1),h_a%lb(2),h_a%lb(3)], ub=[h_a%ub(1),h_a%ub(2),h_a%ub(3)])
+  call h_N_a%alloc(lb=[h_a%lb(1),h_a%lb(2),h_a%lb(3)], ub=[h_a%ub(1),h_a%ub(2),h_a%ub(3)])
   call meridional_edge_thickness(bxC, h_a, h_S_a, h_N_a, mask2dT_a, Angstrom_H, &
                                  CS%reconstruction_CS, OBC)
   call por_face_areaV_a%alloc(lb=LBOUND(pbv%por_face_areaV), ub=UBOUND(pbv%por_face_areaV), &
@@ -694,22 +667,6 @@ subroutine continuity_PPM_adjust_vel(u_a, v_a, h_a, dt, bxC, &
                                                 !! at the top due to the no-slip boundary condition there.
 
   ! Local variables
-  real, dimension(u_a%lb(1):u_a%ub(1), u_a%lb(2):u_a%ub(2), u_a%lb(3):u_a%ub(3)) :: &
-    u_in  !< Input zonal velocity [L T-1 ~> m s-1]
-  real, dimension(v_a%lb(1):v_a%ub(1), v_a%lb(2):v_a%ub(2), v_a%lb(3):v_a%ub(3)) :: &
-    v_in  !< Input meridional velocity [L T-1 ~> m s-1]
-  real, dimension(u_a%lb(1):u_a%ub(1), u_a%lb(2):u_a%ub(2), u_a%lb(3):u_a%ub(3)) :: uh
-     !< Volume flux through zonal faces = u*h*dy [H L2 T-1 ~> m3 s-1 or kg s-1].
-  real, dimension(v_a%lb(1):v_a%ub(1), v_a%lb(2):v_a%ub(2), v_a%lb(3):v_a%ub(3)) :: vh
-     !< Volume flux through meridional faces = v*h*dx [H L2 T-1 ~> m3 s-1 or kg s-1].
-  real :: h_W(h_a%lb(1):h_a%ub(1), h_a%lb(2):h_a%ub(2), h_a%lb(3):h_a%ub(3))
-     ! West edge thicknesses in the zonal PPM reconstruction [H ~> m or kg m-2]
-  real :: h_E(h_a%lb(1):h_a%ub(1), h_a%lb(2):h_a%ub(2), h_a%lb(3):h_a%ub(3))
-     ! East edge thicknesses in the zonal PPM reconstruction [H ~> m or kg m-2]
-  real :: h_S(h_a%lb(1):h_a%ub(1), h_a%lb(2):h_a%ub(2), h_a%lb(3):h_a%ub(3))
-     ! South edge thicknesses in the meridional PPM reconstruction [H ~> m or kg m-2]
-  real :: h_N(h_a%lb(1):h_a%ub(1), h_a%lb(2):h_a%ub(2), h_a%lb(3):h_a%ub(3))
-     ! North edge thicknesses in the meridional PPM reconstruction [H ~> m or kg m-2]
   type(RealArray_t) :: u_cor_a, v_cor_a
   real, dimension(:,:,:), contiguous, pointer :: u, v, h
   type(RealArray_t) :: h_W_a, h_E_a, h_S_a, h_N_a
@@ -721,16 +678,14 @@ subroutine continuity_PPM_adjust_vel(u_a, v_a, h_a, dt, bxC, &
 
   ! It might not be necessary to separate the input velocity array from the adjusted velocities,
   ! but it seems safer to do so, even if it might be less efficient.
-  u_in(:,:,:) = u(:,:,:)
-  v_in(:,:,:) = v(:,:,:)
 
-  call h_W_a%alloc(lb=LBOUND(h_W), ub=UBOUND(h_W), source=h_W)
-  call h_E_a%alloc(lb=LBOUND(h_E), ub=UBOUND(h_E), source=h_E)
+  call h_W_a%alloc(lb=[h_a%lb(1),h_a%lb(2),h_a%lb(3)], ub=[h_a%ub(1),h_a%ub(2),h_a%ub(3)])
+  call h_E_a%alloc(lb=[h_a%lb(1),h_a%lb(2),h_a%lb(3)], ub=[h_a%ub(1),h_a%ub(2),h_a%ub(3)])
   call zonal_edge_thickness(bxC, h_a, h_W_a, h_E_a, mask2dT_a, Angstrom_H, &
                             CS%reconstruction_CS, OBC)
   call u_cor_a%alloc(lb=LBOUND(u), ub=UBOUND(u), source=u)
-  call u_in_a%alloc(lb=LBOUND(u_in), ub=UBOUND(u_in), source=u_in)
-  call uh_a%alloc(lb=LBOUND(uh), ub=UBOUND(uh), source=uh)
+  call u_in_a%alloc(lb=LBOUND(u), ub=UBOUND(u), source=u)
+  call uh_a%alloc(lb=[u_a%lb(1),u_a%lb(2),u_a%lb(3)], ub=[u_a%ub(1),u_a%ub(2),u_a%ub(3)])
   call por_face_areaU_a%alloc(lb=LBOUND(pbv%por_face_areaU), ub=UBOUND(pbv%por_face_areaU), &
                               source=pbv%por_face_areaU)
   call zonal_mass_flux(bxC, u_in_a, h_a, h_W_a, h_E_a, uh_a, dt, &
@@ -742,13 +697,13 @@ subroutine continuity_PPM_adjust_vel(u_a, v_a, h_a, dt, bxC, &
   call h_W_a%free() ; call h_E_a%free() ; call u_in_a%free() ; call uh_a%free()
   call por_face_areaU_a%free()
 
-  call h_S_a%alloc(lb=LBOUND(h_S), ub=UBOUND(h_S), source=h_S)
-  call h_N_a%alloc(lb=LBOUND(h_N), ub=UBOUND(h_N), source=h_N)
+  call h_S_a%alloc(lb=[h_a%lb(1),h_a%lb(2),h_a%lb(3)], ub=[h_a%ub(1),h_a%ub(2),h_a%ub(3)])
+  call h_N_a%alloc(lb=[h_a%lb(1),h_a%lb(2),h_a%lb(3)], ub=[h_a%ub(1),h_a%ub(2),h_a%ub(3)])
   call meridional_edge_thickness(bxC, h_a, h_S_a, h_N_a, mask2dT_a, Angstrom_H, &
                                  CS%reconstruction_CS, OBC)
   call v_cor_a%alloc(lb=LBOUND(v), ub=UBOUND(v), source=v)
-  call v_in_a%alloc(lb=LBOUND(v_in), ub=UBOUND(v_in), source=v_in)
-  call vh_a%alloc(lb=LBOUND(vh), ub=UBOUND(vh), source=vh)
+  call v_in_a%alloc(lb=LBOUND(v), ub=UBOUND(v), source=v)
+  call vh_a%alloc(lb=[v_a%lb(1),v_a%lb(2),v_a%lb(3)], ub=[v_a%ub(1),v_a%ub(2),v_a%ub(3)])
   call por_face_areaV_a%alloc(lb=LBOUND(pbv%por_face_areaV), ub=UBOUND(pbv%por_face_areaV), &
                               source=pbv%por_face_areaV)
   call meridional_mass_flux(bxC, v_in_a, h_a, h_S_a, h_N_a, vh_a, dt, &
@@ -1177,15 +1132,6 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, &
   ! Local variables
   real, dimension(u_a%lb(1):u_a%ub(1), u_a%lb(2):u_a%ub(2), u_a%lb(3):u_a%ub(3)) :: &
     duhdu ! Partial derivative of uh with u [H L ~> m2 or kg m-1].
-  real, dimension(u_a%lb(1):u_a%ub(1), u_a%lb(2):u_a%ub(2)) :: &
-    du, &         ! Corrective barotropic change in the velocity to give uhbt [L T-1 ~> m s-1].
-    du_min_CFL, & ! Lower limit on du correction to avoid CFL violations [L T-1 ~> m s-1]
-    du_max_CFL, & ! Upper limit on du correction to avoid CFL violations [L T-1 ~> m s-1]
-    duhdu_tot_0, & ! Summed partial derivative of uh with u [H L ~> m2 or kg m-1].
-    uh_tot_0, &   ! Summed transport with no barotropic correction [H L2 T-1 ~> m3 s-1 or kg s-1].
-    visc_rem_max  ! The column maximum of visc_rem [nondim].
-  real, dimension(u_a%lb(1):u_a%ub(1), u_a%lb(2):u_a%ub(2), u_a%lb(3):u_a%ub(3)) :: &
-    visc_rem_u_tmp      ! A 2-D copy of visc_rem_u or an array of 1's [nondim].
   real :: FAuI  ! A sum of zonal face areas [H L ~> m2 or kg m-1].
   real :: FA_u    ! A sum of zonal face areas [H L ~> m2 or kg m-1].
   real :: I_vrm   ! 1.0 / visc_rem_max [nondim]
@@ -1199,14 +1145,16 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, &
   logical :: use_visc_rem, set_BT_cont
   logical :: local_specified_BC, local_Flather_OBC, local_open_BC, any_simple_OBC  ! OBC-related logicals
   logical, dimension(u_a%lb(1):u_a%ub(1), u_a%lb(2):u_a%ub(2)) :: &
-    do_I  ! Indicates points to work on when finding uhbt/BT_cont
-  logical, dimension(u_a%lb(1):u_a%ub(1), u_a%lb(2):u_a%ub(2)) :: &
     simple_OBC_pt  ! Indicates points in a row with specified transport OBCs
   real, dimension(:,:), contiguous, pointer :: FA_u_W0, FA_u_E0, FA_u_WW, FA_u_EE, uBT_WW, uBT_EE
   real, dimension(:,:,:), contiguous, pointer :: visc_rem_u, u_cor
   real, dimension(:,:), contiguous, pointer :: du_cor
   real, dimension(:,:,:), contiguous, pointer :: u, h_in, h_W, h_E, uh, por_face_areaU
   real, dimension(:,:), contiguous, pointer :: dy_Cu, IareaT, IdxT, areaT, dxT, mask2dCu, dxCu
+  real, dimension(:,:,:), contiguous, pointer :: visc_rem_u_tmp
+  real, dimension(:,:), contiguous, pointer :: du_max_CFL, du_min_CFL, duhdu_tot_0, uh_tot_0
+  real, dimension(:,:), contiguous, pointer :: visc_rem_max, du
+  logical, dimension(:,:), contiguous, pointer :: do_I
   type(RealArray_t) :: visc_rem_u_tmp_a
   type(RealArray_t) :: uh_tot_0_a, duhdu_tot_0_a, du_max_CFL_a, du_min_CFL_a, du_a
   type(RealArray_t) :: visc_rem_max_a
@@ -1256,9 +1204,15 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, &
   I_dt = 1.0 / dt
   if (CS%aggress_adjust) CFL_dt = I_dt
 
-  !$omp target enter data &
-  !$omp   map(alloc: visc_rem_u_tmp, duhdu, du, du_min_CFL, du_max_CFL, duhdu_tot_0, uh_tot_0, &
-  !$omp     visc_rem_max)
+  call visc_rem_u_tmp_a%allocView(visc_rem_u_tmp, lb=[u_a%lb(1),u_a%lb(2),u_a%lb(3)], &
+                                  ub=[u_a%ub(1),u_a%ub(2),u_a%ub(3)])
+  if (present(uhbt_a) .or. set_BT_cont) then
+    call du_max_CFL_a%allocView(du_max_CFL, lb=[u_a%lb(1),u_a%lb(2)], ub=[u_a%ub(1),u_a%ub(2)])
+    call du_min_CFL_a%allocView(du_min_CFL, lb=[u_a%lb(1),u_a%lb(2)], ub=[u_a%ub(1),u_a%ub(2)])
+    call duhdu_tot_0_a%allocView(duhdu_tot_0, lb=[u_a%lb(1),u_a%lb(2)], ub=[u_a%ub(1),u_a%ub(2)])
+    call uh_tot_0_a%allocView(uh_tot_0, lb=[u_a%lb(1),u_a%lb(2)], ub=[u_a%ub(1),u_a%ub(2)])
+    call visc_rem_max_a%allocView(visc_rem_max, lb=[u_a%lb(1),u_a%lb(2)], ub=[u_a%ub(1),u_a%ub(2)])
+  endif
 
   do concurrent (j=jsh:jeh)
 
@@ -1399,7 +1353,7 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, &
   enddo
 
   if (present(uhbt_a) .or. set_BT_cont) then
-    !$omp target enter data map(alloc: do_I, simple_OBC_pt)
+    call do_I_a%allocView(do_I, lb=[u_a%lb(1),u_a%lb(2)], ub=[u_a%ub(1),u_a%ub(2)])
     any_simple_OBC = .false.
     if (local_specified_BC .or. local_Flather_OBC) then
       do concurrent (j=jsh:jeh, I=ish-1:ieh)
@@ -1416,22 +1370,13 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, &
       enddo
     endif
 
-    call uh_tot_0_a%alloc(lb=LBOUND(uh_tot_0), ub=UBOUND(uh_tot_0), source=uh_tot_0)
-    call duhdu_tot_0_a%alloc(lb=LBOUND(duhdu_tot_0), ub=UBOUND(duhdu_tot_0), source=duhdu_tot_0)
-    call du_max_CFL_a%alloc(lb=LBOUND(du_max_CFL), ub=UBOUND(du_max_CFL), source=du_max_CFL)
-    call du_min_CFL_a%alloc(lb=LBOUND(du_min_CFL), ub=UBOUND(du_min_CFL), source=du_min_CFL)
-    call visc_rem_u_tmp_a%alloc(lb=LBOUND(visc_rem_u_tmp), ub=UBOUND(visc_rem_u_tmp), &
-                                source=visc_rem_u_tmp)
-    call do_I_a%alloc(lb=LBOUND(do_I), ub=UBOUND(do_I), source=do_I)
-
     if (present(uhbt_a)) then
       ! Find du and uh.
-      call du_a%alloc(lb=LBOUND(du), ub=UBOUND(du), source=du)
+      call du_a%allocView(du, lb=[u_a%lb(1),u_a%lb(2)], ub=[u_a%ub(1),u_a%ub(2)], source=0.0)
       call zonal_flux_adjust(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a, duhdu_tot_0_a, du_a, &
                             du_max_CFL_a, du_min_CFL_a, dt, dy_Cu_a, IareaT_a, IdxT_a, CS, &
                             visc_rem_u_tmp_a, &
                             do_I_a, por_face_areaU_a, uhbt_a=uhbt_a, uh_3d_a=uh_a, OBC=OBC)
-      call du_a%copy2F(du) ; call du_a%free()
 
       do concurrent (j=jsh:jeh)
         if (present(u_cor_a)) then
@@ -1452,22 +1397,21 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, &
           enddo
         endif ! du-corrected
       enddo
+      call du_a%free()
     endif
     if (set_BT_cont) then
       ! Diagnose the zero-transport correction, du0.
-      call du_a%alloc(lb=LBOUND(du), ub=UBOUND(du), source=du)
+      call du_a%alloc(lb=[u_a%lb(1),u_a%lb(2)], ub=[u_a%ub(1),u_a%ub(2)], source=0.0)
       call zonal_flux_adjust(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a, duhdu_tot_0_a, du_a, &
                             du_max_CFL_a, du_min_CFL_a, dt, dy_Cu_a, IareaT_a, IdxT_a, CS, &
                             visc_rem_u_tmp_a, &
                             do_I_a, por_face_areaU_a)
-      call visc_rem_max_a%alloc(lb=LBOUND(visc_rem_max), ub=UBOUND(visc_rem_max), &
-                                source=visc_rem_max)
       call set_zonal_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, BT_cont, du_a, uh_tot_0_a, &
                               duhdu_tot_0_a, du_max_CFL_a, du_min_CFL_a, dt, &
                               dxCu_a, dy_Cu_a, IareaT_a, IdxT_a, CS, &
                               visc_rem_u_tmp_a, &
                               visc_rem_max_a, do_I_a, por_face_areaU_a)
-      call du_a%free() ; call visc_rem_max_a%free()
+      call du_a%free()
       if (any_simple_OBC) then
         ! untested
         do concurrent (j=jsh:jeh, I=ish-1:ieh)
@@ -1487,8 +1431,7 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, &
       endif
     endif
     call uh_tot_0_a%free() ; call duhdu_tot_0_a%free() ; call du_max_CFL_a%free()
-    call du_min_CFL_a%free() ; call visc_rem_u_tmp_a%free() ; call do_I_a%free()
-    !$omp target exit data map(release: do_I, simple_OBC_pt)
+    call du_min_CFL_a%free() ; call visc_rem_max_a%free() ; call do_I_a%free()
   endif
 
   ! untested!
@@ -1518,8 +1461,6 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, &
   endif
 
   if  (set_BT_cont) then ; if (BT_cont%h_u%associated()) then
-    call visc_rem_u_tmp_a%alloc(lb=LBOUND(visc_rem_u_tmp), ub=UBOUND(visc_rem_u_tmp), &
-                                source=visc_rem_u_tmp)
     if (present(u_cor_a)) then
       call zonal_flux_thickness(bxC, u_cor_a, h_in_a, h_W_a, h_E_a, BT_cont%h_u, dt, &
                                 dy_Cu_a, IareaT_a, IdxT_a, &
@@ -1533,12 +1474,9 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, &
                                 CS%marginal_faces, OBC, por_face_areaU_a, &
                                 visc_rem_u_tmp_a)
     endif
-    call visc_rem_u_tmp_a%free()
   endif ; endif
 
-  !$omp target exit data &
-  !$omp   map(release: visc_rem_u_tmp, duhdu, du, du_min_CFL, du_max_CFL, duhdu_tot_0, uh_tot_0, &
-  !$omp     visc_rem_max)
+  call visc_rem_u_tmp_a%free()
 
   call cpu_clock_end(id_clock_correct)
 
@@ -2187,12 +2125,11 @@ subroutine set_zonal_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, BT_cont, du0_a, uh_
   integer :: ieh      !< End of i index range.
   integer :: jsh      !< Start of j index range.
   integer :: jeh      !< End of j index range.
-  real, dimension(u_a%lb(1):u_a%ub(1), u_a%lb(2):u_a%ub(2)) :: &
-    FA_u_W0, FA_u_E0, FA_u_WW, FA_u_EE, uBT_WW, uBT_EE
   real, dimension(:,:,:), contiguous, pointer :: u, h_in, h_W, h_E, visc_rem, por_face_areaU
   real, dimension(:,:), contiguous, pointer :: du0, visc_rem_max
   real, dimension(:,:), contiguous, pointer :: dxCu, dy_Cu, IareaT, IdxT
   logical, dimension(:,:), contiguous, pointer :: do_I
+  real, dimension(:,:), contiguous, pointer :: FA_u_W0, FA_u_E0, FA_u_WW, FA_u_EE, uBT_WW, uBT_EE
 
   call u_a%view(u)
   call h_in_a%view(h_in)
@@ -2212,9 +2149,9 @@ subroutine set_zonal_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, BT_cont, du0_a, uh_
   Idt = 1.0 / dt
   min_visc_rem = 0.1 ; CFL_min = 1e-6
 
-  call BT_cont%FA_u_W0%copy2F(FA_u_W0) ; call BT_cont%FA_u_E0%copy2F(FA_u_E0)
-  call BT_cont%FA_u_WW%copy2F(FA_u_WW) ; call BT_cont%FA_u_EE%copy2F(FA_u_EE)
-  call BT_cont%uBT_WW%copy2F(uBT_WW)   ; call BT_cont%uBT_EE%copy2F(uBT_EE)
+  call BT_cont%FA_u_W0%view(FA_u_W0) ; call BT_cont%FA_u_E0%view(FA_u_E0)
+  call BT_cont%FA_u_WW%view(FA_u_WW) ; call BT_cont%FA_u_EE%view(FA_u_EE)
+  call BT_cont%uBT_WW%view(uBT_WW)   ; call BT_cont%uBT_EE%view(uBT_EE)
 
   !$omp target enter data map(alloc: duL, duR, du_CFL, FAmt_L, FAmT_R, FAmt_0, uhtot_L, uhtot_R)
 
@@ -2300,10 +2237,6 @@ subroutine set_zonal_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, BT_cont, du0_a, uh_
 
   !$omp target exit data map(release: duL, duR, du_CFL, FAmt_L, FAmT_R, FAmt_0, uhtot_L, uhtot_R)
 
-  call BT_cont%FA_u_W0%copy2Array(FA_u_W0) ; call BT_cont%FA_u_E0%copy2Array(FA_u_E0)
-  call BT_cont%FA_u_WW%copy2Array(FA_u_WW) ; call BT_cont%FA_u_EE%copy2Array(FA_u_EE)
-  call BT_cont%uBT_WW%copy2Array(uBT_WW)   ; call BT_cont%uBT_EE%copy2Array(uBT_EE)
-
 end subroutine set_zonal_BT_cont
 
 !> Calculates the mass or volume fluxes through the meridional faces, and other related quantities.
@@ -2368,15 +2301,6 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, &
   ! Local variables
   real, dimension(v_a%lb(1):v_a%ub(1), v_a%lb(2):v_a%ub(2), v_a%lb(3):v_a%ub(3)) :: &
     dvhdv         ! Partial derivative of vh with v [H L ~> m2 or kg m-1].
-  real, dimension(v_a%lb(1):v_a%ub(1), v_a%lb(2):v_a%ub(2)) :: &
-    dv, &         ! Corrective barotropic change in the velocity to give vhbt [L T-1 ~> m s-1].
-    dv_min_CFL, & ! Lower limit on dv correction to avoid CFL violations [L T-1 ~> m s-1]
-    dv_max_CFL, & ! Upper limit on dv correction to avoid CFL violations [L T-1 ~> m s-1]
-    dvhdv_tot_0, & ! Summed partial derivative of vh with v [H L ~> m2 or kg m-1].
-    vh_tot_0, &   ! Summed transport with no barotropic correction [H L2 T-1 ~> m3 s-1 or kg s-1].
-    visc_rem_max  ! The column maximum of visc_rem [nondim]
-  real, dimension(v_a%lb(1):v_a%ub(1), v_a%lb(2):v_a%ub(2), v_a%lb(3):v_a%ub(3)) :: &
-    visc_rem_v_tmp ! A copy of visc_rem_v or an array of 1's [nondim]
   real :: I_vrm   ! 1.0 / visc_rem_max [nondim]
   real :: CFL_dt  ! The maximum CFL ratio of the adjusted velocities divided by
                   ! the time step [T-1 ~> s-1].
@@ -2388,8 +2312,6 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, &
   logical :: use_visc_rem, set_BT_cont
   logical :: local_specified_BC, local_Flather_OBC, local_open_BC, any_simple_OBC  ! OBC-related logicals
   logical, dimension(v_a%lb(1):v_a%ub(1), v_a%lb(2):v_a%ub(2)) :: &
-    do_I  ! Indicates points to work on when finding vhbt/BT_cont
-  logical, dimension(v_a%lb(1):v_a%ub(1), v_a%lb(2):v_a%ub(2)) :: &
     simple_OBC_pt  ! Indicates points in a row with specified transport OBCs
   type(OBC_segment_type), pointer :: segment => NULL()
   real :: FAvi, FA_v    ! A sum of meridional face areas [H L ~> m2 or kg m-1].
@@ -2398,6 +2320,10 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, &
   real, dimension(:,:), contiguous, pointer :: dv_cor
   real, dimension(:,:,:), contiguous, pointer :: v, h_in, h_S, h_N, vh, por_face_areaV
   real, dimension(:,:), contiguous, pointer :: dx_Cv, IareaT, IdyT, areaT, dyT, mask2dCv, dyCv
+  real, dimension(:,:,:), contiguous, pointer :: visc_rem_v_tmp
+  real, dimension(:,:), contiguous, pointer :: dv_max_CFL, dv_min_CFL, dvhdv_tot_0, vh_tot_0
+  real, dimension(:,:), contiguous, pointer :: visc_rem_max, dv
+  logical, dimension(:,:), contiguous, pointer :: do_I
   type(RealArray_t) :: visc_rem_v_tmp_a
   type(RealArray_t) :: vh_tot_0_a, dvhdv_tot_0_a, dv_max_CFL_a, dv_min_CFL_a, dv_a
   type(RealArray_t) :: visc_rem_max_a
@@ -2447,9 +2373,15 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, &
   I_dt = 1.0 / dt
   if (CS%aggress_adjust) CFL_dt = I_dt
 
-  !$omp target enter data &
-  !$omp   map(alloc: dvhdv, dv, dv_min_CFL, dv_max_CFL, dvhdv_tot_0, vh_tot_0, visc_rem_max, &
-  !$omp     visc_rem_v_tmp)
+  call visc_rem_v_tmp_a%allocView(visc_rem_v_tmp, lb=[v_a%lb(1),v_a%lb(2),v_a%lb(3)], &
+                                  ub=[v_a%ub(1),v_a%ub(2),v_a%ub(3)])
+  if (present(vhbt_a) .or. set_BT_cont) then
+    call dv_max_CFL_a%allocView(dv_max_CFL, lb=[v_a%lb(1),v_a%lb(2)], ub=[v_a%ub(1),v_a%ub(2)])
+    call dv_min_CFL_a%allocView(dv_min_CFL, lb=[v_a%lb(1),v_a%lb(2)], ub=[v_a%ub(1),v_a%ub(2)])
+    call dvhdv_tot_0_a%allocView(dvhdv_tot_0, lb=[v_a%lb(1),v_a%lb(2)], ub=[v_a%ub(1),v_a%ub(2)])
+    call vh_tot_0_a%allocView(vh_tot_0, lb=[v_a%lb(1),v_a%lb(2)], ub=[v_a%ub(1),v_a%ub(2)])
+    call visc_rem_max_a%allocView(visc_rem_max, lb=[v_a%lb(1),v_a%lb(2)], ub=[v_a%ub(1),v_a%ub(2)])
+  endif
 
   do concurrent (J=jsh-1:jeh)
 
@@ -2585,7 +2517,7 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, &
   enddo
 
   if (present(vhbt_a) .or. set_BT_cont) then
-    !$omp target enter data map(alloc: do_I, simple_OBC_pt)
+    call do_I_a%allocView(do_I, lb=[v_a%lb(1),v_a%lb(2)], ub=[v_a%ub(1),v_a%ub(2)])
     any_simple_OBC = .false.
     if (local_specified_BC .or. local_Flather_OBC) then
       do concurrent (j=jsh-1:jeh, i=ish:ieh)
@@ -2603,22 +2535,13 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, &
       enddo
     endif ! local_specified_BC .or. local_Flather_OBC
 
-    call vh_tot_0_a%alloc(lb=LBOUND(vh_tot_0), ub=UBOUND(vh_tot_0), source=vh_tot_0)
-    call dvhdv_tot_0_a%alloc(lb=LBOUND(dvhdv_tot_0), ub=UBOUND(dvhdv_tot_0), source=dvhdv_tot_0)
-    call dv_max_CFL_a%alloc(lb=LBOUND(dv_max_CFL), ub=UBOUND(dv_max_CFL), source=dv_max_CFL)
-    call dv_min_CFL_a%alloc(lb=LBOUND(dv_min_CFL), ub=UBOUND(dv_min_CFL), source=dv_min_CFL)
-    call visc_rem_v_tmp_a%alloc(lb=LBOUND(visc_rem_v_tmp), ub=UBOUND(visc_rem_v_tmp), &
-                                source=visc_rem_v_tmp)
-    call do_I_a%alloc(lb=LBOUND(do_I), ub=UBOUND(do_I), source=do_I)
-
     if (present(vhbt_a)) then
       ! Find dv and vh.
-      call dv_a%alloc(lb=LBOUND(dv), ub=UBOUND(dv), source=dv)
+      call dv_a%allocView(dv, lb=[v_a%lb(1),v_a%lb(2)], ub=[v_a%ub(1),v_a%ub(2)], source=0.0)
       call meridional_flux_adjust(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_a, dvhdv_tot_0_a, dv_a, &
                              dv_max_CFL_a, dv_min_CFL_a, dt, dx_Cv_a, IareaT_a, IdyT_a, CS, &
                              visc_rem_v_tmp_a, &
                              do_I_a, por_face_areaV_a, vhbt_a=vhbt_a, vh_3d_a=vh_a, OBC=OBC)
-      call dv_a%copy2F(dv) ; call dv_a%free()
 
       do concurrent (J=jsh-1:jeh)
         if (present(v_cor_a)) then
@@ -2639,22 +2562,21 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, &
           enddo
         endif ! dv-corrected
       enddo
+      call dv_a%free()
     endif
 
     if (set_BT_cont) then
     ! Diagnose the zero-transport correction, dv0.
-      call dv_a%alloc(lb=LBOUND(dv), ub=UBOUND(dv), source=dv)
+      call dv_a%alloc(lb=[v_a%lb(1),v_a%lb(2)], ub=[v_a%ub(1),v_a%ub(2)], source=0.0)
       call meridional_flux_adjust(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_a, dvhdv_tot_0_a, dv_a, &
                             dv_max_CFL_a, dv_min_CFL_a, dt, dx_Cv_a, IareaT_a, IdyT_a, CS, &
                             visc_rem_v_tmp_a, &
                             do_I_a, por_face_areaV_a)
-      call visc_rem_max_a%alloc(lb=LBOUND(visc_rem_max), ub=UBOUND(visc_rem_max), &
-                                source=visc_rem_max)
       call set_merid_BT_cont(bxC, v_a, h_in_a, h_S_a, h_N_a, BT_cont, dv_a, vh_tot_0_a, &
                              dvhdv_tot_0_a, dv_max_CFL_a, dv_min_CFL_a, dt, &
                              dyCv_a, dx_Cv_a, IareaT_a, IdyT_a, CS, &
                              visc_rem_v_tmp_a, visc_rem_max_a, do_I_a, por_face_areaV_a)
-      call dv_a%free() ; call visc_rem_max_a%free()
+      call dv_a%free()
 
       if (any_simple_OBC) then
         ! untested
@@ -2673,8 +2595,7 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, &
       endif ! any_simple_OBC
     endif ! set_BT_cont
     call vh_tot_0_a%free() ; call dvhdv_tot_0_a%free() ; call dv_max_CFL_a%free()
-    call dv_min_CFL_a%free() ; call visc_rem_v_tmp_a%free() ; call do_I_a%free()
-    !$omp target exit data map(release: do_I, simple_OBC_pt)
+    call dv_min_CFL_a%free() ; call visc_rem_max_a%free() ; call do_I_a%free()
   endif ! present(vhbt_a) or set_BT_cont
 
   ! untested - probably needs to be refactored to be performant on GPU
@@ -2704,8 +2625,6 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, &
   endif
 
   if (set_BT_cont) then ; if (BT_cont%h_v%associated()) then
-    call visc_rem_v_tmp_a%alloc(lb=LBOUND(visc_rem_v_tmp), ub=UBOUND(visc_rem_v_tmp), &
-                                source=visc_rem_v_tmp)
     if (present(v_cor_a)) then
       call meridional_flux_thickness(bxC, v_cor_a, h_in_a, h_S_a, h_N_a, BT_cont%h_v, dt, &
                                     dx_Cv_a, IareaT_a, IdyT_a, CS%vol_CFL, &
@@ -2718,12 +2637,9 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, &
                                     CS%marginal_faces, OBC, por_face_areaV_a, &
                                     visc_rem_v_tmp_a)
     endif
-    call visc_rem_v_tmp_a%free()
   endif ; endif
 
-  !$omp target exit data &
-  !$omp   map(release: dvhdv, dv, dv_min_CFL, dv_max_CFL, dvhdv_tot_0, vh_tot_0, &
-  !$omp     visc_rem_max, visc_rem_v_tmp)
+  call visc_rem_v_tmp_a%free()
 
   call cpu_clock_end(id_clock_correct)
 
@@ -3277,12 +3193,11 @@ subroutine set_merid_BT_cont(bxC, v_a, h_in_a, h_S_a, h_N_a, BT_cont, dv0_a, vh_
   integer :: ieh  !< End of i index range.
   integer :: jsh  !< Start of j index range.
   integer :: jeh  !< End of j index range.
-  real, dimension(v_a%lb(1):v_a%ub(1), v_a%lb(2):v_a%ub(2)) :: &
-    FA_v_S0, FA_v_N0, FA_v_SS, FA_v_NN, vBT_SS, vBT_NN
   real, dimension(:,:,:), contiguous, pointer :: v, h_in, h_S, h_N, visc_rem, por_face_areaV
   real, dimension(:,:), contiguous, pointer :: dv0, visc_rem_max
   real, dimension(:,:), contiguous, pointer :: dyCv, dx_Cv, IareaT, IdyT
   logical, dimension(:,:), contiguous, pointer :: do_I
+  real, dimension(:,:), contiguous, pointer :: FA_v_S0, FA_v_N0, FA_v_SS, FA_v_NN, vBT_SS, vBT_NN
 
   call v_a%view(v)
   call h_in_a%view(h_in)
@@ -3302,9 +3217,9 @@ subroutine set_merid_BT_cont(bxC, v_a, h_in_a, h_S_a, h_N_a, BT_cont, dv0_a, vh_
   Idt = 1.0 / dt
   min_visc_rem = 0.1 ; CFL_min = 1e-6
 
-  call BT_cont%FA_v_S0%copy2F(FA_v_S0) ; call BT_cont%FA_v_N0%copy2F(FA_v_N0)
-  call BT_cont%FA_v_SS%copy2F(FA_v_SS) ; call BT_cont%FA_v_NN%copy2F(FA_v_NN)
-  call BT_cont%vBT_SS%copy2F(vBT_SS)   ; call BT_cont%vBT_NN%copy2F(vBT_NN)
+  call BT_cont%FA_v_S0%view(FA_v_S0) ; call BT_cont%FA_v_N0%view(FA_v_N0)
+  call BT_cont%FA_v_SS%view(FA_v_SS) ; call BT_cont%FA_v_NN%view(FA_v_NN)
+  call BT_cont%vBT_SS%view(vBT_SS)   ; call BT_cont%vBT_NN%view(vBT_NN)
 
   !$omp target enter data map(alloc: dvL, dvR, dv_CFL, FAmt_L, FAmt_R, FAmt_0, vhtot_L, vhtot_R)
 
@@ -3392,10 +3307,6 @@ subroutine set_merid_BT_cont(bxC, v_a, h_in_a, h_S_a, h_N_a, BT_cont, dv0_a, vh_
   enddo
 
   !$omp target exit data map(release: dvL, dvR, dv_CFL, FAmt_L, FAmt_R, FAmt_0, vhtot_L, vhtot_R)
-
-  call BT_cont%FA_v_S0%copy2Array(FA_v_S0) ; call BT_cont%FA_v_N0%copy2Array(FA_v_N0)
-  call BT_cont%FA_v_SS%copy2Array(FA_v_SS) ; call BT_cont%FA_v_NN%copy2Array(FA_v_NN)
-  call BT_cont%vBT_SS%copy2Array(vBT_SS)   ; call BT_cont%vBT_NN%copy2Array(vBT_NN)
 
 end subroutine set_merid_BT_cont
 
