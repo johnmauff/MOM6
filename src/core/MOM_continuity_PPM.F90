@@ -2379,7 +2379,10 @@ subroutine meridional_BT_mass_flux(bxC, v, h_in, h_S, h_N, vhbt, dt, G, GV, US, 
                                                                   !! faces [H L2 T-1 ~> m3 s-1 or kg s-1].
   real,                                       intent(in)  :: dt   !< Time increment [T ~> s].
   type(unit_scale_type),                      intent(in)  :: US   !< A dimensional unit scaling type
-  type(continuity_PPM_CS),                    intent(in)  :: CS   !< This module's control structure.
+  type(transport_adjust_CS),                  intent(in)  :: CS   !< Options controlling the
+                                                                  !! transport adjustment and
+                                                                  !! barotropic-consistency
+                                                                  !! iteration.
   type(ocean_OBC_type),                       pointer     :: OBC  !< Open boundary condition type
                                                                   !! specifies whether, where, and what
                                                                   !! open boundary conditions are used.
