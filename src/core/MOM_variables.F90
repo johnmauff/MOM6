@@ -1,7 +1,7 @@
 ! This file is part of MOM6, the Modular Ocean Model version 6.
 ! See the LICENSE file for licensing information.
 ! SPDX-License-Identifier: Apache-2.0
-!!SKILLS: 0.3
+!!SKILLS: 0.3.1
 
 !> Provides transparent structures with groups of MOM6 variables and supporting routines
 module MOM_variables
