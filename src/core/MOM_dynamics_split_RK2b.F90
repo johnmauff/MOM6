@@ -1,7 +1,7 @@
 ! This file is part of MOM6, the Modular Ocean Model version 6.
 ! See the LICENSE file for licensing information.
 ! SPDX-License-Identifier: Apache-2.0
-!!SKILLS: 0.3
+!!SKILLS: 0.3.1
 
 !> Time step the adiabatic dynamic core of MOM using RK2 method with greater use of the
 !! time-filtered velocities and less inheritance of tedencies from the previous step in the
