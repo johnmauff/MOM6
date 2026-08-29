@@ -40,9 +40,9 @@ module array_mod
   type :: RealArray_t
      real(kind=real64), pointer, contiguous :: data(:) => null() !< Storage ptr for array container
      integer :: rank = 0                            !< The number of dimension
-     integer, allocatable, target :: shape(:)       !< An array of dimension extents
-     integer, allocatable, target :: lb(:)          !< Lower bounds
-     integer, allocatable, target :: ub(:)          !< Upper bounds
+     integer, allocatable :: shape(:)       !< An array of dimension extents
+     integer, allocatable :: lb(:)          !< Lower bounds
+     integer, allocatable :: ub(:)          !< Upper bounds
    contains
      procedure :: allocReal                    !< Allocate memory in container
      procedure :: freeReal                     !< Deallocates memory from a container
@@ -83,9 +83,9 @@ module array_mod
   type :: IntArray_t
      integer, pointer, contiguous :: data(:) => null() !< Storage ptr for array container
      integer :: rank = 0                     !< Rank of array
-     integer, allocatable, target :: shape(:) !< Shape of array
-     integer, allocatable, target :: lb(:)    !< Lower bounds
-     integer, allocatable, target :: ub(:)    !< Upper bounds
+     integer, allocatable :: shape(:) !< Shape of array
+     integer, allocatable :: lb(:)    !< Lower bounds
+     integer, allocatable :: ub(:)    !< Upper bounds
    contains
      procedure :: allocInt                   !< Allocates  memory in container
      procedure :: freeInt                    !< Deallocates memory from a container
@@ -125,9 +125,9 @@ module array_mod
      integer, pointer, contiguous :: data_c(:) => null() !< Integer-encoded (0/1) shadow buffer for
                                                          !< the C/AMReX bridge boundary
      integer :: rank = 0                     !< Rank of array
-     integer, allocatable, target :: shape(:) !< Shape of array
-     integer, allocatable, target :: lb(:)    !< Lower bounds
-     integer, allocatable, target :: ub(:)    !< Upper bounds
+     integer, allocatable :: shape(:) !< Shape of array
+     integer, allocatable :: lb(:)    !< Lower bounds
+     integer, allocatable :: ub(:)    !< Upper bounds
    contains
      procedure :: allocLogical                   !< Allocates memory in container
      procedure :: freeLogical                    !< Deallocates memory from a container
@@ -376,7 +376,7 @@ end subroutine read_binaryLogical
 !! cdesc with every pointer null and rank=0, rather than dereferencing
 !! this%data(1) on a null pointer -- mirrors Box_t%to_c in box_mod.F90.
 function to_c_Real(this) result(cdesc)
-  class(RealArray_t), intent(in) :: this  !< RealArray_t structure to convert to C
+  class(RealArray_t), target, intent(in) :: this  !< RealArray_t structure to convert to C
   type(RealArray_C) :: cdesc              !< Resulting C structure
 
   cdesc%data  = c_null_ptr
@@ -399,7 +399,7 @@ end function to_c_Real
 !! cdesc with every pointer null and rank=0, rather than dereferencing
 !! this%data(1) on a null pointer -- mirrors Box_t%to_c in box_mod.F90.
 function to_c_Int(this) result(cdesc)
-  class(IntArray_t), intent(in) :: this    !< IntArray_t structure to convert to C
+  class(IntArray_t), target, intent(in) :: this    !< IntArray_t structure to convert to C
   type(IntArray_C) :: cdesc                !< Resulting C structure
 
   cdesc%data  = c_null_ptr
@@ -423,7 +423,7 @@ end function to_c_Int
 !! (unlike to_c_Real/to_c_Int) this must allocate/refresh that buffer and
 !! therefore takes `this` as intent(inout) rather than intent(in).
 function to_c_Logical(this) result(cdesc)
-  class(LogicalArray_t), intent(inout) :: this  !< LogicalArray_t structure to convert to C
+  class(LogicalArray_t), target, intent(inout) :: this  !< LogicalArray_t structure to convert to C
   type(LogicalArray_C) :: cdesc                 !< Resulting C structure
 
   integer :: i, n
