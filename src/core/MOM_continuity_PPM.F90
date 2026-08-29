@@ -3835,7 +3835,7 @@ subroutine zonal_flux_adjust(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a, duhdu_t
                        !! controlling the transport adjustment and barotropic-consistency iteration.
 
 
-  type(LogicalArray_t),  intent(in)  :: do_I_in_a !< A logical flag indicating
+  type(LogicalArray_t),  intent(inout)  :: do_I_in_a !< A logical flag indicating
                                                                        !! which I values to work on.
   type(RealArray_t),  intent(in)  :: por_face_areaU_a !< fractional open area
                                                                               !! of U-faces [nondim].
@@ -4187,7 +4187,7 @@ subroutine set_zonal_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, BT_cont, du0_a, uh_
                        !! experiences after viscosity is applied [nondim].
                        !! Visc_rem is between 0 (at the bottom) and 1 (far above the bottom).
   type(RealArray_t),       intent(in) :: visc_rem_max_a !< Maximum allowable visc_rem [nondim].
-  type(LogicalArray_t),    intent(in) :: do_I_a   !< A logical flag indicating
+  type(LogicalArray_t),    intent(inout) :: do_I_a   !< A logical flag indicating
                                                         !! which I values to work on.
   type(RealArray_t),       intent(in) :: por_face_areaU_a !< fractional open area
                                                         !! of U-faces [nondim]
@@ -5672,7 +5672,8 @@ subroutine meridional_flux_adjust(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_a, dv
   type(RealArray_t),       intent(in)  :: IdyT_a   !< The grid cell's 1/dyT [L-1 ~> m-1].
   type(transport_adjust_CS), intent(in) :: CS !< Options controlling the
                        !! transport adjustment and barotropic-consistency iteration.
-  type(LogicalArray_t),    intent(in)  :: do_I_in_a  !< A flag indicating which I values to work on.
+  type(LogicalArray_t), &
+    intent(inout)  :: do_I_in_a  !< A flag indicating which I values to work on.
   type(RealArray_t),       intent(in)  :: por_face_areaV_a !< fractional open area of
                                                        !! V-faces [nondim]
   type(RealArray_t), &
@@ -6028,7 +6029,7 @@ subroutine set_merid_BT_cont(bxC, v_a, h_in_a, h_S_a, h_N_a, BT_cont, dv0_a, vh_
                        !! Visc_rem is between 0 (at the bottom) and 1 (far above the bottom).
   type(RealArray_t), &
                  intent(in)    :: visc_rem_max_a !< Maximum allowable visc_rem [nondim]
-  type(LogicalArray_t),  intent(in)  :: do_I_a !< A logical flag indicating
+  type(LogicalArray_t),  intent(inout)  :: do_I_a !< A logical flag indicating
                                              !! which I values to work on.
   type(RealArray_t),  intent(in)   :: por_face_areaV_a !< fractional open
                                             !! area of V-faces [nondim]
