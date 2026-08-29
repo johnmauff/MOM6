@@ -1244,8 +1244,8 @@ subroutine continuity_PPM(u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, bx0, stencil, x_
                                       ! when BT_cont is absent, matching %to_c()'s
                                       ! null-safe behavior on an unassociated container.
   type(Box_C)                  :: bx0_c
-  type(reconstruction_CS_C)    :: reconstruction_CS_c
-  type(transport_adjust_CS_C)  :: transport_adjust_CS_c
+  type(reconstruction_CS_C)    :: recon_CS_c
+  type(transport_adjust_CS_C)  :: transp_adjust_CS_c
   type(c_ptr)                  :: OBC_c
   type(io_recorder)  :: rec
   logical            :: capture
@@ -1395,8 +1395,8 @@ subroutine continuity_PPM(u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, bx0, stencil, x_
       dyT_c            = dyT_a%to_c()
       mask2dCv_c       = mask2dCv_a%to_c()
       dyCv_c           = dyCv_a%to_c()
-      reconstruction_CS_c   = reconstruction_CS_to_c(CS%reconstruction_CS)
-      transport_adjust_CS_c = transport_adjust_CS_to_c(CS%transport_adjust_CS)
+      recon_CS_c   = reconstruction_CS_to_c(CS%reconstruction_CS)
+      transp_adjust_CS_c = transport_adjust_CS_to_c(CS%transport_adjust_CS)
       por_face_areaU_c = por_face_areaU_a%to_c()
       por_face_areaV_c = por_face_areaV_a%to_c()
       uhbt_c           = uhbt_a%to_c()
@@ -1443,8 +1443,8 @@ subroutine continuity_PPM(u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, bx0, stencil, x_
                                           x_first_c, mask2dT_c, dy_Cu_c, IareaT_c, IdxT_c, &
                                           areaT_c, dxT_c, mask2dCu_c, dxCu_c, dx_Cv_c, IdyT_c, &
                                           dyT_c, mask2dCv_c, dyCv_c, isd, ied, Angstrom_H, &
-                                          H_subroundoff, reconstruction_CS_c, &
-                                          transport_adjust_CS_c, OBC_c, por_face_areaU_c, &
+                                          H_subroundoff, recon_CS_c, &
+                                          transp_adjust_CS_c, OBC_c, por_face_areaU_c, &
                                           por_face_areaV_c, uhbt_c, vhbt_c, visc_rem_u_c, &
                                           visc_rem_v_c, u_cor_c, v_cor_c, FA_u_W0_c, FA_u_E0_c, &
                                           FA_u_WW_c, FA_u_EE_c, uBT_WW_c, uBT_EE_c, FA_v_S0_c, &
@@ -1654,8 +1654,8 @@ subroutine continuity_PPM_2d_fluxes(u_a, v_a, h_a, uhbt_a, vhbt_a, dt, bxC, &
   type(RealArray_C) :: por_face_areaU_c, por_face_areaV_c
   type(RealArray_t)            :: por_face_areaU_a, por_face_areaV_a
   type(Box_C)                  :: bxC_c
-  type(reconstruction_CS_C)    :: reconstruction_CS_c
-  type(transport_adjust_CS_C)  :: transport_adjust_CS_c
+  type(reconstruction_CS_C)    :: recon_CS_c
+  type(transport_adjust_CS_C)  :: transp_adjust_CS_c
   type(c_ptr)                  :: OBC_c
   type(io_recorder)  :: rec
   logical            :: capture
@@ -1731,8 +1731,8 @@ subroutine continuity_PPM_2d_fluxes(u_a, v_a, h_a, uhbt_a, vhbt_a, dt, bxC, &
       IdxT_c                = IdxT_a%to_c()
       dx_Cv_c               = dx_Cv_a%to_c()
       IdyT_c                = IdyT_a%to_c()
-      reconstruction_CS_c   = reconstruction_CS_to_c(CS%reconstruction_CS)
-      transport_adjust_CS_c = transport_adjust_CS_to_c(CS%transport_adjust_CS)
+      recon_CS_c   	    = reconstruction_CS_to_c(CS%reconstruction_CS)
+      transp_adjust_CS_c    = transport_adjust_CS_to_c(CS%transport_adjust_CS)
       por_face_areaU_c      = por_face_areaU_a%to_c()
       por_face_areaV_c      = por_face_areaV_a%to_c()
       if (associated(OBC)) then
@@ -1743,7 +1743,7 @@ subroutine continuity_PPM_2d_fluxes(u_a, v_a, h_a, uhbt_a, vhbt_a, dt, bxC, &
       call turbotmp_continuity_ppm_2d_fluxes_bridge(u_c, v_c, h_c, uhbt_c, vhbt_c, dt, bxC_c, &
                                                     mask2dT_c, dy_Cu_c, IareaT_c, IdxT_c, &
                                                     dx_Cv_c, IdyT_c, Angstrom_H, &
-                                                    reconstruction_CS_c, transport_adjust_CS_c, &
+                                                    recon_CS_c, transp_adjust_CS_c, &
                                                     OBC_c, por_face_areaU_c, por_face_areaV_c)
 #endif
 
