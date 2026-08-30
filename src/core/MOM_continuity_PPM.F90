@@ -1319,10 +1319,10 @@ subroutine continuity_PPM(u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, bx0, stencil, x_
         call rec%add("_vhbt",           vhbt_a)
         call rec%add("_visc_rem_u",     visc_rem_u_a)
         call rec%add("_visc_rem_v",     visc_rem_v_a)
-        if (u_cor_a%associated()) call rec%add("_u_cor_before", u_cor_a)
-        if (v_cor_a%associated()) call rec%add("_v_cor_before", v_cor_a)
-        if (du_cor_a%associated()) call rec%add("_du_cor_before", du_cor_a)
-        if (dv_cor_a%associated()) call rec%add("_dv_cor_before", dv_cor_a)
+        call rec%add("_u_cor_before", u_cor_a)
+        call rec%add("_v_cor_before", v_cor_a)
+        call rec%add("_du_cor_before", du_cor_a)
+        call rec%add("_dv_cor_before", dv_cor_a)
         if (set_BT_cont) then
           call rec%add("_FA_u_W0_before", BT_cont%FA_u_W0)
           call rec%add("_FA_u_E0_before", BT_cont%FA_u_E0)
@@ -1350,10 +1350,10 @@ subroutine continuity_PPM(u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, bx0, stencil, x_
         call rec%add("_h_after",  h_a)
         call rec%add("_uh_after", uh_a)
         call rec%add("_vh_after", vh_a)
-        if (u_cor_a%associated()) call rec%add("_u_cor_after", u_cor_a)
-        if (v_cor_a%associated()) call rec%add("_v_cor_after", v_cor_a)
-        if (du_cor_a%associated()) call rec%add("_du_cor_after", du_cor_a)
-        if (dv_cor_a%associated()) call rec%add("_dv_cor_after", dv_cor_a)
+        call rec%add("_u_cor_after", u_cor_a)
+        call rec%add("_v_cor_after", v_cor_a)
+        call rec%add("_du_cor_after", du_cor_a)
+        call rec%add("_dv_cor_after", dv_cor_a)
         if (set_BT_cont) then
           call rec%add("_FA_u_W0_after", BT_cont%FA_u_W0)
           call rec%add("_FA_u_E0_after", BT_cont%FA_u_E0)
@@ -2903,8 +2903,8 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, &
         call rec%add("_por_face_areaU", por_face_areaU_a)
         call rec%add("_uhbt",           uhbt_a)
         call rec%add("_visc_rem_u",     visc_rem_u_a)
-        if (u_cor_a%associated()) call rec%add("_u_cor_before", u_cor_a)
-        if (du_cor_a%associated()) call rec%add("_du_cor_before", du_cor_a)
+        call rec%add("_u_cor_before", u_cor_a)
+        call rec%add("_du_cor_before", du_cor_a)
         if (set_BT_cont) then
           call rec%add("_FA_u_W0_before", BT_cont%FA_u_W0)
           call rec%add("_FA_u_E0_before", BT_cont%FA_u_E0)
@@ -2922,8 +2922,8 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, &
 
       if (capture) then
         call rec%add("_uh_after", uh_a)
-        if (u_cor_a%associated()) call rec%add("_u_cor_after", u_cor_a)
-        if (du_cor_a%associated()) call rec%add("_du_cor_after", du_cor_a)
+        call rec%add("_u_cor_after", u_cor_a)
+        call rec%add("_du_cor_after", du_cor_a)
         if (set_BT_cont) then
           call rec%add("_FA_u_W0_after", BT_cont%FA_u_W0)
           call rec%add("_FA_u_E0_after", BT_cont%FA_u_E0)
@@ -3522,7 +3522,7 @@ subroutine zonal_flux_thickness(bxC, u_a, h_a, h_W_a, h_E_a, h_u_a, dt, &
         call rec%add("_vol_CFL",        vol_CFL)
         call rec%add("_marginal",       marginal)
         call rec%add("_por_face_areaU", por_face_areaU_a)
-        if (visc_rem_u_a%associated()) call rec%add("_visc_rem_u", visc_rem_u_a)
+        call rec%add("_visc_rem_u", visc_rem_u_a)
       endif
 
       call zonal_flux_thickness_fortran(bxC, u_a, h_a, h_W_a, h_E_a, h_u_a, dt, &
@@ -3893,8 +3893,8 @@ subroutine zonal_flux_adjust(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a, duhdu_t
         call rec%add("_visc_rem",       visc_rem_a)
         call rec%add("_do_I_in",        do_I_in_a)
         call rec%add("_por_face_areaU", por_face_areaU_a)
-        if (uhbt_a%associated()) call rec%add("_uhbt", uhbt_a)
-        if (uh_3d_a%associated()) call rec%add("_uh_3d_before", uh_3d_a)
+        call rec%add("_uhbt", uhbt_a)
+        call rec%add("_uh_3d_before", uh_3d_a)
       endif
 
       call zonal_flux_adjust_fortran(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a, duhdu_tot_0_a, &
@@ -3903,7 +3903,7 @@ subroutine zonal_flux_adjust(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a, duhdu_t
 
       if (capture) then
         call rec%add("_du_after", du_a)
-        if (uh_3d_a%associated()) call rec%add("_uh_3d_after", uh_3d_a)
+        call rec%add("_uh_3d_after", uh_3d_a)
         call rec%close()
         call mark_recorded(trim(kernel))
       endif
@@ -4833,8 +4833,8 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, &
         call rec%add("_por_face_areaV", por_face_areaV_a)
         call rec%add("_vhbt",           vhbt_a)
         call rec%add("_visc_rem_v",     visc_rem_v_a)
-        if (v_cor_a%associated()) call rec%add("_v_cor_before", v_cor_a)
-        if (dv_cor_a%associated()) call rec%add("_dv_cor_before", dv_cor_a)
+        call rec%add("_v_cor_before", v_cor_a)
+        call rec%add("_dv_cor_before", dv_cor_a)
         if (set_BT_cont) then
           call rec%add("_FA_v_S0_before", BT_cont%FA_v_S0)
           call rec%add("_FA_v_N0_before", BT_cont%FA_v_N0)
@@ -4853,8 +4853,8 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, &
 
       if (capture) then
         call rec%add("_vh_after", vh_a)
-        if (v_cor_a%associated()) call rec%add("_v_cor_after", v_cor_a)
-        if (dv_cor_a%associated()) call rec%add("_dv_cor_after", dv_cor_a)
+        call rec%add("_v_cor_after", v_cor_a)
+        call rec%add("_dv_cor_after", dv_cor_a)
         if (set_BT_cont) then
           call rec%add("_FA_v_S0_after", BT_cont%FA_v_S0)
           call rec%add("_FA_v_N0_after", BT_cont%FA_v_N0)
@@ -5362,7 +5362,7 @@ subroutine meridional_flux_thickness(bxC, v_a, h_a, h_S_a, h_N_a, h_v_a, dt, &
         call rec%add("_vol_CFL",        vol_CFL)
         call rec%add("_marginal",       marginal)
         call rec%add("_por_face_areaV", por_face_areaV_a)
-        if (visc_rem_v_a%associated()) call rec%add("_visc_rem_v", visc_rem_v_a)
+        call rec%add("_visc_rem_v", visc_rem_v_a)
       endif
 
       call meridional_flux_thickness_fortran(bxC, v_a, h_a, h_S_a, h_N_a, h_v_a, dt, &
@@ -5730,8 +5730,8 @@ subroutine meridional_flux_adjust(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_a, dv
         call rec%add("_visc_rem",       visc_rem_a)
         call rec%add("_do_I_in",        do_I_in_a)
         call rec%add("_por_face_areaV", por_face_areaV_a)
-        if (vhbt_a%associated()) call rec%add("_vhbt", vhbt_a)
-        if (vh_3d_a%associated()) call rec%add("_vh_3d_before", vh_3d_a)
+        call rec%add("_vhbt", vhbt_a)
+        call rec%add("_vh_3d_before", vh_3d_a)
       endif
 
       call meridional_flux_adjust_fortran(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_a, dvhdv_tot_0_a, &
@@ -5740,7 +5740,7 @@ subroutine meridional_flux_adjust(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_a, dv
 
       if (capture) then
         call rec%add("_dv_after", dv_a)
-        if (vh_3d_a%associated()) call rec%add("_vh_3d_after", vh_3d_a)
+        call rec%add("_vh_3d_after", vh_3d_a)
         call rec%close()
         call mark_recorded(trim(kernel))
       endif
