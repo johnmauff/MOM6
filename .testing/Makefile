@@ -82,7 +82,7 @@ AC_SRCDIR := $(CODEBASE)/ac
 -include config.mk
 
 # Set the FMS library
-FMS_COMMIT ?= 7e526687b96ca685100f73edf7ef49214d5d5a19
+FMS_COMMIT ?= 637d62ede3082b02a093efb6289b954fa141cf73
 FMS_URL ?= https://github.com/TURBO-ESM/FMS.git
 export FMS_COMMIT
 export FMS_URL
