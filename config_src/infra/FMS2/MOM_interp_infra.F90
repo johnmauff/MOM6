@@ -167,26 +167,41 @@ end function get_extern_field_size
 
 !> get axes of an external field from field index
 function get_extern_field_axes(field) result(axes)
-  type(external_field), intent(in) :: field   !< Field handle
-  type(axistype), dimension(4) :: axes        !< Field axes
+  type(external_field), intent(in) :: field
+    !< Field handle
+  type(axistype), dimension(4) :: axes
+    !< Field axes
 
-  integer :: ndims  ! Number of variable dimensions
-  integer, allocatable :: dims(:)  ! netCDF dimension IDs of variable
-  character(len=256) :: dim_name  ! Dimension name
-  integer :: dim_len  ! Dimension length
-  integer :: var_dim  ! netCDF ID of the variable associated with dimension of the same name
-  real, allocatable :: axis_points(:)  ! Axis values
+  integer :: ndims
+    ! Number of variable dimensions
+  integer, allocatable :: dims(:)
+    ! netCDF dimension IDs of variable
+  character(len=256) :: dim_name
+    ! Dimension name
+  integer :: dim_len
+    ! Dimension length
+  integer :: var_dim
+    ! netCDF ID of the variable associated with dimension of the same name
+  real, allocatable :: axis_points(:)
+    ! Axis values
 
-  integer :: ncid  ! netCDF file ID
-  integer :: varid  ! netCDF variable ID
-  integer :: rc  ! netCDF return code
+  integer :: ncid
+    ! netCDF file ID
+  integer :: varid
+    ! netCDF variable ID
+  integer :: rc
+    ! netCDF return code
 
   ! netCDF requires the following to be length-1 arrays
-  integer :: nc_start(1)  ! netCDF start index
-  integer :: nc_count(1)  ! netCDF index count
+  integer :: nc_start(1)
+    ! netCDF start index
+  integer :: nc_count(1)
+    ! netCDF index count
 
-  integer :: d  ! Dimension index
-  character(len=2) :: d_str  ! Display string of d
+  integer :: d
+    ! Dimension index
+  character(len=2) :: d_str
+    ! Display string of d
 
   ! This is a reimplementation of get_var_axes_info(), maybe it can be used
   ! by the existing get_var_axes_info() ?
@@ -277,11 +292,15 @@ end function get_extern_field_missing
 
 !> Get information about the external fields.
 subroutine get_external_field_info(field, size, axes, missing)
-  type(external_field), intent(in) :: field           !< handle for time interpolated external field returned
-                                                      !! from a previous call to init_external_field()
-  integer, optional, intent(inout) :: size(4)         !< Dimension sizes for the input data
-  type(axistype), optional, intent(inout) :: axes(4)  !< Axis types for the input data
-  real, optional, intent(inout) :: missing            !< Missing value for the input data
+  type(external_field), intent(in) :: field
+    !< handle for time interpolated external field returned from a previous
+    !! call to init_external_field()
+  integer, optional, intent(inout) :: size(4)
+    !< Dimension sizes for the input data
+  type(axistype), optional, intent(inout) :: axes(4)
+    !< Axis types for the input data
+  real, optional, intent(inout) :: missing
+    !< Missing value for the input data
 
   if (present(size)) then
     size(:) = get_extern_field_size(field%id)
