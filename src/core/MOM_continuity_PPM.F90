@@ -1731,7 +1731,7 @@ subroutine continuity_PPM_2d_fluxes(u_a, v_a, h_a, uhbt_a, vhbt_a, dt, bxC, &
       IdxT_c                = IdxT_a%to_c()
       dx_Cv_c               = dx_Cv_a%to_c()
       IdyT_c                = IdyT_a%to_c()
-      recon_CS_c   	    = reconstruction_CS_to_c(CS%reconstruction_CS)
+      recon_CS_c            = reconstruction_CS_to_c(CS%reconstruction_CS)
       transp_adjust_CS_c    = transport_adjust_CS_to_c(CS%transport_adjust_CS)
       por_face_areaU_c      = por_face_areaU_a%to_c()
       por_face_areaV_c      = por_face_areaV_a%to_c()
