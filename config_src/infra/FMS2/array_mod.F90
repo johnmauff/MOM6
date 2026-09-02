@@ -6,7 +6,7 @@ module array_mod
   private
   public :: RealArray_t, RealArray_C
   public :: IntArray_t
-  public :: LogicalArray_t
+  public :: LogicalArray_t, LogicalArray_C
 
   !< Type IntArray_C struct for C++ bridge layer
   type, bind(C) :: IntArray_C
@@ -25,6 +25,15 @@ module array_mod
      type(c_ptr) :: ub                 !< Upper bounds
      integer(c_int) :: rank            !< The number of dimensions
   end type RealArray_C
+
+  !< Type LogicalArray_C struct for C++ bridge layer
+  type, bind(C) :: LogicalArray_C
+     type(c_ptr) :: data               !< Storage pointer for array container
+     type(c_ptr) :: shape              !< An array of dinmension extents
+     type(c_ptr) :: lb                 !< Lower bounds
+     type(c_ptr) :: ub                 !< Upper bounds
+     integer(c_int) :: rank            !< The number of dimensions
+  end type LogicalArray_C
 
   type :: RealArray_t
      real(kind=real64), pointer, contiguous :: data(:) => null() !< Storage ptr for array container

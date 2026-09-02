@@ -116,6 +116,9 @@ subroutine continuity(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt, v
   type(Box_t) :: bx0
   integer :: stencil
   logical :: x_first
+  type(BT_cont_type), pointer :: BT_cont_local ! continuity_PPM's BT_cont is mandatory (a
+                                               ! pointer, possibly disassociated); this caller's
+                                               ! own BT_cont stays optional (fixed external API).
 
   call u_a%alloc(lb=LBOUND(u), ub=UBOUND(u), source=u)
   call v_a%alloc(lb=LBOUND(v), ub=UBOUND(v), source=v)
@@ -154,13 +157,16 @@ subroutine continuity(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt, v
   if (present(du_cor)) call du_cor_a%alloc(lb=LBOUND(du_cor), ub=UBOUND(du_cor), source=du_cor)
   if (present(dv_cor)) call dv_cor_a%alloc(lb=LBOUND(dv_cor), ub=UBOUND(dv_cor), source=dv_cor)
 
+  nullify(BT_cont_local)
+  if (present(BT_cont)) BT_cont_local => BT_cont
+
   call continuity_PPM(u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, bx0, stencil, x_first, &
                        mask2dT_a, dy_Cu_a, IareaT_a, IdxT_a, areaT_a, dxT_a, &
                        mask2dCu_a, dxCu_a, dx_Cv_a, IdyT_a, dyT_a, mask2dCv_a, dyCv_a, &
                        G%isd, G%ied, GV%Angstrom_H, GV%H_subroundoff, CS, OBC, pbv, &
                        uhbt_a=uhbt_a, vhbt_a=vhbt_a, visc_rem_u_a=visc_rem_u_a, &
                        visc_rem_v_a=visc_rem_v_a, u_cor_a=u_cor_a, v_cor_a=v_cor_a, &
-                       BT_cont=BT_cont, du_cor_a=du_cor_a, dv_cor_a=dv_cor_a)
+                       BT_cont=BT_cont_local, du_cor_a=du_cor_a, dv_cor_a=dv_cor_a)
 
   call h_a%copy2F(h)
   call uh_a%copy2F(uh)

@@ -19,7 +19,7 @@ use MOM_unit_scaling, only : unit_scale_type
 use MOM_variables, only : BT_cont_type, porous_barrier_type
 use MOM_verticalGrid, only : verticalGrid_type
 
-use array_mod, only : RealArray_t, RealArray_c, LogicalArray_t
+use array_mod, only : RealArray_t, RealArray_c, LogicalArray_t, LogicalArray_c
 use box_mod, only : Box_t, Box_c
 use iso_c_binding, only : c_double, c_int, c_ptr, c_loc, c_bool, c_null_char, c_null_ptr
 use posix, only : mkdir_posix
@@ -344,7 +344,7 @@ subroutine continuity_PPM(u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, bx0, stencil, x_
                            intent(inout) :: v_cor_a
                              !< The meridional velocities that give vhbt as the depth-integrated
                              !! transport [L T-1 ~> m s-1].
-  type(BT_cont_type), optional, pointer  :: BT_cont !< A structure with elements that describe
+  type(BT_cont_type), pointer  :: BT_cont !< A structure with elements that describe
                              !!  the effective open face areas as a function of barotropic flow.
   type(RealArray_t), &
                            intent(inout) :: du_cor_a !< The zonal velocity increments from u that
@@ -508,7 +508,10 @@ subroutine continuity_PPM_3d_fluxes(u_a, v_a, h_a, uh_a, vh_a, dt, bxC, &
   ! Never allocated -- this caller does not report the barotropic-consistency outputs.
   type(RealArray_t) :: uhbt_a, visc_rem_u_a, u_cor_a, du_cor_a
   type(RealArray_t) :: vhbt_a, visc_rem_v_a, v_cor_a, dv_cor_a
+  ! Never associated -- this caller has no BT_cont to report into.
+  type(BT_cont_type), pointer :: BT_cont_none
 
+  nullify(BT_cont_none)
   call u_a%view(u)
   call v_a%view(v)
   call h_a%view(h)
@@ -525,7 +528,7 @@ subroutine continuity_PPM_3d_fluxes(u_a, v_a, h_a, uh_a, vh_a, dt, bxC, &
                        dy_Cu_a, IareaT_a, IdxT_a, areaT_a, dxT_a, mask2dCu_a, dxCu_a, &
                        H_subroundoff, CS%transport_adjust_CS, &
                        OBC, por_face_areaU_a, uhbt_a=uhbt_a, visc_rem_u_a=visc_rem_u_a, &
-                       u_cor_a=u_cor_a, du_cor_a=du_cor_a)
+                       u_cor_a=u_cor_a, BT_cont=BT_cont_none, du_cor_a=du_cor_a)
   call h_W_a%free() ; call h_E_a%free() ; call por_face_areaU_a%free()
 
   call h_S_a%alloc(lb=[h_a%lb(1),h_a%lb(2),h_a%lb(3)], ub=[h_a%ub(1),h_a%ub(2),h_a%ub(3)])
@@ -538,7 +541,8 @@ subroutine continuity_PPM_3d_fluxes(u_a, v_a, h_a, uh_a, vh_a, dt, bxC, &
                             dx_Cv_a, IareaT_a, IdyT_a, areaT_a, dyT_a, mask2dCv_a, dyCv_a, &
                             isd, ied, H_subroundoff, &
                             CS%transport_adjust_CS, OBC, por_face_areaV_a, vhbt_a=vhbt_a, &
-                            visc_rem_v_a=visc_rem_v_a, v_cor_a=v_cor_a, dv_cor_a=dv_cor_a)
+                            visc_rem_v_a=visc_rem_v_a, v_cor_a=v_cor_a, BT_cont=BT_cont_none, &
+                            dv_cor_a=dv_cor_a)
   call h_S_a%free() ; call h_N_a%free() ; call por_face_areaV_a%free()
 
 end subroutine continuity_PPM_3d_fluxes
@@ -679,7 +683,10 @@ subroutine continuity_PPM_adjust_vel(u_a, v_a, h_a, dt, bxC, &
   real, dimension(:,:,:), contiguous, pointer :: u, v, h
   type(RealArray_t) :: h_W_a, h_E_a, h_S_a, h_N_a
   type(RealArray_t) :: u_in_a, v_in_a, uh_a, vh_a, por_face_areaU_a, por_face_areaV_a
+  ! Never associated -- this caller has no BT_cont to report into.
+  type(BT_cont_type), pointer :: BT_cont_none
 
+  nullify(BT_cont_none)
   call u_a%view(u)
   call v_a%view(v)
   call h_a%view(h)
@@ -700,7 +707,8 @@ subroutine continuity_PPM_adjust_vel(u_a, v_a, h_a, dt, bxC, &
                        dy_Cu_a, IareaT_a, IdxT_a, areaT_a, dxT_a, mask2dCu_a, dxCu_a, &
                        H_subroundoff, CS%transport_adjust_CS, &
                        OBC, por_face_areaU_a, uhbt_a=uhbt_a, &
-                       visc_rem_u_a=visc_rem_u_a, u_cor_a=u_cor_a, du_cor_a=du_cor_a)
+                       visc_rem_u_a=visc_rem_u_a, u_cor_a=u_cor_a, BT_cont=BT_cont_none, &
+                       du_cor_a=du_cor_a)
   call u_cor_a%copy2F(u) ; call u_cor_a%free()
   call h_W_a%free() ; call h_E_a%free() ; call u_in_a%free() ; call uh_a%free()
   call por_face_areaU_a%free()
@@ -718,7 +726,8 @@ subroutine continuity_PPM_adjust_vel(u_a, v_a, h_a, dt, bxC, &
                             dx_Cv_a, IareaT_a, IdyT_a, areaT_a, dyT_a, mask2dCv_a, dyCv_a, &
                             isd, ied, H_subroundoff, &
                             CS%transport_adjust_CS, OBC, por_face_areaV_a, vhbt_a=vhbt_a, &
-                            visc_rem_v_a=visc_rem_v_a, v_cor_a=v_cor_a, dv_cor_a=dv_cor_a)
+                            visc_rem_v_a=visc_rem_v_a, v_cor_a=v_cor_a, BT_cont=BT_cont_none, &
+                            dv_cor_a=dv_cor_a)
   call v_cor_a%copy2F(v) ; call v_cor_a%free()
   call h_S_a%free() ; call h_N_a%free() ; call v_in_a%free() ; call vh_a%free()
   call por_face_areaV_a%free()
@@ -1131,7 +1140,7 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, &
                            intent(inout) :: u_cor_a
                      !< The zonal velocities (u with a barotropic correction)
                      !! that give uhbt as the depth-integrated transport [L T-1 ~> m s-1]
-  type(BT_cont_type), optional, pointer  :: BT_cont !< A structure with elements that describe the
+  type(BT_cont_type), pointer  :: BT_cont !< A structure with elements that describe the
                      !! effective open face areas as a function of barotropic flow.
   type(RealArray_t), &
                            intent(inout) :: du_cor_a !< The zonal velocity increments from u that give uhbt
@@ -1194,7 +1203,7 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, &
 
   use_visc_rem = visc_rem_u_a%associated()
 
-  set_BT_cont = .false. ; if (present(BT_cont)) set_BT_cont = (associated(BT_cont))
+  set_BT_cont = associated(BT_cont)
   if (set_BT_cont) then
     call BT_cont%FA_u_W0%view(FA_u_W0) ; call BT_cont%FA_u_E0%view(FA_u_E0)
     call BT_cont%FA_u_WW%view(FA_u_WW) ; call BT_cont%FA_u_EE%view(FA_u_EE)
@@ -2301,7 +2310,7 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, &
                                               intent(inout) :: v_cor_a
                                    !< The meridional velocities (v with a barotropic correction)
                                    !! that give vhbt as the depth-integrated transport [L T-1 ~> m s-1].
-  type(BT_cont_type),               optional, pointer     :: BT_cont !< A structure with elements that describe
+  type(BT_cont_type),               pointer     :: BT_cont !< A structure with elements that describe
                                    !! the effective open face areas as a function of barotropic flow.
   type(RealArray_t), &
                                               intent(inout)   :: dv_cor_a !< The meridional velocity increments from v
@@ -2365,7 +2374,7 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, &
 
   use_visc_rem = visc_rem_v_a%associated()
 
-  set_BT_cont = .false. ; if (present(BT_cont)) set_BT_cont = (associated(BT_cont))
+  set_BT_cont = associated(BT_cont)
   if (set_BT_cont) then
     call BT_cont%FA_v_S0%view(FA_v_S0) ; call BT_cont%FA_v_N0%view(FA_v_N0)
     call BT_cont%FA_v_SS%view(FA_v_SS) ; call BT_cont%FA_v_NN%view(FA_v_NN)
