@@ -196,7 +196,7 @@ end subroutine continuity
 
 !> Finds the thickness fluxes from the continuity solver without actually updating the
 !! layer thicknesses.  Because the fluxes in the two directions are calculated based on the
-!! input thicknesses, which are not updated between the direcitons, the fluxes returned here
+!! input thicknesses, which are not updated between the directions, the fluxes returned here
 !! are not the same as those that would be returned by a call to continuity.
 subroutine continuity_3d_fluxes(u, v, h, uh, vh, dt, G, GV, US, CS, OBC, pbv)
   type(ocean_grid_type),   intent(inout) :: G   !< Ocean grid structure.

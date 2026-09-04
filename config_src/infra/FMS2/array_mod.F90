@@ -29,7 +29,7 @@ module array_mod
   !< Type LogicalArray_C struct for C++ bridge layer
   type, bind(C) :: LogicalArray_C
      type(c_ptr) :: data               !< Storage pointer for array container
-     type(c_ptr) :: shape              !< An array of dinmension extents
+    type(c_ptr) :: shape              !< An array of dimension extents
      type(c_ptr) :: lb                 !< Lower bounds
      type(c_ptr) :: ub                 !< Upper bounds
      integer(c_int) :: rank            !< The number of dimensions
@@ -135,7 +135,7 @@ module array_mod
      procedure :: copy2ALogical1D, copy2ALogical2D, & !< Copy data from a Fortran array to a container
                   copy2ALogical3D, copy2ALogical4D, &
                   copy2ALogical0D
-     generic :: copy2F =>                 &       !< Generic interface for copy to Fortran arrayc
+    generic :: copy2F =>                 &       !< Generic interface for copy to Fortran array
                 copy2FLogical1D, copy2FLogical2D, &
                 copy2FLogical3D, copy2FLogical4D
      generic :: copy2Array => copy2ALogical0D, &   !< Generic interface for copy to array container
@@ -915,7 +915,7 @@ subroutine allocLogical(this, dims,lb,ub,source)
   allocate(this%data(product(this%shape)))
 
   ! initialize the variable
-  ! Note this this is a CPU only assignment.
+  ! Note that this is a CPU only assignment.
   ! It will not work correctly on the GPU
   if(present(source)) call this%copy2Array(source)
 
@@ -1338,7 +1338,7 @@ subroutine allocViewLogical1D(this, a, dims, lb, ub, source)
    integer, intent(in), optional :: dims(:) !< Dimensions (1-indexed)
    integer, intent(in), optional :: lb(:)   !< Lower bounds
    integer, intent(in), optional :: ub(:)   !< Upper bounds
-   logical, intent(in), optional :: source  !< Initial value foer all elements
+   logical, intent(in), optional :: source  !< Initial value for all elements
 
    ! allocate the memory
    call this%allocLogical(dims=dims, lb=lb, ub=ub, source=source)
