@@ -422,6 +422,25 @@ The PR's commit history (~70 commits) reveals the friction worth flagging:
    selector together*, not just the body — otherwise the unused `case` is
    reachable and falls through to fortran with no diagnostics. The PR's
    final form keeps both inside `#ifdef`.
+8. **Incomplete flattening of a derived-type dummy.** A struct like
+   `BT_cont` crosses `bind(C)` as one `RealArray_C` per field, so the
+   field list is hand-built — and easy to get short. Real case:
+   `zonal_mass_flux`'s bridge carried the six `FA_u_*`/`uBT_*` fields but
+   not `BT_cont%h_u`, which `zonal_mass_flux_fortran` writes by passing
+   it to `zonal_flux_thickness` at the very end of the body. Why it was
+   missed: the list matched `set_zonal_BT_cont`'s bridge (correct *there*
+   — that body never touches `h_u`); the six fields are `%view`'d in one
+   block near the top while `h_u` appears only once, ~280 lines later,
+   as a call argument; and `h_u` sits behind a second guard
+   (`BT_cont%h_u%associated()`, allocated only with `alloc_faces`).
+   Nothing caught it: FORTRAN mode stays bit-identical, argument counts
+   between shim and interface agree, and CAPTURE omitted `h_u` from the
+   same list, so a C++ replay passes. In AMREX mode `h_u` was simply
+   left stale — the barotropic solver's face-thickness weights, silently
+   wrong. The same gap propagated to `continuity_PPM`'s bridge.
+   Fix: derive the list from the body by grep (including call actuals),
+   give nested-optional fields their own null-able channel, and diff
+   field sets by script (`generate_cpp_bridge` Steps 2 and 9).
 
 ---
 

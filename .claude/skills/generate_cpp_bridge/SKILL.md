@@ -190,6 +190,28 @@ holds the template or rationale.
    `real(c_double)`/`integer(c_int)`/`logical(c_bool)` by value,
    pointers → `type(c_ptr)`.
 
+   **A derived-type dummy whose fields must cross the boundary**
+   (`BT_cont`, anything not opaque to the C side) can't cross as one
+   argument, so its fields are flattened into separate `RealArray_C`s.
+   Derive that field list from the `_fortran` body, **never** from a
+   sibling bridge's interface that takes the same type — a sibling only
+   carries the fields *its* body touches (lessons.md §10 #8):
+   1. Grep the whole body for every `<dummy>%<field>` occurrence,
+      including actual arguments to callees (`call foo(..., BT_cont%h_u,
+      ...)`) and calls that pass the whole struct to another subroutine
+      — follow those into the callee and repeat. Deduplicate by field.
+   2. Record per field: read and/or written, and every guard around its
+      use. A field behind a second guard beyond the struct's own
+      presence (`if (BT_cont%h_u%associated())` inside `if
+      (set_BT_cont)`) is independently optional: it still needs its own
+      channel, which may be null even when the struct is present.
+   3. Every field on the list gets a `bind(C)` argument (Step 4), an
+      AMREX-arm `%to_c()` with a null placeholder for the absent case
+      (Step 5), and capture records (Step 5, lessons.md §13):
+      `_before` if read, `_after` if written. Print the list with each
+      field's read/written/guard classification alongside Step 2's
+      argument map.
+
    Do **not** introduce a `Box_t`, and do not alter any dummy's type. If
    the iteration domain is not already a `Box_t`, stop and refer the
    user to `convert_array_containers` — Step 0 item 5 should have
@@ -252,6 +274,18 @@ holds the template or rationale.
    call — never inside the shim (lessons.md §16).
 
 ### 9. Verify
+   **Field coverage, first, by script.** For every flattened derived-type
+   dummy (Step 2), re-grep `$1_fortran` (and the callees Step 2 followed)
+   for `<dummy>%<field>` and diff that field set against three others:
+   the `bind(C)` interface's arguments, the AMREX arm's `%to_c()`
+   assignments, and the capture arm's `rec%add` names (`_after` for every
+   written field). All four must agree. Argument count/order matching
+   between the shim call and the interface does **not** catch this — an
+   omitted field is omitted from both consistently. Nor does CAPTURE
+   mode: the capture list is built from the same field list, so a C++
+   replay validates against a recording that never contained the
+   missing field.
+
    Run the three-mode matrix in lessons.md §17. If only the Fortran
    shim + capture are being delivered, stop after CAPTURE verification
    and report that the C++ side of `<prefix>_$1_bridge` is the next
@@ -335,6 +369,11 @@ than adding a second line. Deliberately grep-able
 - Do not re-implement `getenv_mode`, `already_recorded`, `mark_recorded`,
   or `io_recorder` — `use` them from `turbotmp_helperF`.
 - Do not reuse a `kernel` string across kernels.
+- Do not copy a flattened derived-type field list from another bridge —
+  derive it from this subroutine's own `_fortran` body, callees
+  included (Step 2), and verify it by script (Step 9). Every field the
+  body writes must be in the `bind(C)` interface, the AMREX arm, and the
+  capture `_after` records.
 
 If something not covered here comes up, consult lessons.md §10
 (recurring pitfalls) before improvising.

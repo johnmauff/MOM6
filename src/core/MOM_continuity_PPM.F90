@@ -644,7 +644,7 @@ interface
                                              IdxT, areaT, dxT, mask2dCu, dxCu, H_subroundoff, &
                                              CS, obc, por_face_areaU, uhbt, visc_rem_u, u_cor, &
                                              FA_u_W0, FA_u_E0, FA_u_WW, FA_u_EE, uBT_WW, uBT_EE, &
-                                             du_cor) bind(C)
+                                             h_u, du_cor) bind(C)
     use iso_c_binding, only : c_double, c_ptr
     use array_mod, only : RealArray_c
     use box_mod,   only : Box_c
@@ -693,6 +693,9 @@ interface
     type(RealArray_C), intent(inout) :: FA_u_EE !< Effective open face area, easterly test velocity
     type(RealArray_C), intent(inout) :: uBT_WW  !< Westerly correction to the barotropic velocity
     type(RealArray_C), intent(inout) :: uBT_EE  !< Easterly correction to the barotropic velocity
+    type(RealArray_C), intent(inout) :: h_u !< An effective thickness at zonal faces, taking into
+                     !! account the effects of vertical viscosity and fractional open areas
+                     !! [H ~> m or kg m-2].
     type(RealArray_C), intent(inout) :: du_cor
                      !< The zonal velocity increments from u that give uhbt
                      !! as the depth-integrated transports [L T-1 ~> m s-1].
@@ -705,7 +708,7 @@ interface
                                                   IdyT, areaT, dyT, mask2dCv, dyCv, isd, ied, &
                                                   H_subroundoff, CS, obc, por_face_areaV, vhbt, &
                                                   visc_rem_v, v_cor, FA_v_S0, FA_v_N0, FA_v_SS, &
-                                                  FA_v_NN, vBT_SS, vBT_NN, dv_cor) bind(C)
+                                                  FA_v_NN, vBT_SS, vBT_NN, h_v, dv_cor) bind(C)
     use iso_c_binding, only : c_double, c_int, c_ptr
     use array_mod, only : RealArray_c
     use box_mod,   only : Box_c
@@ -759,6 +762,9 @@ interface
     type(RealArray_C), intent(inout) :: FA_v_NN !< Effective open face area, northerly test velocity
     type(RealArray_C), intent(inout) :: vBT_SS  !< Southerly correction to the barotropic velocity
     type(RealArray_C), intent(inout) :: vBT_NN  !< Northerly correction to the barotropic velocity
+    type(RealArray_C), intent(inout) :: h_v !< An effective thickness at meridional faces, taking
+                                   !! into account the effects of vertical viscosity and fractional
+                                   !! open areas [H ~> m or kg m-2].
     type(RealArray_C), intent(inout) :: dv_cor
                                    !< The meridional velocity increments from v
                                    !! that give vhbt as the depth-integrated
@@ -818,7 +824,7 @@ interface
                                             uhbt, vhbt, visc_rem_u, visc_rem_v, u_cor, v_cor, &
                                             FA_u_W0, FA_u_E0, FA_u_WW, FA_u_EE, uBT_WW, uBT_EE, &
                                             FA_v_S0, FA_v_N0, FA_v_SS, FA_v_NN, vBT_SS, vBT_NN, &
-                                            du_cor, dv_cor) bind(C)
+                                            h_u, h_v, du_cor, dv_cor) bind(C)
     use iso_c_binding, only : c_double, c_int, c_bool, c_ptr
     use array_mod, only : RealArray_c
     use box_mod,   only : Box_c
@@ -903,6 +909,12 @@ interface
     type(RealArray_C), intent(inout) :: FA_v_NN !< Effective open face area, northerly test velocity
     type(RealArray_C), intent(inout) :: vBT_SS  !< Southerly correction to the barotropic velocity
     type(RealArray_C), intent(inout) :: vBT_NN  !< Northerly correction to the barotropic velocity
+    type(RealArray_C), intent(inout) :: h_u !< An effective thickness at zonal faces, taking into
+                     !! account the effects of vertical viscosity and fractional open areas
+                     !! [H ~> m or kg m-2].
+    type(RealArray_C), intent(inout) :: h_v !< An effective thickness at meridional faces, taking
+                     !! into account the effects of vertical viscosity and fractional open areas
+                     !! [H ~> m or kg m-2].
     type(RealArray_C), intent(inout) :: du_cor !< The zonal velocity increments from u that
                                               !! give uhbt as the depth-integrated
                                               !! transports [L T-1 ~> m s-1].
@@ -1048,7 +1060,7 @@ subroutine continuity_PPM_fortran(u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, bx0, ste
   real, dimension(:,:,:), contiguous, pointer :: u, v, hin, h, uh, vh
   type(RealArray_t) :: h_W_a, h_E_a, h_S_a, h_N_a
   type(RealArray_t) :: por_face_areaU_a, por_face_areaV_a
-  type(RealArray_t) :: hin_a_none ! Never allocated -- the h_min branch uses h_min, not hin.
+  type(RealArray_t) :: hin_a_none
 
   call u_a%view(u)
   call v_a%view(v)
@@ -1239,6 +1251,7 @@ subroutine continuity_PPM(u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, bx0, stencil, x_
   type(RealArray_C) :: du_cor_c, dv_cor_c
   type(RealArray_C) :: FA_u_W0_c, FA_u_E0_c, FA_u_WW_c, FA_u_EE_c, uBT_WW_c, uBT_EE_c
   type(RealArray_C) :: FA_v_S0_c, FA_v_N0_c, FA_v_SS_c, FA_v_NN_c, vBT_SS_c, vBT_NN_c
+  type(RealArray_C) :: h_u_c, h_v_c
   type(RealArray_t)  :: por_face_areaU_a, por_face_areaV_a
   type(RealArray_t)  :: bt_field_none ! Never allocated -- used to get a null RealArray_C
                                       ! when BT_cont is absent, matching %to_c()'s
@@ -1336,6 +1349,8 @@ subroutine continuity_PPM(u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, bx0, stencil, x_
           call rec%add("_FA_v_NN_before", BT_cont%FA_v_NN)
           call rec%add("_vBT_SS_before",  BT_cont%vBT_SS)
           call rec%add("_vBT_NN_before",  BT_cont%vBT_NN)
+          call rec%add("_h_u_before",     BT_cont%h_u)
+          call rec%add("_h_v_before",     BT_cont%h_v)
         endif
       endif
 
@@ -1367,6 +1382,8 @@ subroutine continuity_PPM(u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, bx0, stencil, x_
           call rec%add("_FA_v_NN_after", BT_cont%FA_v_NN)
           call rec%add("_vBT_SS_after",  BT_cont%vBT_SS)
           call rec%add("_vBT_NN_after",  BT_cont%vBT_NN)
+          call rec%add("_h_u_after",     BT_cont%h_u)
+          call rec%add("_h_v_after",     BT_cont%h_v)
         endif
         call rec%close()
         call mark_recorded(trim(kernel))
@@ -1420,6 +1437,8 @@ subroutine continuity_PPM(u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, bx0, stencil, x_
         FA_v_NN_c = BT_cont%FA_v_NN%to_c()
         vBT_SS_c  = BT_cont%vBT_SS%to_c()
         vBT_NN_c  = BT_cont%vBT_NN%to_c()
+        h_u_c     = BT_cont%h_u%to_c()
+        h_v_c     = BT_cont%h_v%to_c()
       else
         FA_u_W0_c = bt_field_none%to_c()
         FA_u_E0_c = bt_field_none%to_c()
@@ -1433,6 +1452,8 @@ subroutine continuity_PPM(u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, bx0, stencil, x_
         FA_v_NN_c = bt_field_none%to_c()
         vBT_SS_c  = bt_field_none%to_c()
         vBT_NN_c  = bt_field_none%to_c()
+        h_u_c     = bt_field_none%to_c()
+        h_v_c     = bt_field_none%to_c()
       endif
       if (associated(OBC)) then
         OBC_c = c_loc(OBC)
@@ -1449,7 +1470,7 @@ subroutine continuity_PPM(u_a, v_a, hin_a, h_a, uh_a, vh_a, dt, bx0, stencil, x_
                                           visc_rem_v_c, u_cor_c, v_cor_c, FA_u_W0_c, FA_u_E0_c, &
                                           FA_u_WW_c, FA_u_EE_c, uBT_WW_c, uBT_EE_c, FA_v_S0_c, &
                                           FA_v_N0_c, FA_v_SS_c, FA_v_NN_c, vBT_SS_c, vBT_NN_c, &
-                                          du_cor_c, dv_cor_c)
+                                          h_u_c, h_v_c, du_cor_c, dv_cor_c)
 #endif
 
     case default
@@ -1514,10 +1535,8 @@ subroutine continuity_PPM_3d_fluxes(u_a, v_a, h_a, uh_a, vh_a, dt, bxC, &
   real, dimension(:,:,:), contiguous, pointer :: u, v, h, uh, vh
   type(RealArray_t) :: h_W_a, h_E_a, h_S_a, h_N_a
   type(RealArray_t) :: por_face_areaU_a, por_face_areaV_a
-  ! Never allocated -- this caller does not report the barotropic-consistency outputs.
   type(RealArray_t) :: uhbt_a, visc_rem_u_a, u_cor_a, du_cor_a
   type(RealArray_t) :: vhbt_a, visc_rem_v_a, v_cor_a, dv_cor_a
-  ! Never associated -- this caller has no BT_cont to report into.
   type(BT_cont_type), pointer :: BT_cont_none
 
   nullify(BT_cont_none)
@@ -1561,7 +1580,6 @@ end subroutine continuity_PPM_3d_fluxes
 !! updating the layer thicknesses.  Because the fluxes in the two directions are calculated
 !! based on the input thicknesses, which are not updated between the directions, the fluxes
 !! returned here are not the same as those that would be returned by a call to continuity.
-!> Original Fortran implementation of continuity_PPM_2d_fluxes (renamed). Takes containers.
 subroutine continuity_PPM_2d_fluxes_fortran(u_a, v_a, h_a, uhbt_a, vhbt_a, dt, bxC, &
                                     mask2dT_a, dy_Cu_a, IareaT_a, IdxT_a, dx_Cv_a, IdyT_a, &
                                     Angstrom_H, CS, OBC, pbv)
@@ -1827,11 +1845,10 @@ subroutine continuity_PPM_adjust_vel(u_a, v_a, h_a, dt, bxC, &
 
   ! Local variables
   type(RealArray_t) :: u_cor_a, v_cor_a
-  type(RealArray_t) :: du_cor_a, dv_cor_a ! Never allocated -- this caller does not report these.
+  type(RealArray_t) :: du_cor_a, dv_cor_a
   real, dimension(:,:,:), contiguous, pointer :: u, v, h
   type(RealArray_t) :: h_W_a, h_E_a, h_S_a, h_N_a
   type(RealArray_t) :: u_in_a, v_in_a, uh_a, vh_a, por_face_areaU_a, por_face_areaV_a
-  ! Never associated -- this caller has no BT_cont to report into.
   type(BT_cont_type), pointer :: BT_cont_none
 
   nullify(BT_cont_none)
@@ -1885,7 +1902,6 @@ end subroutine continuity_PPM_adjust_vel
 
 
 !> Updates the thicknesses due to zonal thickness fluxes.
-!> Original Fortran implementation of continuity_zonal_convergence (renamed). Takes containers.
 subroutine continuity_zonal_convergence_fortran(bxC, h_a, uh_a, dt, IareaT_a, hin_a, hmin)
   type(box_t), intent(in) :: bxC                 !< Iteration box for continuity solver
   type(RealArray_t),          intent(inout) :: h_a  !< Final layer thickness [H ~> m or kg m-2]
@@ -2006,7 +2022,6 @@ subroutine continuity_zonal_convergence(bxC, h_a, uh_a, dt, IareaT_a, hin_a, hmi
 end subroutine continuity_zonal_convergence
 
 !> Updates the thicknesses due to meridional thickness fluxes.
-!> Original Fortran implementation of continuity_meridional_convergence (renamed). Takes containers.
 subroutine continuity_meridional_convergence_fortran(bxC, h_a, vh_a, dt, IareaT_a, hin_a, hmin)
   type(box_t), intent(in) :: bxC                 !< Iteration box for continuity solver
   type(RealArray_t),          intent(inout) :: h_a  !< Final layer thickness [H ~> m or kg m-2]
@@ -2128,7 +2143,7 @@ subroutine continuity_meridional_convergence(bxC, h_a, vh_a, dt, IareaT_a, hin_a
 end subroutine continuity_meridional_convergence
 
 
-!> Original Fortran implementation of zonal_edge_thickness (renamed). Takes containers.
+!> Set the reconstructed thicknesses at the eastern and western edges of tracer cells.
 subroutine zonal_edge_thickness_fortran(bxC, h_in_a, h_W_a, h_E_a, mask2dT_a, &
                                         h_min, upwind_1st, monotonic, simple_2nd, OBC)
   type(Box_t),          intent(in)    :: bxC        !< Iteration box for continuity solver
@@ -2261,7 +2276,7 @@ subroutine zonal_edge_thickness(bxC, h_in_a, h_W_a, h_E_a, mask2dT_a, Angstrom_H
 end subroutine zonal_edge_thickness
 
 
-!> Original Fortran implementation of meridional_edge_thickness (renamed). Takes containers.
+!> Set the reconstructed thicknesses at the eastern and western edges of tracer cells.
 subroutine meridional_edge_thickness_fortran(bxC, h_in_a, h_S_a, h_N_a, mask2dT_a, &
                                              h_min, upwind_1st, monotonic, simple_2nd, OBC)
   type(Box_t),          intent(in)    :: bxC        !< Iteration box for continuity solver
@@ -2395,7 +2410,6 @@ end subroutine meridional_edge_thickness
 
 
 !> Calculates the mass or volume fluxes through the zonal faces, and other related quantities.
-!> Original Fortran implementation of zonal_mass_flux (renamed). Takes containers.
 subroutine zonal_mass_flux_fortran(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, &
                            dy_Cu_a, IareaT_a, IdxT_a, areaT_a, dxT_a, mask2dCu_a, dxCu_a, &
                            H_subroundoff, CS, OBC, &
@@ -2475,7 +2489,6 @@ subroutine zonal_mass_flux_fortran(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, &
   type(RealArray_t) :: uh_tot_0_a, duhdu_tot_0_a, du_max_CFL_a, du_min_CFL_a, du_a
   type(RealArray_t) :: visc_rem_max_a
   type(LogicalArray_t) :: do_I_a
-  ! Never allocated -- the zero-transport (du0) correction never uses uhbt or reports uh_3d.
   type(RealArray_t) :: uhbt_none, uh_3d_none
 
   call u_a%view(u)
@@ -2850,7 +2863,7 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, &
   type(RealArray_C) :: u_c, h_in_c, h_W_c, h_E_c, uh_c
   type(RealArray_C) :: dy_Cu_c, IareaT_c, IdxT_c, areaT_c, dxT_c, mask2dCu_c, dxCu_c
   type(RealArray_C) :: por_face_areaU_c, uhbt_c, visc_rem_u_c, u_cor_c, du_cor_c
-  type(RealArray_C) :: FA_u_W0_c, FA_u_E0_c, FA_u_WW_c, FA_u_EE_c, uBT_WW_c, uBT_EE_c
+  type(RealArray_C) :: FA_u_W0_c, FA_u_E0_c, FA_u_WW_c, FA_u_EE_c, uBT_WW_c, uBT_EE_c, h_u_c
   type(RealArray_t)           :: bt_field_none ! Never allocated -- used to get a null RealArray_C
                                                ! when BT_cont is absent, matching %to_c()'s
                                                ! null-safe behavior on an unassociated container.
@@ -2912,6 +2925,7 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, &
           call rec%add("_FA_u_EE_before", BT_cont%FA_u_EE)
           call rec%add("_uBT_WW_before",  BT_cont%uBT_WW)
           call rec%add("_uBT_EE_before",  BT_cont%uBT_EE)
+          call rec%add("_h_u_before",     BT_cont%h_u)
         endif
       endif
 
@@ -2931,6 +2945,7 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, &
           call rec%add("_FA_u_EE_after", BT_cont%FA_u_EE)
           call rec%add("_uBT_WW_after",  BT_cont%uBT_WW)
           call rec%add("_uBT_EE_after",  BT_cont%uBT_EE)
+          call rec%add("_h_u_after",     BT_cont%h_u)
         endif
         call rec%close()
         call mark_recorded(trim(kernel))
@@ -2964,6 +2979,7 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, &
         FA_u_EE_c = BT_cont%FA_u_EE%to_c()
         uBT_WW_c  = BT_cont%uBT_WW%to_c()
         uBT_EE_c  = BT_cont%uBT_EE%to_c()
+        h_u_c     = BT_cont%h_u%to_c()
       else
         FA_u_W0_c = bt_field_none%to_c()
         FA_u_E0_c = bt_field_none%to_c()
@@ -2971,6 +2987,7 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, &
         FA_u_EE_c = bt_field_none%to_c()
         uBT_WW_c  = bt_field_none%to_c()
         uBT_EE_c  = bt_field_none%to_c()
+        h_u_c     = bt_field_none%to_c()
       endif
       if (associated(OBC)) then
         OBC_c = c_loc(OBC)
@@ -2982,7 +2999,7 @@ subroutine zonal_mass_flux(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_a, dt, &
                                            mask2dCu_c, dxCu_c, H_subroundoff, CS_c, OBC_c, &
                                            por_face_areaU_c, uhbt_c, visc_rem_u_c, u_cor_c, &
                                            FA_u_W0_c, FA_u_E0_c, FA_u_WW_c, FA_u_EE_c, &
-                                           uBT_WW_c, uBT_EE_c, du_cor_c)
+                                           uBT_WW_c, uBT_EE_c, h_u_c, du_cor_c)
 #endif
 
     case default
@@ -2999,7 +3016,6 @@ end subroutine zonal_mass_flux
 
 
 !> Calculates the vertically integrated mass or volume fluxes through the zonal faces.
-!> Original Fortran implementation of zonal_BT_mass_flux (renamed). Takes containers.
 subroutine zonal_BT_mass_flux_fortran(bxC, u_a, h_in_a, h_W_a, h_E_a, uhbt_a, dt, &
                               dy_Cu_a, IareaT_a, IdxT_a, CS, &
                               OBC, por_face_areaU_a)
@@ -3306,7 +3322,6 @@ end subroutine flux_elem_OBC
 
 !> Sets the effective interface thickness associated with the fluxes at each zonal velocity point,
 !! optionally scaling back these thicknesses to account for viscosity and fractional open areas.
-!> Original Fortran implementation of zonal_flux_thickness (renamed). Takes containers.
 subroutine zonal_flux_thickness_fortran(bxC, u_a, h_a, h_W_a, h_E_a, h_u_a, dt, &
                                 dy_Cu_a, IareaT_a, IdxT_a, vol_CFL, &
                                 marginal, OBC, por_face_areaU_a, visc_rem_u_a)
@@ -3571,7 +3586,6 @@ end subroutine zonal_flux_thickness
 
 !> Returns the barotropic velocity adjustment that gives the
 !! desired barotropic (layer-summed) transport.
-!> Original Fortran implementation of zonal_flux_adjust (renamed). Takes containers.
 subroutine zonal_flux_adjust_fortran(bxC, u_a, h_in_a, h_W_a, h_E_a, uh_tot_0_a, duhdu_tot_0_a, &
                              du_a, du_max_CFL_a, du_min_CFL_a, dt, dy_Cu_a, IareaT_a, IdxT_a, CS, &
                              visc_rem_a, do_I_in_a, por_face_areaU_a, uhbt_a, uh_3d_a, OBC)
@@ -3956,7 +3970,6 @@ end subroutine zonal_flux_adjust
 
 !> Sets a structure that describes the zonal barotropic volume or mass fluxes as a
 !! function of barotropic flow to agree closely with the sum of the layer's transports.
-!> Original Fortran implementation of set_zonal_BT_cont (renamed). Takes containers.
 subroutine set_zonal_BT_cont_fortran(bxC, u_a, h_in_a, h_W_a, h_E_a, BT_cont, du0_a, uh_tot_0_a, &
                              duhdu_tot_0_a, du_max_CFL_a, du_min_CFL_a, dt, &
                              dxCu_a, dy_Cu_a, IareaT_a, IdxT_a, CS, &
@@ -4311,7 +4324,6 @@ subroutine set_zonal_BT_cont(bxC, u_a, h_in_a, h_W_a, h_E_a, BT_cont, du0_a, uh_
 end subroutine set_zonal_BT_cont
 
 !> Calculates the mass or volume fluxes through the meridional faces, and other related quantities.
-!> Original Fortran implementation of meridional_mass_flux (renamed). Takes containers.
 subroutine meridional_mass_flux_fortran(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, &
                                 dx_Cv_a, IareaT_a, IdyT_a, areaT_a, dyT_a, mask2dCv_a, dyCv_a, &
                                 isd, ied, H_subroundoff, CS, &
@@ -4400,7 +4412,6 @@ subroutine meridional_mass_flux_fortran(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt
   type(RealArray_t) :: vh_tot_0_a, dvhdv_tot_0_a, dv_max_CFL_a, dv_min_CFL_a, dv_a
   type(RealArray_t) :: visc_rem_max_a
   type(LogicalArray_t) :: do_I_a
-  ! Never allocated -- the zero-transport (dv0) correction never uses vhbt or reports vh_3d.
   type(RealArray_t) :: vhbt_none, vh_3d_none
 
   call v_a%view(v)
@@ -4778,7 +4789,7 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, &
   type(RealArray_C) :: v_c, h_in_c, h_S_c, h_N_c, vh_c
   type(RealArray_C) :: dx_Cv_c, IareaT_c, IdyT_c, areaT_c, dyT_c, mask2dCv_c, dyCv_c
   type(RealArray_C) :: por_face_areaV_c, vhbt_c, visc_rem_v_c, v_cor_c, dv_cor_c
-  type(RealArray_C) :: FA_v_S0_c, FA_v_N0_c, FA_v_SS_c, FA_v_NN_c, vBT_SS_c, vBT_NN_c
+  type(RealArray_C) :: FA_v_S0_c, FA_v_N0_c, FA_v_SS_c, FA_v_NN_c, vBT_SS_c, vBT_NN_c, h_v_c
   type(RealArray_t)           :: bt_field_none ! Never allocated -- used to get a null RealArray_C
                                                ! when BT_cont is absent, matching %to_c()'s
                                                ! null-safe behavior on an unassociated container.
@@ -4842,6 +4853,7 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, &
           call rec%add("_FA_v_NN_before", BT_cont%FA_v_NN)
           call rec%add("_vBT_SS_before",  BT_cont%vBT_SS)
           call rec%add("_vBT_NN_before",  BT_cont%vBT_NN)
+          call rec%add("_h_v_before",     BT_cont%h_v)
         endif
       endif
 
@@ -4862,6 +4874,7 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, &
           call rec%add("_FA_v_NN_after", BT_cont%FA_v_NN)
           call rec%add("_vBT_SS_after",  BT_cont%vBT_SS)
           call rec%add("_vBT_NN_after",  BT_cont%vBT_NN)
+          call rec%add("_h_v_after",     BT_cont%h_v)
         endif
         call rec%close()
         call mark_recorded(trim(kernel))
@@ -4895,6 +4908,7 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, &
         FA_v_NN_c = BT_cont%FA_v_NN%to_c()
         vBT_SS_c  = BT_cont%vBT_SS%to_c()
         vBT_NN_c  = BT_cont%vBT_NN%to_c()
+        h_v_c     = BT_cont%h_v%to_c()
       else
         FA_v_S0_c = bt_field_none%to_c()
         FA_v_N0_c = bt_field_none%to_c()
@@ -4902,6 +4916,7 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, &
         FA_v_NN_c = bt_field_none%to_c()
         vBT_SS_c  = bt_field_none%to_c()
         vBT_NN_c  = bt_field_none%to_c()
+        h_v_c     = bt_field_none%to_c()
       endif
       if (associated(OBC)) then
         OBC_c = c_loc(OBC)
@@ -4913,7 +4928,8 @@ subroutine meridional_mass_flux(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_a, dt, &
                                                 mask2dCv_c, dyCv_c, isd, ied, H_subroundoff, &
                                                 CS_c, OBC_c, por_face_areaV_c, vhbt_c, &
                                                 visc_rem_v_c, v_cor_c, FA_v_S0_c, FA_v_N0_c, &
-                                                FA_v_SS_c, FA_v_NN_c, vBT_SS_c, vBT_NN_c, dv_cor_c)
+                                                FA_v_SS_c, FA_v_NN_c, vBT_SS_c, vBT_NN_c, h_v_c, &
+                                                dv_cor_c)
 #endif
 
     case default
@@ -4931,7 +4947,6 @@ end subroutine meridional_mass_flux
 
 
 !> Calculates the vertically integrated mass or volume fluxes through the meridional faces.
-!> Original Fortran implementation of meridional_BT_mass_flux (renamed). Takes containers.
 subroutine meridional_BT_mass_flux_fortran(bxC, v_a, h_in_a, h_S_a, h_N_a, vhbt_a, dt, &
                                    dx_Cv_a, IareaT_a, IdyT_a, CS, &
                                    OBC, por_face_areaV_a)
@@ -5145,7 +5160,6 @@ end subroutine meridional_BT_mass_flux
 
 !> Sets the effective interface thickness associated with the fluxes at each meridional velocity point,
 !! optionally scaling back these thicknesses to account for viscosity and fractional open areas.
-!> Original Fortran implementation of meridional_flux_thickness (renamed). Takes containers.
 subroutine meridional_flux_thickness_fortran(bxC, v_a, h_a, h_S_a, h_N_a, h_v_a, dt, &
                                      dx_Cv_a, IareaT_a, IdyT_a, vol_CFL, &
                                      marginal, OBC, por_face_areaV_a, visc_rem_v_a)
@@ -5412,7 +5426,6 @@ end subroutine meridional_flux_thickness
 
 
 !> Returns the barotropic velocity adjustment that gives the desired barotropic (layer-summed) transport.
-!> Original Fortran implementation of meridional_flux_adjust (renamed). Takes containers.
 subroutine meridional_flux_adjust_fortran(bxC, v_a, h_in_a, h_S_a, h_N_a, vh_tot_0_a, dvhdv_tot_0_a, &
                              dv_a, dv_max_CFL_a, dv_min_CFL_a, dt, dx_Cv_a, IareaT_a, IdyT_a, CS, &
                              visc_rem_a, do_I_in_a, por_face_areaV_a, vhbt_a, vh_3d_a, OBC)
@@ -5793,7 +5806,6 @@ end subroutine meridional_flux_adjust
 
 !> Sets of a structure that describes the meridional barotropic volume or mass fluxes as a
 !! function of barotropic flow to agree closely with the sum of the layer's transports.
-!> Original Fortran implementation of set_merid_BT_cont (renamed). Takes containers.
 subroutine set_merid_BT_cont_fortran(bxC, v_a, h_in_a, h_S_a, h_N_a, BT_cont, dv0_a, vh_tot_0_a, &
                              dvhdv_tot_0_a, dv_max_CFL_a, dv_min_CFL_a, dt, &
                              dyCv_a, dx_Cv_a, IareaT_a, IdyT_a, CS, &

@@ -116,9 +116,7 @@ subroutine continuity(u, v, hin, h, uh, vh, dt, G, GV, US, CS, OBC, pbv, uhbt, v
   type(Box_t) :: bx0
   integer :: stencil
   logical :: x_first
-  type(BT_cont_type), pointer :: BT_cont_local ! continuity_PPM's BT_cont is mandatory (a
-                                               ! pointer, possibly disassociated); this caller's
-                                               ! own BT_cont stays optional (fixed external API).
+  type(BT_cont_type), pointer :: BT_cont_local
 
   call u_a%alloc(lb=LBOUND(u), ub=UBOUND(u), source=u)
   call v_a%alloc(lb=LBOUND(v), ub=UBOUND(v), source=v)
